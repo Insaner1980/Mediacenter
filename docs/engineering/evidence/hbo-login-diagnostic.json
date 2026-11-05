@@ -1,0 +1,141 @@
+{
+  "date": "2026-11-05",
+  "installedApplicationVersion": "0.1.0",
+  "chromeVersion": "157.0.8103.38",
+  "userReportedComparison": "Ordinary Chrome and incognito both work, including the homepage Sign In button, with the VPN unchanged.",
+  "testScope": "Installed Chrome on a private authenticated Xvfb display, first disposable profiles and then the closed Mediacenter HBO profile. No credentials entered; no user cookies exported or reset; no VPN or display/audio settings changed. Automation flags differ from normal application launch, so this is diagnostic evidence, not proof of the original cause.",
+  "freshProfiles": [
+    {
+      "step": "app:home",
+      "url": "https://www.hbomax.com/",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": [
+        {
+          "text": "Sign In",
+          "href": "https://auth.hbomax.com/login"
+        }
+      ]
+    },
+    {
+      "step": "app:clicked-signin",
+      "url": "https://www.hbomax.com/auth/login",
+      "genericError": false,
+      "hasEmailInput": 1,
+      "links": []
+    },
+    {
+      "step": "app:direct-signin",
+      "url": "https://www.hbomax.com/auth/link",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": []
+    },
+    {
+      "step": "app:http-errors",
+      "failures": [
+        {
+          "status": 404,
+          "url": "https://www.hbomax.com/favicon-192.png"
+        },
+        {
+          "status": 404,
+          "url": "https://www.hbomax.com/favicon-192.png"
+        }
+      ]
+    },
+    {
+      "step": "normal:home",
+      "url": "https://www.hbomax.com/",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": [
+        {
+          "text": "Sign In",
+          "href": "https://auth.hbomax.com/login"
+        }
+      ]
+    },
+    {
+      "step": "normal:clicked-signin",
+      "url": "https://www.hbomax.com/auth/login",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": []
+    },
+    {
+      "step": "normal:direct-signin",
+      "url": "https://www.hbomax.com/auth/link",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": []
+    },
+    {
+      "step": "normal:http-errors",
+      "failures": [
+        {
+          "status": 404,
+          "url": "https://www.hbomax.com/favicon-192.png"
+        },
+        {
+          "status": 404,
+          "url": "https://www.hbomax.com/favicon-192.png"
+        }
+      ]
+    }
+  ],
+  "existingManagedProfile": [
+    {
+      "step": "app:home",
+      "url": "https://www.hbomax.com/",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": [
+        {
+          "text": "Sign In",
+          "href": "https://auth.hbomax.com/login"
+        }
+      ]
+    },
+    {
+      "step": "app:clicked-signin",
+      "url": "https://www.hbomax.com/auth/login",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": []
+    },
+    {
+      "step": "app:settled-signin",
+      "url": "https://www.hbomax.com/auth/login",
+      "genericError": false,
+      "hasEmailInput": 1,
+      "links": []
+    },
+    {
+      "step": "app:direct-signin",
+      "url": "https://www.hbomax.com/auth/link",
+      "genericError": false,
+      "hasEmailInput": 0,
+      "links": []
+    },
+    {
+      "step": "app:http-errors",
+      "failures": [
+        {
+          "status": 404,
+          "url": "https://www.hbomax.com/favicon-192.png"
+        },
+        {
+          "status": 404,
+          "url": "https://www.hbomax.com/favicon-192.png"
+        }
+      ]
+    }
+  ],
+  "conclusion": "The original generic error was not reproduced. The existing managed profile reached an email input after allowing the auth page to settle. Root cause remains unconfirmed; no application code fix or profile reset was justified.",
+  "notTested": [
+    "Authenticated login",
+    "Protected playback",
+    "Login retention after a successful authentication"
+  ]
+}
