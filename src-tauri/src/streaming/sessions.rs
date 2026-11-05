@@ -70,15 +70,30 @@ pub async fn open(
         .is_none_or(|entry| entry.vpn_required);
     let observation = vpn::nordvpn::refresh(&app, &state).await?;
     vpn::policy::evaluate_launch(required, &observation, now_ms())?;
+    let (monitors, computer) = crate::outputs::monitors::discover(&app)?;
+    let monitor = crate::outputs::monitors::resolve(&monitors, None, computer.as_deref())?.clone();
     let mut started = super::browser::launch(&state.data_dir, service, cancel.clone()).await?;
     if cancel.is_cancelled() {
         let _ = started.close().await;
         return Err(AppError::new("cancelled", "Service opening was cancelled."));
     }
+    let placement = super::placement::initialize_browser(&mut started, &monitor).await;
     let session = started.session.clone();
     *browser = Some(started);
     events::publish(&app, &state, |home| {
         home.sessions.retain(|session| session.kind != "streaming");
+        home.outputs.effective = session.target.clone();
+        home.outputs.state = if placement.is_ok() {
+            "partial"
+        } else {
+            "unavailable"
+        }
+        .into();
+        home.outputs.label = match placement {
+            Ok(()) => format!("Service on {}; audio not yet confirmed", monitor.name),
+            Err(error) => error.message,
+        };
+        home.outputs.revision += 1;
         home.sessions.push(session);
     })
 }

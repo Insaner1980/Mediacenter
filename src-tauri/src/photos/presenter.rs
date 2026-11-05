@@ -547,6 +547,7 @@ mod tests {
         Cached {
             media: OpenMedia {
                 root: root.to_owned(),
+                relative: "image.jpg".into(),
                 root_device: metadata.dev(),
                 root_inode: metadata.ino(),
                 file,

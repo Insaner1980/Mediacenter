@@ -41,13 +41,14 @@ pub struct Player {
     pub identity: ProcessIdentity,
     pub ipc: super::ipc::Client,
     pub media: OpenMedia,
+    _subtitles: Vec<super::subtitles::Sidecar>,
     pub session: ManagedSession,
     pub snapshot: PlayerSnapshot,
     last_saved: Instant,
     natural_end: bool,
 }
-fn arguments(media: &OpenMedia) -> Vec<OsString> {
-    let formats = crate::library::probe::FORMATS;
+pub(crate) fn arguments(media: &OpenMedia) -> Vec<OsString> {
+    let formats = format!("{},srt,ass,webvtt", crate::library::probe::FORMATS);
     let mut args = [
         "--no-config",
         "--load-scripts=no",
@@ -186,6 +187,36 @@ async fn launch(
             }
         }
     }
+    // Retain authorized descriptors for the whole player session; never enable mpv's
+    // unrestricted adjacent-file discovery or pass a user pathname through JSON.
+    let mut subtitles = Vec::new();
+    let mut subtitle_error = None;
+    if media.kind == MediaKind::Video {
+        let root = media.root.clone();
+        let relative = media.relative.clone();
+        let discovered =
+            tokio::task::spawn_blocking(move || super::subtitles::adjacent(&root, &relative)).await;
+        match discovered {
+            Ok(Ok(found)) => {
+                for sidecar in found {
+                    if cancel.is_cancelled() {
+                        return Err(AppError::new("cancelled", "Player startup cancelled."));
+                    }
+                    let path = crate::library::files::descriptor_path(&sidecar.file);
+                    if client
+                        .command(json!(["sub-add", path, "auto", sidecar.title]))
+                        .await
+                        .is_ok()
+                    {
+                        subtitles.push(sidecar);
+                    } else {
+                        subtitle_error = Some("An adjacent subtitle could not be loaded.".into());
+                    }
+                }
+            }
+            _ => subtitle_error = Some("Adjacent subtitles could not be inspected.".into()),
+        }
+    }
     for (index, property) in [
         "time-pos",
         "duration",
@@ -248,7 +279,7 @@ async fn launch(
         muted: preferences.muted,
         seekable: false,
         tracks: vec![],
-        error: None,
+        error: subtitle_error,
     };
     Ok((
         Player {
@@ -258,6 +289,7 @@ async fn launch(
             identity,
             ipc: client,
             media,
+            _subtitles: subtitles,
             session,
             snapshot,
             last_saved: Instant::now(),

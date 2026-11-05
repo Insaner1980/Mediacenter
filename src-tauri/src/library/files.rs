@@ -9,7 +9,13 @@ use std::{
 };
 /// Opens relative to an already opened source directory. The kernel enforces the boundary.
 pub fn open(root: &Path, relative: &Path) -> Result<File, AppError> {
-    if relative.as_os_str().is_empty()
+    open_entry(root, relative, false)
+}
+pub fn open_directory(root: &Path, relative: &Path) -> Result<File, AppError> {
+    open_entry(root, relative, true)
+}
+fn open_entry(root: &Path, relative: &Path, is_directory: bool) -> Result<File, AppError> {
+    if (!is_directory && relative.as_os_str().is_empty())
         || relative
             .components()
             .any(|c| !matches!(c, Component::Normal(_)))
@@ -23,6 +29,9 @@ pub fn open(root: &Path, relative: &Path) -> Result<File, AppError> {
         .read(true)
         .custom_flags(nix::libc::O_DIRECTORY | nix::libc::O_NOFOLLOW)
         .open(root)?;
+    if is_directory && relative.as_os_str().is_empty() {
+        return Ok(directory);
+    }
     let relative = std::ffi::CString::new(relative.as_os_str().as_bytes())
         .map_err(|_| AppError::new("invalid_path", "The local filename is invalid."))?;
     #[repr(C)]
@@ -32,7 +41,14 @@ pub fn open(root: &Path, relative: &Path) -> Result<File, AppError> {
         resolve: u64,
     }
     let how = OpenHow {
-        flags: (nix::libc::O_RDONLY | nix::libc::O_CLOEXEC | nix::libc::O_NONBLOCK) as u64,
+        flags: (nix::libc::O_RDONLY
+            | nix::libc::O_CLOEXEC
+            | nix::libc::O_NONBLOCK
+            | if is_directory {
+                nix::libc::O_DIRECTORY
+            } else {
+                0
+            }) as u64,
         mode: 0,
         resolve: 0x08 | 0x02 | 0x01,
     }; // beneath, no magic links, no mount crossing
@@ -53,7 +69,11 @@ pub fn open(root: &Path, relative: &Path) -> Result<File, AppError> {
         ));
     }
     let file = unsafe { File::from_raw_fd(fd as i32) };
-    if !file.metadata()?.is_file() {
+    if if is_directory {
+        !file.metadata()?.is_dir()
+    } else {
+        !file.metadata()?.is_file()
+    } {
         return Err(AppError::new(
             "invalid_media",
             "Only regular local media files can be opened.",

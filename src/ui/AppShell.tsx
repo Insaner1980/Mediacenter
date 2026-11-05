@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import type { HomeSnapshot } from '../features/home/homeModel';
 import { Icon } from './Icons';
+import {useVpnObservation} from '../features/vpn/useVpnObservation';
 export function AppShell({snapshot, children}: {snapshot: HomeSnapshot; children: ReactNode}) {
-  const connected = snapshot.vpn.state === 'connected';
+  const vpn = useVpnObservation(snapshot.vpn);
+  const connected = vpn.state === 'connected';
   const vpnLabel: Record<string,string> = {connected:'NordVPN connected',disconnected:'VPN disconnected',unknown:'VPN status unknown',unavailable:'NordVPN unavailable',connecting:'VPN connecting',disconnecting:'VPN disconnecting',unauthenticated:'Sign in to NordVPN',error:'VPN status unavailable'};
   return <div className="app-container"><main className="app">
     <header className="app-header">
@@ -10,7 +12,7 @@ export function AppShell({snapshot, children}: {snapshot: HomeSnapshot; children
       <div className="connections">
         <div className="connection connection-vpn" data-connected={connected}>
           <Icon name="shield"/>
-          <div><span className="connection-label">{vpnLabel[snapshot.vpn.state] ?? 'VPN status unknown'}</span><span className="connection-value">{connected ? snapshot.vpn.country ?? 'Country unavailable' : 'Connection settings'}</span></div>
+          <div><span className="connection-label">{vpnLabel[vpn.state] ?? 'VPN status unknown'}</span><span className="connection-value">{connected ? vpn.country ?? 'Country unavailable' : 'Connection settings'}</span></div>
         </div>
         <div className="connection"><Icon name="display"/><div><span className="connection-label">{snapshot.outputs.state === 'ready' ? 'Picture & sound' : 'Playback output'}</span><span className="connection-value">{snapshot.outputs.label}</span></div></div>
       </div>

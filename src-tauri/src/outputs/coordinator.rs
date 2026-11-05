@@ -139,6 +139,12 @@ async fn picture(
     }
     Err(AppError::new("placement_unconfirmed","The desktop did not confirm placement on the selected display. Move the service window manually."))
 }
+pub async fn place_browser_on_computer(
+    browser: &crate::streaming::browser::BrowserSession,
+    monitor: &MonitorDescriptor,
+) -> Result<String, AppError> {
+    picture(Owner::Browser(browser), monitor, true).await
+}
 pub async fn move_browser(
     app: &tauri::AppHandle,
     state: &AppState,

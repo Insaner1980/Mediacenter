@@ -71,6 +71,7 @@ pub fn page(
 pub struct OpenMedia {
     pub lease: super::resources::ResourceLease,
     pub root: std::path::PathBuf,
+    pub relative: std::path::PathBuf,
     pub root_device: u64,
     pub root_inode: u64,
     pub file: std::fs::File,
@@ -123,6 +124,7 @@ pub async fn open(state: &crate::app_state::AppState, id: &str) -> Result<OpenMe
         Ok(OpenMedia {
             lease,
             root,
+            relative,
             root_device: root_metadata.dev(),
             root_inode: root_metadata.ino(),
             file,

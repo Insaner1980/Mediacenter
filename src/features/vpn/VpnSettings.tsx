@@ -1,7 +1,9 @@
 import {useEffect,useState} from 'react';
+import {useVpnObservation} from './useVpnObservation';
 import {backend,errorMessage} from '../../app/backend';
 import type {VpnSnapshot,ServiceDefinition,CountryOption} from '../../app/contracts';
-export function VpnSettings({vpn,services,api=backend}:{vpn:VpnSnapshot;services:ServiceDefinition[];api?:typeof backend}) {
+export function VpnSettings({vpn:observation,services,api=backend}:{vpn:VpnSnapshot;services:ServiceDefinition[];api?:typeof backend}) {
+  const vpn=useVpnObservation(observation);
   const [countries,setCountries]=useState<CountryOption[]>([]);const [country,setCountry]=useState('');
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   useEffect(()=>{let live=true;void api.countries().then(value=>{if(live)setCountries(value);}).catch(reason=>{if(live)setError(errorMessage(reason));});return()=>{live=false;};},[api]);

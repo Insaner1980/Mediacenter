@@ -1,0 +1,23 @@
+import {act,render,screen} from '@testing-library/react';
+import {afterEach,expect,it,vi} from 'vitest';
+import {AppShell} from '../../src/ui/AppShell';
+import {VpnSettings} from '../../src/features/vpn/VpnSettings';
+import {referenceSnapshot} from '../../src/testing/fixtures';
+import {backend} from '../../src/app/backend';
+afterEach(()=>vi.useRealTimers());
+it('expires a connected observation without waiting for another backend event',async()=>{
+  vi.useFakeTimers();vi.setSystemTime(1_000_000);
+  const vpn={...referenceSnapshot.vpn,country:'Finland',observedAtMs:Date.now()};
+  const api={...backend,countries:()=>new Promise<never>(()=>{})};
+  const view=render(<AppShell snapshot={{...referenceSnapshot,vpn}}><VpnSettings vpn={vpn} services={[]} api={api}/></AppShell>);
+  expect(screen.getByText('NordVPN connected')).toBeVisible();
+  expect(screen.getByText('Connection: connected (Finland)')).toBeVisible();
+  await act(async()=>vi.advanceTimersByTime(10_001));
+  expect(screen.queryByText('NordVPN connected')).not.toBeInTheDocument();
+  expect(screen.getByText('VPN status unknown')).toBeVisible();
+  expect(screen.getByText('Connection: unknown')).toBeVisible();
+  expect(screen.getByText('Kill Switch: unknown')).toBeVisible();
+  const fresh={...vpn,revision:2,observedAtMs:Date.now()};
+  view.rerender(<AppShell snapshot={{...referenceSnapshot,vpn:fresh}}><VpnSettings vpn={fresh} services={[]} api={api}/></AppShell>);
+  expect(screen.getByText('NordVPN connected')).toBeVisible();
+});
