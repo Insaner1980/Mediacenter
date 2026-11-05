@@ -1,0 +1,58 @@
+{
+  "retrieved": "2026-11-05",
+  "assets": [
+    {
+      "file": "netflix.svg",
+      "url": "https://occ.a.nflxso.net/dnmt/api/v6/iL4oJVDYZ8KLSrJ6eG2OwtghbfQ/AAAAAchJje9GUBJ_ehbO0uOApH8QmRyuvK0LQI9obzFeGtfkpfLyh4FdolMZR4PtvyNoOomDcY7BzTbhFC3gJinH0UadYBg807AKDSPyfsUDm9T3CZKn9OSZN3II7060MZESFcb6YOS9jvzh.svg",
+      "sha256": "0e841a5119aa45c3749829a86fd7755cffb61c4dbbe0e1cb24e543d09cdd2ada",
+      "bytes": 824,
+      "root": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"370\" height=\"100\" fill=\"none\" viewBox=\"0 0 370 100\"><path fill=\"#e50914\" d=\"M50.83 93.54V0H35.21v56.77L14.9 0H0v1"
+    },
+    {
+      "file": "hbo-max.png",
+      "url": "https://www.hbomax.com/dotcom/img/hbomax/logo_nav_bar.png",
+      "sha256": "01d548fe478659866468a1fef2924b44ffcb51846a8f3ce5e48aee10cc241483",
+      "bytes": 31742,
+      "root": "PNG"
+    },
+    {
+      "file": "viaplay.svg",
+      "url": "https://help.viaplay.com/wp-content/uploads/Viaplay-Logo-Color-Horizontal-3.svg",
+      "sha256": "16d6483f320cb3341289af6e0a2022581fcae7f5c09350319fce3a9cac01cdb4",
+      "bytes": 9276,
+      "root": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"106pt\" height=\"26pt\" viewBox=\"0"
+    },
+    {
+      "file": "mtv-katsomo.svg",
+      "url": "https://www.mtv.fi/static/mtv/mtv-logotype.svg",
+      "sha256": "375b6796ec4629310c52ad1c5bcab26e59cc7b1d1e10e70cfb1aa589c7aa7923",
+      "bytes": 140096,
+      "root": "<svg width=\"720\" height=\"720\" viewBox=\"0 0 720 720\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><mask id=\"a\" style"
+    },
+    {
+      "file": "ruutu.svg",
+      "url": "https://www.ruutu.fi/",
+      "sha256": "92376052fba37d5bf2974c08962565c48095b23dffb4db22edc1ac05d002c2e8",
+      "method": "Official inline SVG; path geometry and fills preserved; standalone wrapper uses white currentColor."
+    },
+    {
+      "file": "yle-areena.svg",
+      "url": "https://areena.yle.fi/tv",
+      "sha256": "d29f5825303c61e47ec19de4c331a91e7e9ed5c9c225eba9527fe52bc7b48b77",
+      "method": "Official inline SVG; path geometry and fills preserved; standalone wrapper uses white currentColor."
+    },
+    {
+      "file": "plex.svg",
+      "url": "https://www.plex.tv/",
+      "sha256": "d955c469ed3eff1b95a24bf2644c9fd362af1e027d0dae99d7723a32ed8551c3",
+      "method": "Official inline SVG; path geometry and fills preserved; standalone wrapper uses white currentColor."
+    },
+    {
+      "file": "youtube.png",
+      "url": "https://www.gstatic.com/marketing-cms/52/7d/637fef5a4788a97747e6feabc4aa/youtube-logo.zip",
+      "archiveMember": "YouTube_Logo/Digital/03 White/yt_logo_white_digital.png",
+      "sha256": "346b480b76c2b0fcebc923db10b78c4ab2dc517291b854689f4b229f6f9b0b3e",
+      "method": "Unchanged official white logo PNG from YouTube brand package."
+    }
+  ]
+}
