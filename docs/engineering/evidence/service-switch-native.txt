@@ -1,0 +1,40 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-f5c38fa4e8d76596)
+
+running 1 test
+test streaming::switching::tests::native_switches_preserve_profiles_and_leave_another_chrome_untouched ... Opened Youtube; previous owned window closed; unrelated Chrome remains open
+Opened Viaplay; previous owned window closed; unrelated Chrome remains open
+Opened Netflix; previous owned window closed; unrelated Chrome remains open
+Opened MtvKatsomo; previous owned window closed; unrelated Chrome remains open
+Opened Ruutu; previous owned window closed; unrelated Chrome remains open
+Opened YleAreena; previous owned window closed; unrelated Chrome remains open
+Opened Plex; previous owned window closed; unrelated Chrome remains open
+Opened Youtube; previous owned window closed; unrelated Chrome remains open
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 111 filtered out; finished in 14.12s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/mediacenter-e982657a4effb11b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/photos_decode.rs (src-tauri/target/debug/deps/photos_decode-2e9f1f2c7ca7ca03)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/photos_model.rs (src-tauri/target/debug/deps/photos_model-567f3d7518aa2455)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/thumbnails.rs (src-tauri/target/debug/deps/thumbnails-241d821e7a63300a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+

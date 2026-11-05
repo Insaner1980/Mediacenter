@@ -103,16 +103,8 @@ impl BrowserSession {
         Ok(())
     }
 }
-pub async fn launch(
-    data: &Path,
-    service: ServiceId,
-    cancel: tokio_util::sync::CancellationToken,
-) -> Result<BrowserSession, AppError> {
-    use crate::{contracts::*, outputs::x11, process::registry::ProcessIdentity};
-    use std::{os::unix::fs::PermissionsExt, process::Stdio, time::Duration};
-    if std::env::var("XDG_SESSION_TYPE").as_deref() != Ok("x11") {
-        return Err(AppError::new("manual_browser_required","Managed browser placement requires X11. Open the service manually in this desktop session."));
-    }
+pub fn check_chrome_available() -> Result<(), AppError> {
+    use std::os::unix::fs::PermissionsExt;
     let metadata = std::fs::metadata("/usr/bin/google-chrome").map_err(|_| {
         AppError::new(
             "chrome_unavailable",
@@ -125,7 +117,23 @@ pub async fn launch(
             "Install Google Chrome to open streaming services.",
         ));
     }
-    let profile = prepare_profile(data, service)?;
+    Ok(())
+}
+pub fn prepare_launch(data: &Path, service: ServiceId) -> Result<PathBuf, AppError> {
+    if std::env::var("XDG_SESSION_TYPE").as_deref() != Ok("x11") {
+        return Err(AppError::new("manual_browser_required", "Managed browser placement requires X11. Open the service manually in this desktop session."));
+    }
+    check_chrome_available()?;
+    prepare_profile(data, service)
+}
+pub async fn launch(
+    data: &Path,
+    service: ServiceId,
+    cancel: tokio_util::sync::CancellationToken,
+) -> Result<BrowserSession, AppError> {
+    use crate::{contracts::*, outputs::x11, process::registry::ProcessIdentity};
+    use std::{process::Stdio, time::Duration};
+    let profile = prepare_launch(data, service)?;
     let mut child = tokio::process::Command::new("/usr/bin/google-chrome")
         .args(arguments(&profile, service))
         .stdin(Stdio::null())

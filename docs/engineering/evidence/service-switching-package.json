@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-05",
+  "sourceBase": "36da678",
+  "sourceChanges": "0.1.3 direct streaming service switching in the commit containing this record",
+  "artifact": "releases/0.1.3/Mediacenter_0.1.3_amd64.deb",
+  "bytes": 7748330,
+  "sha256": "41491f32c7fc6c6e89ba5aabcedd9d17a2e8aef40cc508fdff4d60d41522470a",
+  "packageFields": [
+    "Package: mediacenter",
+    "Version: 0.1.3",
+    "Architecture: amd64",
+    "Depends: libwebkit2gtk-4.1-0, libgtk-3-0, mpv, ffmpeg, pulseaudio-utils, wmctrl, x11-xserver-utils, udisks2, libwebkit2gtk-4.1-0, libgtk-3-0"
+  ],
+  "archiveFiles": [
+    "DEBIAN/control",
+    "DEBIAN/md5sums",
+    "usr/bin/mediacenter",
+    "usr/share/applications/Mediacenter.desktop",
+    "usr/share/icons/hicolor/128x128/apps/mediacenter.png"
+  ],
+  "linkedLibrariesMissing": false,
+  "installed": false,
+  "nativeSwitchTest": "Passed isolated real Chrome switching and profile marker preservation; see service-switch-native.txt",
+  "authenticatedPlaybackAcceptance": "not performed"
+}

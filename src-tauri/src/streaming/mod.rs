@@ -3,3 +3,4 @@ pub mod catalog;
 mod external;
 pub mod placement;
 pub mod sessions;
+mod switching;

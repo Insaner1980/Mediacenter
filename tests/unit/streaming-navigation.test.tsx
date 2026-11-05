@@ -52,9 +52,19 @@ it('explains HBO output control without offering control of ordinary Chrome',asy
  expect(await screen.findByText('Continue in Chrome for HBO Max. Choose its display and sound in your system settings.')).toBeVisible();
  expect(screen.queryByRole('button',{name:'Playback controls'})).not.toBeInTheDocument();
 });
-it('requires closing a different live service before switching',async()=>{
- state.sessions=[{...hbo('ready'),serviceId:'youtube'}];render(<App/>);
- await userEvent.click(await screen.findByRole('button',{name:'HBO Max'}));
- expect(screen.getByText('Close the current service before opening another.')).toBeVisible();
- expect(backend.openService).not.toHaveBeenCalled();
+it.each(services.flatMap(([from])=>services.filter(([to])=>to!==from).map(([to,name])=>({from,to,name}))))('switches directly from $from to $to',async({from,to,name})=>{
+ state.sessions=[{...hbo('ready'),serviceId:from}];render(<App/>);
+ await userEvent.click(await screen.findByRole('button',{name}));
+ await waitFor(()=>expect(backend.openService).toHaveBeenCalledWith(to));
+ expect(screen.getByRole('button',{name})).toBeVisible();
+ expect(screen.queryByText(/Service window:/)).not.toBeInTheDocument();
+});
+it('keeps a failed switch visible on home instead of showing the previous service screen',async()=>{
+ state.sessions=[{...hbo('ready'),serviceId:'youtube'}];
+ vi.mocked(backend.openService).mockRejectedValueOnce(new Error('Viaplay could not open'));
+ render(<App/>);
+ await userEvent.click(await screen.findByRole('button',{name:'Viaplay'}));
+ expect(await screen.findByText('Viaplay could not open')).toBeVisible();
+ expect(screen.getByRole('button',{name:'Viaplay'})).toBeVisible();
+ expect(screen.queryByText(/Service window:/)).not.toBeInTheDocument();
 });
