@@ -177,10 +177,28 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the add_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-add-media-source",
+          "markdownDescription": "Enables the add_media_source command without any pre-configured scope."
+        },
+        {
           "description": "Enables the cancel_operation command without any pre-configured scope.",
           "type": "string",
           "const": "allow-cancel-operation",
           "markdownDescription": "Enables the cancel_operation command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the choose_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-choose-media-source",
+          "markdownDescription": "Enables the choose_media_source command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the close_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-close-session",
+          "markdownDescription": "Enables the close_session command without any pre-configured scope."
         },
         {
           "description": "Enables the connect_vpn command without any pre-configured scope.",
@@ -201,10 +219,34 @@
           "markdownDescription": "Enables the enable_kill_switch command without any pre-configured scope."
         },
         {
+          "description": "Enables the focus_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-focus-session",
+          "markdownDescription": "Enables the focus_session command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_home_snapshot command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-home-snapshot",
           "markdownDescription": "Enables the get_home_snapshot command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_drives command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-drives",
+          "markdownDescription": "Enables the list_drives command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_media_sources command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-media-sources",
+          "markdownDescription": "Enables the list_media_sources command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_outputs command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-outputs",
+          "markdownDescription": "Enables the list_outputs command without any pre-configured scope."
         },
         {
           "description": "Enables the list_vpn_countries command without any pre-configured scope.",
@@ -213,10 +255,34 @@
           "markdownDescription": "Enables the list_vpn_countries command without any pre-configured scope."
         },
         {
+          "description": "Enables the move_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-move-session",
+          "markdownDescription": "Enables the move_session command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_service command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-service",
+          "markdownDescription": "Enables the open_service command without any pre-configured scope."
+        },
+        {
           "description": "Enables the refresh_vpn command without any pre-configured scope.",
           "type": "string",
           "const": "allow-refresh-vpn",
           "markdownDescription": "Enables the refresh_vpn command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remove-media-source",
+          "markdownDescription": "Enables the remove_media_source command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the select_output command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-select-output",
+          "markdownDescription": "Enables the select_output command without any pre-configured scope."
         },
         {
           "description": "Enables the set_theme command without any pre-configured scope.",
@@ -231,10 +297,28 @@
           "markdownDescription": "Enables the set_vpn_requirement command without any pre-configured scope."
         },
         {
+          "description": "Denies the add_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-add-media-source",
+          "markdownDescription": "Denies the add_media_source command without any pre-configured scope."
+        },
+        {
           "description": "Denies the cancel_operation command without any pre-configured scope.",
           "type": "string",
           "const": "deny-cancel-operation",
           "markdownDescription": "Denies the cancel_operation command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the choose_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-choose-media-source",
+          "markdownDescription": "Denies the choose_media_source command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the close_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-close-session",
+          "markdownDescription": "Denies the close_session command without any pre-configured scope."
         },
         {
           "description": "Denies the connect_vpn command without any pre-configured scope.",
@@ -255,10 +339,34 @@
           "markdownDescription": "Denies the enable_kill_switch command without any pre-configured scope."
         },
         {
+          "description": "Denies the focus_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-focus-session",
+          "markdownDescription": "Denies the focus_session command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_home_snapshot command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-home-snapshot",
           "markdownDescription": "Denies the get_home_snapshot command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_drives command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-drives",
+          "markdownDescription": "Denies the list_drives command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_media_sources command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-media-sources",
+          "markdownDescription": "Denies the list_media_sources command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_outputs command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-outputs",
+          "markdownDescription": "Denies the list_outputs command without any pre-configured scope."
         },
         {
           "description": "Denies the list_vpn_countries command without any pre-configured scope.",
@@ -267,10 +375,34 @@
           "markdownDescription": "Denies the list_vpn_countries command without any pre-configured scope."
         },
         {
+          "description": "Denies the move_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-move-session",
+          "markdownDescription": "Denies the move_session command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_service command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-service",
+          "markdownDescription": "Denies the open_service command without any pre-configured scope."
+        },
+        {
           "description": "Denies the refresh_vpn command without any pre-configured scope.",
           "type": "string",
           "const": "deny-refresh-vpn",
           "markdownDescription": "Denies the refresh_vpn command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remove-media-source",
+          "markdownDescription": "Denies the remove_media_source command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the select_output command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-select-output",
+          "markdownDescription": "Denies the select_output command without any pre-configured scope."
         },
         {
           "description": "Denies the set_theme command without any pre-configured scope.",

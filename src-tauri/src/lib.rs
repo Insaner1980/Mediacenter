@@ -2,8 +2,11 @@ use tauri::Manager;
 pub mod app_state;
 pub mod commands;
 pub mod contracts;
+pub mod devices;
 pub mod events;
+pub mod library;
 pub mod operations;
+pub mod outputs;
 pub mod process;
 pub mod storage;
 pub mod streaming;
@@ -19,6 +22,14 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            commands::list_outputs,
+            commands::select_output,
+            commands::move_session,
+            commands::choose_media_source,
+            commands::add_media_source,
+            commands::list_media_sources,
+            commands::remove_media_source,
+            commands::list_drives,
             commands::get_home_snapshot,
             commands::set_theme,
             commands::refresh_vpn,
@@ -27,17 +38,25 @@ pub fn run() {
             commands::disconnect_vpn,
             commands::enable_kill_switch,
             commands::cancel_operation,
-            commands::set_vpn_requirement
+            commands::set_vpn_requirement,
+            commands::open_service,
+            commands::focus_session,
+            commands::close_session
         ])
         .setup(|app| {
             let state = app_state::AppState::open(app.path().app_data_dir()?)
                 .map_err(|error| std::io::Error::other(error.message))?;
             app.manage(state);
+            tauri::async_runtime::spawn(outputs::audio::subscribe(
+                app.handle().clone(),
+                app.state::<app_state::AppState>().inner().clone(),
+            ));
             let handle = app.handle().clone();
             let state = app.state::<app_state::AppState>().inner().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
                     let _ = vpn::nordvpn::refresh(&handle, &state).await;
+                    outputs::coordinator::reconcile(&handle, &state).await;
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
             });

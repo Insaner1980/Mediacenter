@@ -153,10 +153,91 @@ pub struct CountryOption {
     pub id: String,
     pub name: String,
 }
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct Bounds {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorDescriptor {
+    pub id: String,
+    pub name: String,
+    pub connector: String,
+    pub primary: bool,
+    pub connected: bool,
+    pub scale_factor: f64,
+    pub bounds: Bounds,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioSinkDescriptor {
+    pub id: String,
+    pub name: String,
+    pub available: bool,
+    pub backend_name: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputList {
+    pub monitors: Vec<MonitorDescriptor>,
+    pub audio_sinks: Vec<AudioSinkDescriptor>,
+    pub computer_monitor_id: Option<String>,
+    pub audio_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceGrant {
+    pub grant_id: String,
+    pub display_path: String,
+    pub expires_in_seconds: u32,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaSource {
+    pub id: String,
+    pub label: String,
+    pub display_path: String,
+    pub kinds: Vec<MediaKind>,
+    pub availability: String,
+    pub removable: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct VolumeDescriptor {
+    pub id: String,
+    pub drive_id: String,
+    pub label: String,
+    pub mounted: bool,
+    pub mount_points: Vec<String>,
+    #[ts(type = "number")]
+    pub size: u64,
+    pub ambiguous: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct DriveDescriptor {
+    pub id: String,
+    pub name: String,
+    pub removable: bool,
+    pub can_power_off: bool,
+    pub volumes: Vec<VolumeDescriptor>,
+}
 
 pub fn typescript() -> String {
     let cfg = ts_rs::Config::default();
     let declarations = [
+        SourceGrant::decl(&cfg),
+        MediaSource::decl(&cfg),
+        VolumeDescriptor::decl(&cfg),
+        DriveDescriptor::decl(&cfg),
+        Bounds::decl(&cfg),
+        MonitorDescriptor::decl(&cfg),
+        AudioSinkDescriptor::decl(&cfg),
+        OutputList::decl(&cfg),
         Theme::decl(&cfg),
         ServiceId::decl(&cfg),
         MediaKind::decl(&cfg),

@@ -15,6 +15,17 @@
     "allow-disconnect-vpn",
     "allow-enable-kill-switch",
     "allow-cancel-operation",
-    "allow-set-vpn-requirement"
+    "allow-set-vpn-requirement",
+    "allow-open-service",
+    "allow-focus-session",
+    "allow-close-session",
+    "allow-list-outputs",
+    "allow-select-output",
+    "allow-move-session",
+    "allow-choose-media-source",
+    "allow-add-media-source",
+    "allow-list-media-sources",
+    "allow-remove-media-source",
+    "allow-list-drives"
   ]
 }

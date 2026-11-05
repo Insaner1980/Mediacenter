@@ -1,8 +1,16 @@
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
-import type {HomeSnapshot,Theme,CountryOption,VpnSnapshot,ServiceId,OperationRef,OperationFinished,AppError} from './contracts';
+import type {SourceGrant,MediaSource,MediaKind,DriveDescriptor,OutputList,PlaybackTarget,HomeSnapshot,Theme,CountryOption,VpnSnapshot,ServiceId,OperationRef,OperationFinished,AppError} from './contracts';
 import {RevisionStore} from './controller';
 export const backend = {
+  chooseSource:()=>invoke<SourceGrant|null>('choose_media_source'),
+  sources:()=>invoke<MediaSource[]>('list_media_sources'),
+  addSource:(grantId:string,kinds:MediaKind[])=>invoke<string>('add_media_source',{grantId,kinds}),
+  removeSource:(sourceId:string)=>invoke<void>('remove_media_source',{sourceId}),
+  drives:()=>invoke<DriveDescriptor[]>('list_drives'),
+  outputs:()=>invoke<OutputList>('list_outputs'),
+  selectOutput:(target:PlaybackTarget)=>invoke<void>('select_output',{target}),
+  moveSession:(sessionId:string,target:PlaybackTarget)=>performOperation('move_session',{sessionId,target}),
   snapshot:()=>invoke<HomeSnapshot>('get_home_snapshot'),
   setTheme:(theme:Theme)=>invoke<Theme>('set_theme',{theme}),
   refreshVpn:()=>invoke<VpnSnapshot>('refresh_vpn'),
@@ -11,6 +19,9 @@ export const backend = {
   disconnect:()=>performOperation('disconnect_vpn'),
   enableKillSwitch:()=>performOperation('enable_kill_switch'),
   setVpnRequirement:(serviceId:ServiceId,required:boolean)=>invoke<boolean>('set_vpn_requirement',{serviceId,required}),
+  openService:(serviceId:ServiceId)=>performOperation('open_service',{serviceId}),
+  focusSession:(sessionId:string)=>invoke<void>('focus_session',{sessionId}),
+  closeSession:(sessionId:string)=>performOperation('close_session',{sessionId}),
 };
 export function errorMessage(error:unknown):string {
   if(typeof error==='object' && error && 'message' in error && typeof error.message==='string')return error.message;

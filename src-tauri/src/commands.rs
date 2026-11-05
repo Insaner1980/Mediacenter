@@ -143,3 +143,193 @@ mod tests {
         assert!(super::guard("main").is_ok());
     }
 }
+
+#[tauri::command]
+pub fn open_service(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    service_id: ServiceId,
+) -> Result<OperationRef, AppError> {
+    guard(window.label())?;
+    let state = state.inner().clone();
+    crate::operations::start(app.clone(), state.clone(), move |cancel| {
+        crate::streaming::sessions::open(app, state, service_id, cancel)
+    })
+}
+#[tauri::command]
+pub async fn focus_session(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<(), AppError> {
+    guard(window.label())?;
+    crate::streaming::sessions::focus(&state, &session_id).await
+}
+#[tauri::command]
+pub fn close_session(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<OperationRef, AppError> {
+    guard(window.label())?;
+    let state = state.inner().clone();
+    crate::operations::start(app.clone(), state.clone(), move |_| async move {
+        crate::streaming::sessions::close(&app, &state, &session_id).await
+    })
+}
+
+#[tauri::command]
+pub async fn list_outputs(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+) -> Result<OutputList, AppError> {
+    guard(window.label())?;
+    crate::outputs::coordinator::list(&app).await
+}
+#[tauri::command]
+pub async fn select_output(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    target: PlaybackTarget,
+) -> Result<(), AppError> {
+    guard(window.label())?;
+    crate::outputs::coordinator::select(&app, &state, target).await
+}
+#[tauri::command]
+pub fn move_session(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    session_id: String,
+    target: PlaybackTarget,
+) -> Result<OperationRef, AppError> {
+    guard(window.label())?;
+    let state = state.inner().clone();
+    crate::operations::start(app.clone(), state.clone(), move |cancel| async move {
+        if cancel.is_cancelled() {
+            return Err(AppError::new("cancelled", "Output change cancelled."));
+        }
+        crate::outputs::coordinator::move_browser(&app, &state, &session_id, target).await
+    })
+}
+
+#[tauri::command]
+pub async fn choose_media_source(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<SourceGrant>, AppError> {
+    guard(window.label())?;
+    use tauri_plugin_dialog::DialogExt;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Choose a media folder")
+        .pick_folder(move |path| {
+            let _ = sender.send(path);
+        });
+    let selected = receiver.await.map_err(|_| {
+        AppError::new(
+            "picker_failed",
+            "The folder picker could not return a selection.",
+        )
+    })?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|_| AppError::new("invalid_source", "Select a local folder."))?;
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let display_path = path.to_string_lossy().into_owned();
+        let grant_id = state
+            .grants
+            .lock()
+            .map_err(|_| AppError::new("state_error", "Folder selection is unavailable."))?
+            .issue(path)?;
+        Ok(Some(SourceGrant {
+            grant_id,
+            display_path,
+            expires_in_seconds: 600,
+        }))
+    })
+    .await
+    .map_err(|_| {
+        AppError::new(
+            "picker_failed",
+            "The folder selection could not be validated.",
+        )
+    })?
+}
+#[tauri::command]
+pub async fn add_media_source(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    grant_id: String,
+    kinds: Vec<MediaKind>,
+) -> Result<String, AppError> {
+    guard(window.label())?;
+    let devices = crate::devices::udisks::discover().await?;
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let root = state
+            .grants
+            .lock()
+            .map_err(|_| AppError::new("state_error", "Folder selection is unavailable."))?
+            .consume(&grant_id)?;
+        let db = state
+            .db
+            .lock()
+            .map_err(|_| AppError::new("database_error", "The library is unavailable."))?;
+        crate::library::repository::add(&db, &root, &kinds, &devices)
+    })
+    .await
+    .map_err(|_| AppError::new("source_error", "The source could not be added."))?
+}
+#[tauri::command]
+pub async fn list_media_sources(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<Vec<MediaSource>, AppError> {
+    guard(window.label())?;
+    let devices = crate::devices::udisks::discover().await.unwrap_or_default();
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let db = state
+            .db
+            .lock()
+            .map_err(|_| AppError::new("database_error", "The library is unavailable."))?;
+        crate::library::repository::list(&db, &devices)
+    })
+    .await
+    .map_err(|_| AppError::new("source_error", "Library sources are unavailable."))?
+}
+#[tauri::command]
+pub async fn remove_media_source(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    source_id: String,
+) -> Result<(), AppError> {
+    guard(window.label())?;
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let db = state
+            .db
+            .lock()
+            .map_err(|_| AppError::new("database_error", "The library is unavailable."))?;
+        crate::library::repository::remove(&db, &source_id)
+    })
+    .await
+    .map_err(|_| AppError::new("source_error", "The source could not be removed."))?
+}
+#[tauri::command]
+pub async fn list_drives(window: tauri::WebviewWindow) -> Result<Vec<DriveDescriptor>, AppError> {
+    guard(window.label())?;
+    Ok(crate::devices::udisks::descriptors(
+        &crate::devices::udisks::discover().await?,
+    ))
+}

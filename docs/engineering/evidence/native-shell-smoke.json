@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-05",
+  "build": "Tauri standalone debug, io.emma.mediacenter.dev",
+  "process_running": true,
+  "owned_windows": [
+    {
+      "x": 100,
+      "y": 162,
+      "width": 1280,
+      "height": 800
+    }
+  ],
+  "tv_window_created": false,
+  "native_pixels_reviewed": false,
+  "packaged_release_tested": false
+}

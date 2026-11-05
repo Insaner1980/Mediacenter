@@ -8,6 +8,8 @@ use std::{
 use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub struct AppState {
+    pub grants: Arc<Mutex<crate::library::sources::Grants>>,
+    pub browser: Arc<tokio::sync::Mutex<Option<crate::streaming::browser::BrowserSession>>>,
     pub data_dir: PathBuf,
     pub db: Arc<Mutex<Connection>>,
     pub home: Arc<Mutex<HomeSnapshot>>,
@@ -48,6 +50,17 @@ impl AppState {
                 .optional()?
                 .unwrap_or(true);
         }
+        let saved_target: Option<String> = db
+            .query_row(
+                "SELECT value_json FROM settings WHERE key='playback_target'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let target = saved_target
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or_default();
         let snapshot = HomeSnapshot {
             revision: 1,
             theme,
@@ -61,7 +74,7 @@ impl AppState {
             },
             outputs: OutputSnapshot {
                 revision: 0,
-                desired: PlaybackTarget::default(),
+                desired: target,
                 effective: PlaybackTarget::default(),
                 state: "unavailable".into(),
                 label: "Detecting outputs".into(),
@@ -77,6 +90,8 @@ impl AppState {
             sessions: vec![],
         };
         Ok(Self {
+            grants: Arc::new(Mutex::new(crate::library::sources::Grants::default())),
+            browser: Arc::new(tokio::sync::Mutex::new(None)),
             data_dir,
             db: Arc::new(Mutex::new(db)),
             home: Arc::new(Mutex::new(snapshot)),

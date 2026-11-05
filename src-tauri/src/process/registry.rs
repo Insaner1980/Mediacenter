@@ -22,6 +22,37 @@ impl ProcessIdentity {
             executable: std::fs::read_link(proc.join("exe")).ok()?,
         })
     }
+    pub fn owns_descendant(&self, mut pid: u32) -> bool {
+        if !self.still_owned() {
+            return false;
+        }
+        for _ in 0..64 {
+            if pid == self.pid {
+                return self.still_owned();
+            }
+            let Some(identity) = Self::capture(pid) else {
+                return false;
+            };
+            if identity.start_time < self.start_time {
+                return false;
+            }
+            let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+                return false;
+            };
+            let Some(parent) = stat
+                .rsplit_once(')')
+                .and_then(|(_, tail)| tail.split_whitespace().nth(1))
+                .and_then(|s| s.parse::<u32>().ok())
+            else {
+                return false;
+            };
+            if parent <= 1 || parent == pid {
+                return false;
+            }
+            pid = parent;
+        }
+        false
+    }
     pub fn still_owned(&self) -> bool {
         Self::capture(self.pid).is_some_and(|current| {
             current.start_time == self.start_time && current.executable == self.executable

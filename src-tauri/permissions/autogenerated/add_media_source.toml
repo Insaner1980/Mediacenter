@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-media-source"
+description = "Enables the add_media_source command without any pre-configured scope."
+commands.allow = ["add_media_source"]
+
+[[permission]]
+identifier = "deny-add-media-source"
+description = "Denies the add_media_source command without any pre-configured scope."
+commands.deny = ["add_media_source"]
