@@ -39,3 +39,10 @@ Recorded 5 November 2026. The implementation is a development candidate, not a f
 ## Final code review
 
 A fresh, read-only whole-branch review covered `90626a6..4f7d00c`. It found no Critical issues and four Important issues: stale connected VPN display, initial browser placement, current music output controls, and adjacent subtitle loading. All four were fixed in `3294443` using failing regressions followed by the full passing suite. A further real mpv fixture verified restricted sidecar loading with null picture/audio output. No second reviewer was used.
+
+
+## HBO Max ordinary Chrome handoff (0.1.2)
+
+The managed HBO authentication error remained reproducible while the user's ordinary Chrome profile displayed the login form. The user delegated the choice after being told that ordinary Chrome would use manual display/audio control. We selected ordinary Chrome for HBO only. The existing open-service command still verifies configured VPN requirements and rejects conflicting managed playback before handing the fixed HBO catalog URL to `/usr/bin/google-chrome` without a private profile or app-mode flags.
+
+Ordinary Chrome is not registered as an owned session: Mediacenter never moves its window/audio, closes it or kills it on timeout/cancellation/app exit. A bounded startup check reports immediate launcher failures, while a long-lived browser is left running and eventually reaped. The home screen explains the handoff. Other services retain managed playback. This is a compatibility fallback, not a claimed fix of HBO's underlying managed-profile login error; authenticated login and video playback remain user acceptance checks.

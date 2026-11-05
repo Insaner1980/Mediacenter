@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-05",
+  "sourceBase": "b6768b4",
+  "sourceChanges": "0.1.2 ordinary Chrome handoff for HBO in the commit containing this record",
+  "artifact": "releases/0.1.2/Mediacenter_0.1.2_amd64.deb",
+  "bytes": 7743182,
+  "sha256": "12199f3fbc0a828a258e4c5f47d97708dd179db6936a87dd59aa14decea55ca1",
+  "packageFields": [
+    "Package: mediacenter",
+    "Version: 0.1.2",
+    "Architecture: amd64",
+    "Depends: libwebkit2gtk-4.1-0, libgtk-3-0, mpv, ffmpeg, pulseaudio-utils, wmctrl, x11-xserver-utils, udisks2, libwebkit2gtk-4.1-0, libgtk-3-0"
+  ],
+  "archiveFiles": [
+    "DEBIAN/control",
+    "DEBIAN/md5sums",
+    "usr/bin/mediacenter",
+    "usr/share/applications/Mediacenter.desktop",
+    "usr/share/icons/hicolor/128x128/apps/mediacenter.png"
+  ],
+  "linkedLibrariesMissing": false,
+  "installed": false,
+  "nativePlaybackAcceptance": "not performed; ordinary Chrome login form confirmed by user before implementation; launcher covered by process tests"
+}

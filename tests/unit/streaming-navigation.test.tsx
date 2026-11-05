@@ -46,6 +46,12 @@ it('keeps a launch failure beside the home tiles',async()=>{
  expect(await screen.findByText('Browser could not open')).toBeVisible();
  expect(screen.getByRole('button',{name:'HBO Max'})).toBeVisible();
 });
+it('explains HBO output control without offering control of ordinary Chrome',async()=>{
+ render(<App/>);
+ await userEvent.click(await screen.findByRole('button',{name:'HBO Max'}));
+ expect(await screen.findByText('Continue in Chrome for HBO Max. Choose its display and sound in your system settings.')).toBeVisible();
+ expect(screen.queryByRole('button',{name:'Playback controls'})).not.toBeInTheDocument();
+});
 it('requires closing a different live service before switching',async()=>{
  state.sessions=[{...hbo('ready'),serviceId:'youtube'}];render(<App/>);
  await userEvent.click(await screen.findByRole('button',{name:'HBO Max'}));

@@ -41,7 +41,10 @@ pub async fn open(
         .as_mut()
         .is_some_and(|current| matches!(current.child.try_wait(), Ok(Some(_))))
     {
-        *browser = None;
+        let ended = browser.take().unwrap().session.id;
+        events::publish(&app, &state, |home| {
+            home.sessions.retain(|session| session.id != ended);
+        })?;
     }
     match activation(browser.as_ref().and_then(|b| b.session.service_id), service) {
         Activation::Focus => return browser.as_ref().unwrap().focus().await,
@@ -70,6 +73,11 @@ pub async fn open(
         .is_none_or(|entry| entry.vpn_required);
     let observation = vpn::nordvpn::refresh(&app, &state).await?;
     vpn::policy::evaluate_launch(required, &observation, now_ms())?;
+    if service == ServiceId::HboMax {
+        // Ordinary Chrome is not registered as an owned playback session: its
+        // windows, streams and lifetime belong to the user, not Mediacenter.
+        return super::external::open_hbo(cancel).await;
+    }
     let (monitors, computer) = crate::outputs::monitors::discover(&app)?;
     let monitor = crate::outputs::monitors::resolve(&monitors, None, computer.as_deref())?.clone();
     let mut started = super::browser::launch(&state.data_dir, service, cancel.clone()).await?;

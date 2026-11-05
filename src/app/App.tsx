@@ -42,7 +42,7 @@ function MainApp() {
       if(active && active.serviceId!==a.serviceId && active.phase!=='unavailable'){setScreen('streaming');setMessage('Close the current service before opening another.');return;}
       if(snapshot.sessions.some(s=>s.kind.startsWith('local-'))){setScreen('player');setMessage('Stop local playback before opening a service.');return;}
       setBusy(true);setMessage('Opening service');
-      try{await backend.openService(a.serviceId);setMessage('');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}
+      try{await backend.openService(a.serviceId);setMessage(a.serviceId==='hbo_max'?'Continue in Chrome for HBO Max. Choose its display and sound in your system settings.':'');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}
     }
   }
   async function play(item:MediaItem,resume:boolean){if(busy)return;setBusy(true);setMessage('Opening local media');try{await backend.playMedia(item.id,resume);setScreen('player');setMessage('');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}}
