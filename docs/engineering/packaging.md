@@ -2,7 +2,7 @@
 
 Checkpoint: **5 November 2026**. The 0.1.0 amd64 Debian development candidate was built from `3294443`. Its checksum, archive contents, desktop entry and host library resolution are recorded in [verification](verification.md) and [artifact evidence](evidence/debian-candidate.json). Clean installation, upgrade and uninstall acceptance remain pending.
 
-The local candidate and checksum are in `releases/0.1.0/`. To install this candidate later, first verify `SHA256SUMS` in that directory, then run `sudo apt install /home/emma/Dev/Mediacenter/releases/0.1.0/Mediacenter_0.1.0_amd64.deb` in your own terminal. This command has not been run during the background work.
+The 0.1.1 update fixes direct opening from all eight streaming tiles, including reopening a closed service. Playback controls are available through a separate button on the home screen. The package and checksum are in `releases/0.1.1/`. Close Mediacenter, verify `SHA256SUMS` in that directory, then run `sudo apt install /home/emma/Dev/Mediacenter/releases/0.1.1/Mediacenter_0.1.1_amd64.deb` in your own terminal and reopen Mediacenter. The update has not been installed during background work. See [the update verification record](evidence/direct-service-opening.md).
 
 The intended first package is version 0.1.0 for Linux Mint 22.3 / Ubuntu 24.04 Noble, amd64, Cinnamon X11. Do not claim support for older Ubuntu/Debian bases or other architectures from a build on this machine. Tauri recommends building on the oldest supported base because newer system libraries can raise the minimum runtime requirement. The bundler generates the Debian desktop integration and accepts additional dependencies in `bundle.linux.deb`. [Tauri Debian packaging](https://v2.tauri.app/distribute/debian/)
 
