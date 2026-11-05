@@ -2,17 +2,17 @@
 
 A personal Linux desktop media center for opening streaming services through the computer's VPN and browsing selected local videos, music and photos. The control window stays on the computer; a television is an optional playback output.
 
-**Release status: implementation in progress; hardware and package acceptance are incomplete.** A successful build or automated test run does not establish working protected streaming, HDMI sound, native scaling, USB removal or clean installation. See [verification](docs/engineering/verification.md), [preflight findings](docs/engineering/preflight.md) and the [service compatibility matrix](docs/engineering/streaming-compatibility.md).
+**Release status: 0.1.0 development candidate built; hardware and clean-install acceptance are incomplete.** A successful build or automated test run does not establish working protected streaming, HDMI sound, native scaling, USB removal or clean installation. See [verification](docs/engineering/verification.md), [preflight findings](docs/engineering/preflight.md) and the [service compatibility matrix](docs/engineering/streaming-compatibility.md).
 
 The target is Linux Mint 22.3 / Ubuntu 24.04 Noble, x86-64, with Cinnamon X11. Wayland has reduced placement capabilities. Chrome and NordVPN are separately installed applications; Mediacenter does not install them or provide service subscriptions.
 
 ## Using the application
 
-Once a package has passed installation checks, open **Mediacenter** from the desktop application menu. Package preparation, installation, update and recovery instructions are in [packaging](docs/engineering/packaging.md). There is no verified release-download claim in this repository yet.
+Once a package has passed installation checks, open **Mediacenter** from the desktop application menu. Package preparation, installation, update and recovery instructions are in [packaging](docs/engineering/packaging.md). The locally built candidate and checksum are under `releases/0.1.0/`; this is not a fully accepted release.
 
 - Open a streaming tile to use that service in its dedicated Chrome profile. Sign in and choose content in the service's own interface. VPN-required launches need a fresh connected observation and verified Kill Switch state. Service availability can still depend on the account, programme, region and provider's VPN policy.
 - In **Videos**, **Music**, **Photos** or **Drives & USB**, choose a folder with the native picker, add it to the library and select **Scan folder**. Only selected folders are indexed. Media stays in place.
-- Local video/music controls operate the owned mpv player. Music queues and playlists retain unavailable entries. Photos have a separate presentation window and controls on the computer.
+- Local video/music controls operate the owned mpv player. Adjacent SRT, ASS/SSA and WebVTT subtitles are loaded through source-bounded descriptors; external links are rejected. Music queues and playlists retain unavailable entries. Photos have a separate presentation window and controls on the computer.
 - In **VPN & Sound**, select the desired output. Saving a target does not itself move existing playback. Use the explicit move/return controls and check the reported result. A missing HDMI audio sink is not working TV sound.
 - In **Drives & USB**, mount a supported removable volume if needed. **Safely remove** first shows the affected physical device, sibling drives and active use; **Stop using and safely remove** requests shutdown of owned work before OS removal. Disconnect only after a confirmed success. A busy, denied or timed-out operation is not safe-removal confirmation.
 
@@ -65,3 +65,5 @@ Removing a source removes its library association without deleting original file
 The application must not disconnect NordVPN on exit, force-unmount a device, change the global audio default as a fallback, or control unrelated Chrome/mpv processes. It has no cloud account, telemetry, remote server, universal streaming transport, DRM workaround, Color Dock integration or Android Remote modification.
 
 The [implementation plan](docs/superpowers/plans/2026-11-05-mediacenter-linux-implementation-plan.md) and [approved design brief](docs/design/2026-11-05-claude-visual-design-brief.md) define the remaining acceptance requirements.
+
+Implementation choices and remaining minor details are recorded in [implementation decisions](docs/engineering/implementation-decisions.md).

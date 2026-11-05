@@ -1,6 +1,8 @@
 # Packaging and installation
 
-Documentation checkpoint: **5 November 2026, before the final Debian package build**. This document describes the release procedure. It does not record a successful package build, installation, upgrade or uninstall. Fill in the artifact-specific record in [verification](verification.md) after performing each check.
+Checkpoint: **5 November 2026**. The 0.1.0 amd64 Debian development candidate was built from `3294443`. Its checksum, archive contents, desktop entry and host library resolution are recorded in [verification](verification.md) and [artifact evidence](evidence/debian-candidate.json). Clean installation, upgrade and uninstall acceptance remain pending.
+
+The local candidate and checksum are in `releases/0.1.0/`. To install this candidate later, first verify `SHA256SUMS` in that directory, then run `sudo apt install /home/emma/Dev/Mediacenter/releases/0.1.0/Mediacenter_0.1.0_amd64.deb` in your own terminal. This command has not been run during the background work.
 
 The intended first package is version 0.1.0 for Linux Mint 22.3 / Ubuntu 24.04 Noble, amd64, Cinnamon X11. Do not claim support for older Ubuntu/Debian bases or other architectures from a build on this machine. Tauri recommends building on the oldest supported base because newer system libraries can raise the minimum runtime requirement. The bundler generates the Debian desktop integration and accepts additional dependencies in `bundle.linux.deb`. [Tauri Debian packaging](https://v2.tauri.app/distribute/debian/)
 

@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-05",
+  "sourceRevision": "3294443a774c69e55dbf85900038095a5c1dca5e",
+  "sha256": "f990740db66ffc5b690056d98483375da3a770adc1c0da36ce7222c979139356",
+  "binary": ".tools/final-package-inspect/usr/bin/mediacenter",
+  "environment": "Private Xvfb 1440x900; private session bus and XDG data/config/cache/state/runtime directories; no window manager. No Vite server.",
+  "themes": [
+    {
+      "theme": "dark",
+      "screenshot": "candidate-native-dark.png",
+      "allEightOfficialLogosVisuallyVerified": true,
+      "renderer": "software; WEBKIT_DISABLE_COMPOSITING_MODE=1 and WEBKIT_DISABLE_DMABUF_RENDERER=1 on test subprocess only"
+    },
+    {
+      "theme": "light",
+      "screenshot": "candidate-native-light.png",
+      "allEightOfficialLogosVisuallyVerified": true,
+      "renderer": "default WebKit under Xvfb"
+    }
+  ],
+  "observations": [
+    "Packaged local assets rendered in both themes",
+    "Native home snapshot loaded eight services and real empty library counts",
+    "Native VPN status was read without changes",
+    "Private database initialized at schema1",
+    "Theme loaded from private database across process restart",
+    "Owned test process groups and virtual display stopped after capture"
+  ],
+  "limitations": [
+    "Extracted package, not a clean installed package",
+    "Virtual display without normal window-manager decorations",
+    "Default accelerated Xvfb captures intermittently missed images; dark capture was verified with software rendering",
+    "Desktop portal on private bus incurred a timeout; not a representative startup performance measurement",
+    "No actual streaming, HDMI audio, media playback window, or drive mutation was performed",
+    "No application instrumentation in final package"
+  ]
+}

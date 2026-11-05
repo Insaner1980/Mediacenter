@@ -1,0 +1,45 @@
+
+> mediacenter@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v8.3.6 building client environment for production...
+transforming...
+✓ 47 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.44 kB │ gzip:  0.28 kB
+dist/assets/index-CTfwMfJI.css   14.97 kB │ gzip:  3.71 kB
+dist/assets/index-VvEzF8a3.js   286.27 kB │ gzip: 84.98 kB
+
+✓ built in 303ms
+
+> mediacenter@0.1.0 test
+> vitest run
+
+
+ RUN  v5.1.0 /home/emma/Dev/Mediacenter
+
+
+ Test Files  9 passed (9)
+      Tests  22 passed (22)
+   Start at  13:36:39
+   Duration  15.10s (environment 53%, tests 34%, setup 8%, import 4%, transform 1%)
+
+Environment  jsdom was created 9 times · 21.40s total, 53% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+
+> mediacenter@0.1.0 lint
+> eslint src tests scripts
+
+
+> mediacenter@0.1.0 verify:assets
+> node scripts/verify-assets.mjs
+
+Verified 8 official logos and 18 local fonts
+
+> mediacenter@0.1.0 verify:ui-copy
+> node scripts/verify-ui-copy.mjs
+
+No forbidden dot decoration found in application source; visual review is still required

@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-05",
+  "sourceRevision": "3294443a774c69e55dbf85900038095a5c1dca5e",
+  "rust": {
+    "passed": 119,
+    "failed": 0,
+    "ignored": 1,
+    "ignoredReason": "Explicitly ignored read-only host UDisks probe; earlier manual read-only probe recorded separately"
+  },
+  "frontend": {
+    "passed": 22,
+    "failed": 0
+  },
+  "visual": {
+    "passed": 10,
+    "failed": 0,
+    "scope": "Chromium reference fixtures, not native hardware"
+  },
+  "e2e": {
+    "passed": 1,
+    "failed": 0,
+    "scope": "Browser theme and navigation fixture"
+  },
+  "passedChecks": [
+    "cargo check --locked",
+    "cargo clippy --locked --all-targets -- -D warnings",
+    "cargo fmt --check",
+    "npm run build (includes tsc --noEmit)",
+    "npm run lint",
+    "npm run verify:assets (8 logos,18 fonts)",
+    "npm run verify:ui-copy",
+    "git diff --check"
+  ],
+  "nativeFixtures": "ffprobe/ffmpeg image and metadata fixtures plus mpv null-picture/null-audio subtitle/IPC fixture; no user playback or drive mutation"
+}

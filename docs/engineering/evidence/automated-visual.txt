@@ -1,0 +1,23 @@
+
+> mediacenter@0.1.0 test:visual
+> playwright test tests/visual
+
+[WebServer] (node:90655) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 10 tests using 1 worker
+
+(node:90689) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 tests/visual/home.spec.ts:6:5 › home_dark_matches_reference_1280 (21.8s)
+  ✓   2 tests/visual/home.spec.ts:6:5 › home_dark_matches_reference_1440 (3.7s)
+  ✓   3 tests/visual/home.spec.ts:6:5 › home_dark_matches_reference_960 (2.6s)
+  ✓   4 tests/visual/home.spec.ts:6:5 › home_light_matches_reference_1280 (2.4s)
+  ✓   5 tests/visual/home.spec.ts:6:5 › home_light_matches_reference_1440 (3.5s)
+  ✓   6 tests/visual/home.spec.ts:6:5 › home_light_matches_reference_960 (2.9s)
+  ✓   7 tests/visual/home.spec.ts:39:1 › all_eight_logo_tiles_have_single_visible_brand (1.7s)
+  ✓   8 tests/visual/home.spec.ts:47:1 › narrow_window_has_no_horizontal_overflow (1.8s)
+  ✓   9 tests/visual/home.spec.ts:52:1 › keyboard_focus_does_not_change_grid_geometry (717ms)
+  ✓  10 tests/visual/home.spec.ts:57:1 › release_does_not_include_demo_data (21ms)
+
+  10 passed (45.1s)

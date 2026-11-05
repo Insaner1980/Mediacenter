@@ -1,0 +1,2 @@
+   Compiling mediacenter v0.1.0 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.44s
