@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-05",
+  "provider": "NordVPN 6.0.2",
+  "locale": "C",
+  "observed": [
+    "status-observed.txt",
+    "settings-observed.txt",
+    "countries-observed.txt",
+    "settings-enabled-observed.txt"
+  ],
+  "sanitization": "Status fields restricted to state, country, protocol and post-quantum setting. No account, IP, hostname, transfer, or uptime retained.",
+  "unobserved": [
+    "disconnected",
+    "unauthenticated",
+    "daemon-error"
+  ],
+  "note": "Initial settings record disabled. User explicitly approved enabling Kill Switch; subsequent settings record enabled. No disconnection or country change performed."
+}

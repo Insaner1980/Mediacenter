@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-vpn-requirement"
+description = "Enables the set_vpn_requirement command without any pre-configured scope."
+commands.allow = ["set_vpn_requirement"]
+
+[[permission]]
+identifier = "deny-set-vpn-requirement"
+description = "Denies the set_vpn_requirement command without any pre-configured scope."
+commands.deny = ["set_vpn_requirement"]

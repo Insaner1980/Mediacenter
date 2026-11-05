@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Local control window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-get-home-snapshot",
+    "allow-set-theme",
+    "allow-refresh-vpn",
+    "allow-list-vpn-countries",
+    "allow-connect-vpn",
+    "allow-disconnect-vpn",
+    "allow-enable-kill-switch",
+    "allow-cancel-operation",
+    "allow-set-vpn-requirement"
+  ]
+}

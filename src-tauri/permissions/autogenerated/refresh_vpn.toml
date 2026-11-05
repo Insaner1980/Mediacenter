@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-refresh-vpn"
+description = "Enables the refresh_vpn command without any pre-configured scope."
+commands.allow = ["refresh_vpn"]
+
+[[permission]]
+identifier = "deny-refresh-vpn"
+description = "Denies the refresh_vpn command without any pre-configured scope."
+commands.deny = ["refresh_vpn"]

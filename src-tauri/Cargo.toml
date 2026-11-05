@@ -1,0 +1,30 @@
+[package]
+name = "mediacenter"
+version = "0.1.0"
+edition = "2021"
+default-run = "mediacenter"
+description = "Personal Linux desktop media center"
+license = "MIT"
+
+[lib]
+name = "mediacenter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.54.1", features = ["full"] }
+tokio-util = { version = "0.7.20", features = ["rt"] }
+rusqlite = { version = "0.41.1", features = ["bundled", "backup"] }
+uuid = { version = "1.29.0", features = ["v4", "serde"] }
+nix = { version = "0.31.3", features = ["signal", "process"] }
+ts-rs = { version = "12.0.1", features = ["serde-compat"] }
+tauri-plugin-dialog = "2.8.4"
+tauri-plugin-single-instance = "2.5.5"
+
+[dev-dependencies]
+tempfile = "3.27.0"

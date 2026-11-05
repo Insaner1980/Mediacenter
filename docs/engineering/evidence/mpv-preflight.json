@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-05",
+  "kind": "real installed mpv IPC smoke test",
+  "audible_confirmation": false,
+  "visual_confirmation": false,
+  "hdmi_tested": false,
+  "duration_seconds": 6.0,
+  "pause_initial": true,
+  "video_configured": true,
+  "time_after_play": 0.75,
+  "owned_audio_stream_count": 1,
+  "audio_stream_matched_by": "application.process.id == spawned mpv PID",
+  "pause_command": true,
+  "seek_position": 2.0,
+  "track_types": [
+    "video",
+    "audio"
+  ],
+  "clean_exit": true,
+  "passed": true
+}

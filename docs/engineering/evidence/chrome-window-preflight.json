@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-05",
+  "scope": "isolated blank Chrome app window; no service login or media playback",
+  "login_persistence": "not tested",
+  "finding": "Chrome flattens proc cmdline into one string. Do not require NUL-separated original flags for ownership.",
+  "verified_ownership": [
+    "spawned PID",
+    "process start time",
+    "Chrome executable",
+    "dedicated profile SingletonLock PID",
+    "X11 window PID"
+  ],
+  "initial_geometry": {
+    "x": 160,
+    "y": 160,
+    "width": 640,
+    "height": 480
+  },
+  "tv_geometry": {
+    "x": 4000,
+    "y": 200,
+    "width": 640,
+    "height": 480
+  },
+  "placed_on_hdmi": true,
+  "returned_geometry": {
+    "x": 160,
+    "y": 160,
+    "width": 640,
+    "height": 480
+  },
+  "returned_to_computer": true,
+  "unrelated_existing_window_geometry_unchanged": true,
+  "owned_browser_exited": true,
+  "profile_policy": "Disposable dedicated runtime profile, never copied from ordinary Chrome; no login credentials entered."
+}
