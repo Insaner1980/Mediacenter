@@ -2010,10 +2010,12 @@ dependencies = [
 name = "mediacenter"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "nix",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

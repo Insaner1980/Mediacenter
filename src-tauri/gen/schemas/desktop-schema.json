@@ -189,6 +189,12 @@
           "markdownDescription": "Enables the cancel_operation command without any pre-configured scope."
         },
         {
+          "description": "Enables the cancel_source_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-cancel-source-scan",
+          "markdownDescription": "Enables the cancel_source_scan command without any pre-configured scope."
+        },
+        {
           "description": "Enables the choose_media_source command without any pre-configured scope.",
           "type": "string",
           "const": "allow-choose-media-source",
@@ -207,10 +213,34 @@
           "markdownDescription": "Enables the connect_vpn command without any pre-configured scope."
         },
         {
+          "description": "Enables the control_music command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-control-music",
+          "markdownDescription": "Enables the control_music command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the control_player command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-control-player",
+          "markdownDescription": "Enables the control_player command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the control_slideshow command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-control-slideshow",
+          "markdownDescription": "Enables the control_slideshow command without any pre-configured scope."
+        },
+        {
           "description": "Enables the disconnect_vpn command without any pre-configured scope.",
           "type": "string",
           "const": "allow-disconnect-vpn",
           "markdownDescription": "Enables the disconnect_vpn command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the eject_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-eject-drive",
+          "markdownDescription": "Enables the eject_drive command without any pre-configured scope."
         },
         {
           "description": "Enables the enable_kill_switch command without any pre-configured scope.",
@@ -219,16 +249,70 @@
           "markdownDescription": "Enables the enable_kill_switch command without any pre-configured scope."
         },
         {
+          "description": "Enables the export_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-export-diagnostics",
+          "markdownDescription": "Enables the export_diagnostics command without any pre-configured scope."
+        },
+        {
           "description": "Enables the focus_session command without any pre-configured scope.",
           "type": "string",
           "const": "allow-focus-session",
           "markdownDescription": "Enables the focus_session command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-diagnostics",
+          "markdownDescription": "Enables the get_diagnostics command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_home_snapshot command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-home-snapshot",
           "markdownDescription": "Enables the get_home_snapshot command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_music_queue command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-music-queue",
+          "markdownDescription": "Enables the get_music_queue command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_photo_image command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-photo-image",
+          "markdownDescription": "Enables the get_photo_image command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_player command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-player",
+          "markdownDescription": "Enables the get_player command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-playlist",
+          "markdownDescription": "Enables the get_playlist command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_presentation_frame command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-presentation-frame",
+          "markdownDescription": "Enables the get_presentation_frame command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_slideshow command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-slideshow",
+          "markdownDescription": "Enables the get_slideshow command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_thumbnail command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-thumbnail",
+          "markdownDescription": "Enables the get_thumbnail command without any pre-configured scope."
         },
         {
           "description": "Enables the list_drives command without any pre-configured scope.",
@@ -249,10 +333,22 @@
           "markdownDescription": "Enables the list_outputs command without any pre-configured scope."
         },
         {
+          "description": "Enables the list_playlists command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-playlists",
+          "markdownDescription": "Enables the list_playlists command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_vpn_countries command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-vpn-countries",
           "markdownDescription": "Enables the list_vpn_countries command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the mount_volume command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-mount-volume",
+          "markdownDescription": "Enables the mount_volume command without any pre-configured scope."
         },
         {
           "description": "Enables the move_session command without any pre-configured scope.",
@@ -267,6 +363,36 @@
           "markdownDescription": "Enables the open_service command without any pre-configured scope."
         },
         {
+          "description": "Enables the play_media command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-play-media",
+          "markdownDescription": "Enables the play_media command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the play_music_queue command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-play-music-queue",
+          "markdownDescription": "Enables the play_music_queue command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the play_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-play-playlist",
+          "markdownDescription": "Enables the play_playlist command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the prepare_eject_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-prepare-eject-drive",
+          "markdownDescription": "Enables the prepare_eject_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the query_media command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-query-media",
+          "markdownDescription": "Enables the query_media command without any pre-configured scope."
+        },
+        {
           "description": "Enables the refresh_vpn command without any pre-configured scope.",
           "type": "string",
           "const": "allow-refresh-vpn",
@@ -279,10 +405,40 @@
           "markdownDescription": "Enables the remove_media_source command without any pre-configured scope."
         },
         {
+          "description": "Enables the remove_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-remove-playlist",
+          "markdownDescription": "Enables the remove_playlist command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the request_exit command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-request-exit",
+          "markdownDescription": "Enables the request_exit command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the rescan_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-rescan-source",
+          "markdownDescription": "Enables the rescan_source command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the save_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-save-playlist",
+          "markdownDescription": "Enables the save_playlist command without any pre-configured scope."
+        },
+        {
           "description": "Enables the select_output command without any pre-configured scope.",
           "type": "string",
           "const": "allow-select-output",
           "markdownDescription": "Enables the select_output command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_control_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-control-monitor",
+          "markdownDescription": "Enables the set_control_monitor command without any pre-configured scope."
         },
         {
           "description": "Enables the set_theme command without any pre-configured scope.",
@@ -297,6 +453,12 @@
           "markdownDescription": "Enables the set_vpn_requirement command without any pre-configured scope."
         },
         {
+          "description": "Enables the start_slideshow command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-start-slideshow",
+          "markdownDescription": "Enables the start_slideshow command without any pre-configured scope."
+        },
+        {
           "description": "Denies the add_media_source command without any pre-configured scope.",
           "type": "string",
           "const": "deny-add-media-source",
@@ -307,6 +469,12 @@
           "type": "string",
           "const": "deny-cancel-operation",
           "markdownDescription": "Denies the cancel_operation command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel_source_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-cancel-source-scan",
+          "markdownDescription": "Denies the cancel_source_scan command without any pre-configured scope."
         },
         {
           "description": "Denies the choose_media_source command without any pre-configured scope.",
@@ -327,10 +495,34 @@
           "markdownDescription": "Denies the connect_vpn command without any pre-configured scope."
         },
         {
+          "description": "Denies the control_music command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-control-music",
+          "markdownDescription": "Denies the control_music command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the control_player command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-control-player",
+          "markdownDescription": "Denies the control_player command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the control_slideshow command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-control-slideshow",
+          "markdownDescription": "Denies the control_slideshow command without any pre-configured scope."
+        },
+        {
           "description": "Denies the disconnect_vpn command without any pre-configured scope.",
           "type": "string",
           "const": "deny-disconnect-vpn",
           "markdownDescription": "Denies the disconnect_vpn command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the eject_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-eject-drive",
+          "markdownDescription": "Denies the eject_drive command without any pre-configured scope."
         },
         {
           "description": "Denies the enable_kill_switch command without any pre-configured scope.",
@@ -339,16 +531,70 @@
           "markdownDescription": "Denies the enable_kill_switch command without any pre-configured scope."
         },
         {
+          "description": "Denies the export_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-export-diagnostics",
+          "markdownDescription": "Denies the export_diagnostics command without any pre-configured scope."
+        },
+        {
           "description": "Denies the focus_session command without any pre-configured scope.",
           "type": "string",
           "const": "deny-focus-session",
           "markdownDescription": "Denies the focus_session command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_diagnostics command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-diagnostics",
+          "markdownDescription": "Denies the get_diagnostics command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_home_snapshot command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-home-snapshot",
           "markdownDescription": "Denies the get_home_snapshot command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_music_queue command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-music-queue",
+          "markdownDescription": "Denies the get_music_queue command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_photo_image command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-photo-image",
+          "markdownDescription": "Denies the get_photo_image command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_player command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-player",
+          "markdownDescription": "Denies the get_player command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-playlist",
+          "markdownDescription": "Denies the get_playlist command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_presentation_frame command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-presentation-frame",
+          "markdownDescription": "Denies the get_presentation_frame command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_slideshow command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-slideshow",
+          "markdownDescription": "Denies the get_slideshow command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_thumbnail command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-thumbnail",
+          "markdownDescription": "Denies the get_thumbnail command without any pre-configured scope."
         },
         {
           "description": "Denies the list_drives command without any pre-configured scope.",
@@ -369,10 +615,22 @@
           "markdownDescription": "Denies the list_outputs command without any pre-configured scope."
         },
         {
+          "description": "Denies the list_playlists command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-playlists",
+          "markdownDescription": "Denies the list_playlists command without any pre-configured scope."
+        },
+        {
           "description": "Denies the list_vpn_countries command without any pre-configured scope.",
           "type": "string",
           "const": "deny-list-vpn-countries",
           "markdownDescription": "Denies the list_vpn_countries command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the mount_volume command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-mount-volume",
+          "markdownDescription": "Denies the mount_volume command without any pre-configured scope."
         },
         {
           "description": "Denies the move_session command without any pre-configured scope.",
@@ -387,6 +645,36 @@
           "markdownDescription": "Denies the open_service command without any pre-configured scope."
         },
         {
+          "description": "Denies the play_media command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-play-media",
+          "markdownDescription": "Denies the play_media command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the play_music_queue command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-play-music-queue",
+          "markdownDescription": "Denies the play_music_queue command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the play_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-play-playlist",
+          "markdownDescription": "Denies the play_playlist command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the prepare_eject_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-prepare-eject-drive",
+          "markdownDescription": "Denies the prepare_eject_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the query_media command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-query-media",
+          "markdownDescription": "Denies the query_media command without any pre-configured scope."
+        },
+        {
           "description": "Denies the refresh_vpn command without any pre-configured scope.",
           "type": "string",
           "const": "deny-refresh-vpn",
@@ -399,10 +687,40 @@
           "markdownDescription": "Denies the remove_media_source command without any pre-configured scope."
         },
         {
+          "description": "Denies the remove_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-remove-playlist",
+          "markdownDescription": "Denies the remove_playlist command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_exit command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-request-exit",
+          "markdownDescription": "Denies the request_exit command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the rescan_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-rescan-source",
+          "markdownDescription": "Denies the rescan_source command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the save_playlist command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-save-playlist",
+          "markdownDescription": "Denies the save_playlist command without any pre-configured scope."
+        },
+        {
           "description": "Denies the select_output command without any pre-configured scope.",
           "type": "string",
           "const": "deny-select-output",
           "markdownDescription": "Denies the select_output command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_control_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-control-monitor",
+          "markdownDescription": "Denies the set_control_monitor command without any pre-configured scope."
         },
         {
           "description": "Denies the set_theme command without any pre-configured scope.",
@@ -415,6 +733,12 @@
           "type": "string",
           "const": "deny-set-vpn-requirement",
           "markdownDescription": "Denies the set_vpn_requirement command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the start_slideshow command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-start-slideshow",
+          "markdownDescription": "Denies the start_slideshow command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

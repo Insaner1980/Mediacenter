@@ -7,13 +7,21 @@ import { AppShell } from '../ui/AppShell';
 import {VpnSettings} from '../features/vpn/VpnSettings';
 import {StreamingSession} from '../features/streaming/StreamingSession';
 import '../ui/theme.css';
-import {SourcePicker} from '../features/library/SourcePicker';
+import {Diagnostics} from '../features/settings/Diagnostics';
+import {getCurrentWindow} from '@tauri-apps/api/window';
+import {MusicScreen} from '../features/music/MusicScreen';
+import {PhotosScreen} from '../features/photos/PhotosScreen';
+import {PresentationScreen} from '../features/photos/PresentationScreen';
+import {ExitDialog} from '../features/settings/ExitDialog';
+import {LocalPlayerControls} from '../features/player/LocalPlayerControls';
+import type {MediaItem} from './contracts';
+import {MediaBrowser} from '../features/library/MediaBrowser';
 import {DrivesScreen} from '../features/drives/DrivesScreen';
 import {OutputSettings} from '../features/outputs/OutputSettings';
 const initial: HomeSnapshot = {revision:0,theme:document.documentElement.dataset.theme==='light'?'light':'dark',vpn:{revision:0,errorCode:null,state:'unknown',country:null,killSwitch:'unknown',observedAtMs:0},outputs:{revision:0,desired:{monitorId:null,audioSinkId:null},effective:{monitorId:null,audioSinkId:null},label:'Detecting outputs',state:'unavailable'},summaries:{video:'Add a video folder',audio:'Add a music folder',photo:'Add a photo folder',drives:'Checking drives',resumeProgress:null},services:[],sessions:[]};
-export function App() {
+function MainApp() {
   const [snapshot,setSnapshot] = useState(initial);
-  const [screen,setScreen] = useState<Screen|'streaming'>('home');
+  const [screen,setScreen] = useState<Screen|'streaming'|'player'>('home');
   const [busy,setBusy]=useState(false);
   const [message,setMessage] = useState('');
   useEffect(()=>{
@@ -30,10 +38,14 @@ export function App() {
     else {
       if(busy)return;
       if(!isTauri()){setMessage('Open the desktop application to launch a service.');return;}
+      const active=snapshot.sessions.find(s=>s.kind==='streaming');
+      if(active){setScreen('streaming');setMessage(active.serviceId===a.serviceId?'':'Close the current service before opening another.');if(active.serviceId===a.serviceId){try{await backend.focusSession(active.id);}catch(reason){setMessage(errorMessage(reason));}}return;}
+      if(snapshot.sessions.some(s=>s.kind.startsWith('local-'))){setScreen('player');setMessage('Stop local playback before opening a service.');return;}
       setBusy(true);setMessage('Opening service');
       try{await backend.openService(a.serviceId);setScreen('streaming');setMessage('');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}
     }
   }
+  async function play(item:MediaItem,resume:boolean){if(busy)return;setBusy(true);setMessage('Opening local media');try{await backend.playMedia(item.id,resume);setScreen('player');setMessage('');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}}
   async function theme(value: Theme) {
     if(isTauri()) {try{await backend.setTheme(value);}catch{setMessage('The theme could not be saved.');return;}}
     localStorage.setItem('mediacenter.theme',value);
@@ -41,6 +53,9 @@ export function App() {
     setSnapshot(s=>({...s,theme:value}));
   }
   if(screen==='home') return <><HomeScreen snapshot={snapshot} onAction={action}/>{message && <div role="status" className="message">{message}</div>}</>;
-  if(screen==='streaming')return <AppShell snapshot={snapshot}><section className="screen"><button className="control" onClick={()=>setScreen('home')}>Back</button><StreamingSession session={snapshot.sessions.find(session=>session.kind==='streaming')} services={snapshot.services}/><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind==='streaming')}/></section></AppShell>;
-  return <AppShell snapshot={snapshot}><section className="screen"><button className="control" onClick={()=>setScreen('home')}>Back</button><h1>{({video:'Videos',audio:'Music',photo:'Photos',drives:'Drives & USB',settings:'VPN & Sound'})[screen]}</h1>{screen==='settings' ? <><section><h2>Appearance</h2><div className="actions"><button className="control" aria-pressed={snapshot.theme==='light'} onClick={()=>void theme('light')}>Light</button><button className="control" aria-pressed={snapshot.theme==='dark'} onClick={()=>void theme('dark')}>Dark</button></div></section><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind==='streaming')}/><VpnSettings vpn={snapshot.vpn} services={snapshot.services}/></> : screen==='drives'?<DrivesScreen/>:<SourcePicker kind={screen}/>}{message && <p role="alert" className="message">{message}</p>}</section></AppShell>;
+  if(screen==='player')return <AppShell snapshot={snapshot}><section className="screen"><button className="control" onClick={()=>setScreen('home')}>Back</button><LocalPlayerControls/><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind.startsWith('local-'))}/>{message && <p role="status" className="message">{message}</p>}</section></AppShell>;
+  if(screen==='streaming')return <AppShell snapshot={snapshot}><section className="screen"><button className="control" onClick={()=>setScreen('home')}>Back</button><StreamingSession session={snapshot.sessions.find(session=>session.kind==='streaming')} services={snapshot.services}/><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind==='streaming')}/>{message && <p role="status" className="message">{message}</p>}</section></AppShell>;
+  return <AppShell snapshot={snapshot}><section className="screen"><button className="control" onClick={()=>setScreen('home')}>Back</button><h1>{({video:'Videos',audio:'Music',photo:'Photos',drives:'Drives & USB',settings:'VPN & Sound'})[screen]}</h1>{screen==='settings' ? <><section><h2>Appearance</h2><div className="actions"><button className="control" aria-pressed={snapshot.theme==='light'} onClick={()=>void theme('light')}>Light</button><button className="control" aria-pressed={snapshot.theme==='dark'} onClick={()=>void theme('dark')}>Dark</button></div></section><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind==='streaming')}/><VpnSettings vpn={snapshot.vpn} services={snapshot.services}/><Diagnostics/></> : screen==='drives'?<DrivesScreen/>:screen==='audio'?<MusicScreen/>:screen==='photo'?<PhotosScreen/>:<>{snapshot.sessions.some(s=>s.kind.startsWith('local-')) && <LocalPlayerControls/>}<MediaBrowser key={screen} kind={screen} onPlay={(item,resume)=>void play(item,resume)}/></>}{message && <p role="alert" className="message">{message}</p>}</section></AppShell>;
 }
+
+export function App(){if(isTauri()&&getCurrentWindow().label==='presentation')return <PresentationScreen/>;return <><MainApp/><ExitDialog/></>;}

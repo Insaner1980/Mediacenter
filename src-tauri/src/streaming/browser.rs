@@ -5,9 +5,19 @@ use std::{
 };
 pub fn prepare_profile(data: &Path, service: ServiceId) -> Result<PathBuf, AppError> {
     use std::os::unix::fs::PermissionsExt;
-    let profile = data
-        .join("browser-profiles")
-        .join(super::catalog::key(service));
+    let parent = data.join("browser-profiles");
+    if parent
+        .symlink_metadata()
+        .is_ok_and(|metadata| !metadata.is_dir())
+    {
+        return Err(AppError::new(
+            "profile_invalid",
+            "The browser profile directory must be an application-owned directory.",
+        ));
+    }
+    std::fs::create_dir_all(&parent)?;
+    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o700))?;
+    let profile = parent.join(super::catalog::key(service));
     if profile.join("SingletonLock").symlink_metadata().is_ok() {
         return Err(AppError::new("profile_busy","This service profile is already open or has an unresolved lock. Close its browser and retry; its files were not changed."));
     }
@@ -103,7 +113,12 @@ pub async fn launch(
     if std::env::var("XDG_SESSION_TYPE").as_deref() != Ok("x11") {
         return Err(AppError::new("manual_browser_required","Managed browser placement requires X11. Open the service manually in this desktop session."));
     }
-    let metadata = std::fs::metadata("/usr/bin/google-chrome")?;
+    let metadata = std::fs::metadata("/usr/bin/google-chrome").map_err(|_| {
+        AppError::new(
+            "chrome_unavailable",
+            "Install Google Chrome to open streaming services.",
+        )
+    })?;
     if !metadata.is_file() || metadata.permissions().mode() & 0o111 == 0 {
         return Err(AppError::new(
             "chrome_unavailable",
@@ -139,7 +154,7 @@ pub async fn launch(
                             phase: "ready".into(),
                             target: PlaybackTarget::default(),
                         };
-                        let browser = BrowserSession {
+                        let mut browser = BrowserSession {
                             routing_target: None,
                             session,
                             child,
@@ -147,7 +162,13 @@ pub async fn launch(
                             profile,
                             window,
                         };
-                        browser.verify().await?;
+                        if let Err(error) = browser.verify().await {
+                            if browser.identity.still_owned() {
+                                let _ = browser.child.kill().await;
+                                let _ = browser.child.wait().await;
+                            }
+                            return Err(error);
+                        }
                         return Ok(browser);
                     }
                 }
@@ -193,6 +214,14 @@ mod tests {
         std::os::unix::fs::symlink("host-999999", profile.join("SingletonLock")).unwrap();
         assert!(prepare_profile(dir.path(), ServiceId::Netflix).is_err());
         assert!(profile.join("SingletonLock").symlink_metadata().is_ok());
+    }
+    #[test]
+    fn linked_profile_parent_does_not_modify_external_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let external = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(external.path(), dir.path().join("browser-profiles")).unwrap();
+        assert!(prepare_profile(dir.path(), ServiceId::Youtube).is_err());
+        assert!(!external.path().join("youtube").exists());
     }
     #[test]
     fn unknown_service_id_is_rejected() {

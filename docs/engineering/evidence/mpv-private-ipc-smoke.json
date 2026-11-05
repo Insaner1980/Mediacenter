@@ -1,0 +1,15 @@
+{
+  "loaded": true,
+  "socket_pair": true,
+  "visual_output": "null",
+  "audio_output": "null",
+  "events": [
+    "start-file",
+    "audio-reconfig",
+    "audio-reconfig",
+    "file-loaded",
+    "audio-reconfig",
+    "playback-restart"
+  ],
+  "exit_code": 0
+}

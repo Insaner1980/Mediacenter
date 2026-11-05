@@ -19,6 +19,20 @@ pub async fn open(
     cancel: tokio_util::sync::CancellationToken,
 ) -> Result<(), crate::contracts::AppError> {
     use crate::{app_state::now_ms, contracts::AppError, events, vpn};
+    let _session = state
+        .session_gate
+        .try_lock()
+        .map_err(|_| AppError::new("session_busy", "Another playback session is starting."))?;
+    if crate::photos::presenter::snapshot(&state)
+        .await
+        .session_id
+        .is_some()
+    {
+        return Err(AppError::new(
+            "session_switch_required",
+            "Stop the slideshow before opening a streaming service.",
+        ));
+    }
     let mut browser = state
         .browser
         .try_lock()
@@ -41,7 +55,8 @@ pub async fn open(
     }
     let home = state.snapshot()?;
     if home.sessions.iter().any(|session| {
-        session.kind == "local-video" && !["ended", "error"].contains(&session.phase.as_str())
+        (session.kind == "local-video" || session.kind == "local-audio")
+            && !["ended", "error"].contains(&session.phase.as_str())
     }) {
         return Err(AppError::new(
             "session_switch_required",
@@ -98,12 +113,32 @@ pub async fn close(
                 "This service session is unavailable.",
             )
         })?;
-    current.close().await?;
+    if current.child.try_wait()?.is_none() {
+        current.close().await?;
+    }
     *browser = None;
     crate::events::publish(app, state, |home| {
         home.sessions.retain(|session| session.id != id)
     })
 }
+pub async fn reconcile(app: &tauri::AppHandle, state: &crate::app_state::AppState) {
+    let Ok(mut registry) = state.browser.try_lock() else {
+        return;
+    };
+    let Some(browser) = registry.as_mut() else {
+        return;
+    };
+    if matches!(browser.child.try_wait(), Ok(Some(_))) && browser.session.phase != "unavailable" {
+        browser.session.phase = "unavailable".into();
+        let session = browser.session.clone();
+        let _ = crate::events::publish(app, state, |home| {
+            if let Some(current) = home.sessions.iter_mut().find(|s| s.id == session.id) {
+                *current = session;
+            }
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

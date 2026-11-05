@@ -8,6 +8,24 @@ use std::{
 use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub struct AppState {
+    pub geometry_saved_at: Arc<Mutex<std::time::Instant>>,
+    pub log_gate: Arc<Mutex<()>>,
+    pub diagnostic_preview: Arc<Mutex<Option<crate::diagnostics::DiagnosticReport>>>,
+    pub source_confirmations:
+        Arc<Mutex<HashMap<String, crate::library::confirmation::MountConfirmation>>>,
+    pub player_preferences: Arc<Mutex<crate::player::mpv::TransportPreferences>>,
+    pub exit_pending: Arc<std::sync::atomic::AtomicBool>,
+    pub photos: Arc<tokio::sync::Mutex<crate::photos::presenter::State>>,
+    pub resources: crate::library::resources::Resources,
+    pub device_gate: Arc<tokio::sync::Mutex<()>>,
+    pub music: Arc<tokio::sync::Mutex<crate::music::queue::Queue>>,
+    pub music_gate: Arc<tokio::sync::Mutex<()>>,
+    pub player: Arc<tokio::sync::Mutex<Option<crate::player::mpv::Player>>>,
+    pub session_gate: Arc<tokio::sync::Mutex<()>>,
+    pub cache_dir: PathBuf,
+    pub thumbnail_gate: Arc<tokio::sync::Semaphore>,
+    pub scans: Arc<Mutex<HashMap<String, CancellationToken>>>,
+    pub probes: Arc<tokio::sync::Semaphore>,
     pub grants: Arc<Mutex<crate::library::sources::Grants>>,
     pub browser: Arc<tokio::sync::Mutex<Option<crate::streaming::browser::BrowserSession>>>,
     pub data_dir: PathBuf,
@@ -89,7 +107,28 @@ impl AppState {
             services,
             sessions: vec![],
         };
+        let music = crate::music::queue::Queue::load(&db)?;
+        let player_preferences = crate::player::mpv::preferences(&db);
         Ok(Self {
+            geometry_saved_at: Arc::new(Mutex::new(std::time::Instant::now())),
+            log_gate: Arc::new(Mutex::new(())),
+            diagnostic_preview: Arc::new(Mutex::new(None)),
+            source_confirmations: Arc::new(Mutex::new(HashMap::new())),
+            player_preferences: Arc::new(Mutex::new(player_preferences)),
+            exit_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            photos: Arc::new(tokio::sync::Mutex::new(
+                crate::photos::presenter::State::default(),
+            )),
+            resources: crate::library::resources::Resources::default(),
+            device_gate: Arc::new(tokio::sync::Mutex::new(())),
+            music: Arc::new(tokio::sync::Mutex::new(music)),
+            music_gate: Arc::new(tokio::sync::Mutex::new(())),
+            player: Arc::new(tokio::sync::Mutex::new(None)),
+            session_gate: Arc::new(tokio::sync::Mutex::new(())),
+            cache_dir: data_dir.join("cache"),
+            thumbnail_gate: Arc::new(tokio::sync::Semaphore::new(1)),
+            scans: Arc::new(Mutex::new(HashMap::new())),
+            probes: Arc::new(tokio::sync::Semaphore::new(2)),
             grants: Arc::new(Mutex::new(crate::library::sources::Grants::default())),
             browser: Arc::new(tokio::sync::Mutex::new(None)),
             data_dir,

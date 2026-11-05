@@ -14,6 +14,8 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub enum Executable {
+    Chrome,
+    Mpv,
     NordVpn,
     Ffprobe,
     Ffmpeg,
@@ -38,6 +40,8 @@ pub struct Output {
 impl Executable {
     pub fn path(&self) -> &'static str {
         match self {
+            Self::Chrome => "/usr/bin/google-chrome",
+            Self::Mpv => "/usr/bin/mpv",
             Self::NordVpn => "/usr/bin/nordvpn",
             Self::Ffprobe => "/usr/bin/ffprobe",
             Self::Ffmpeg => "/usr/bin/ffmpeg",
@@ -95,11 +99,12 @@ pub async fn run(spec: CommandSpec, cancel: CancellationToken) -> Result<Output,
     let stderr = child.stderr.take().ok_or("pipe_failed")?;
     let used = Arc::new(AtomicUsize::new(0));
     let work = async {
-        let (stdout, stderr, status) = tokio::try_join!(
+        // Keep the leader unreaped until pipe readers finish, preserving its process-group identity.
+        let (stdout, stderr) = tokio::try_join!(
             read_bounded(stdout, used.clone(), spec.output_limit),
-            read_bounded(stderr, used, spec.output_limit),
-            async { child.wait().await.map_err(|_| "wait_failed".to_string()) }
+            read_bounded(stderr, used, spec.output_limit)
         )?;
+        let status = child.wait().await.map_err(|_| "wait_failed".to_string())?;
         Ok(Output {
             stdout,
             stderr,

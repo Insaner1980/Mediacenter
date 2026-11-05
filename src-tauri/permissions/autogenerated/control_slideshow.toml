@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-control-slideshow"
+description = "Enables the control_slideshow command without any pre-configured scope."
+commands.allow = ["control_slideshow"]
+
+[[permission]]
+identifier = "deny-control-slideshow"
+description = "Denies the control_slideshow command without any pre-configured scope."
+commands.deny = ["control_slideshow"]

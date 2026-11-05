@@ -3,10 +3,15 @@ pub mod app_state;
 pub mod commands;
 pub mod contracts;
 pub mod devices;
+pub mod diagnostics;
 pub mod events;
 pub mod library;
+pub mod lifecycle;
+pub mod music;
 pub mod operations;
 pub mod outputs;
+pub mod photos;
+pub mod player;
 pub mod process;
 pub mod storage;
 pub mod streaming;
@@ -30,6 +35,33 @@ pub fn run() {
             commands::list_media_sources,
             commands::remove_media_source,
             commands::list_drives,
+            commands::rescan_source,
+            commands::cancel_source_scan,
+            commands::query_media,
+            commands::get_thumbnail,
+            commands::play_media,
+            commands::get_player,
+            commands::control_player,
+            commands::get_music_queue,
+            commands::control_music,
+            commands::play_music_queue,
+            commands::play_playlist,
+            commands::save_playlist,
+            commands::list_playlists,
+            commands::get_playlist,
+            commands::remove_playlist,
+            commands::start_slideshow,
+            commands::control_slideshow,
+            commands::get_slideshow,
+            commands::get_presentation_frame,
+            commands::get_photo_image,
+            commands::prepare_eject_drive,
+            commands::mount_volume,
+            commands::eject_drive,
+            commands::request_exit,
+            commands::get_diagnostics,
+            commands::export_diagnostics,
+            commands::set_control_monitor,
             commands::get_home_snapshot,
             commands::set_theme,
             commands::refresh_vpn,
@@ -44,8 +76,9 @@ pub fn run() {
             commands::close_session
         ])
         .setup(|app| {
-            let state = app_state::AppState::open(app.path().app_data_dir()?)
+            let mut state = app_state::AppState::open(app.path().app_data_dir()?)
                 .map_err(|error| std::io::Error::other(error.message))?;
+            state.cache_dir = app.path().app_cache_dir()?;
             app.manage(state);
             tauri::async_runtime::spawn(outputs::audio::subscribe(
                 app.handle().clone(),
@@ -54,10 +87,52 @@ pub fn run() {
             let handle = app.handle().clone();
             let state = app.state::<app_state::AppState>().inner().clone();
             tauri::async_runtime::spawn(async move {
+                let mut wall = app_state::now_ms();
+                let mut monotonic = std::time::Instant::now();
                 loop {
+                    let now = app_state::now_ms();
+                    let elapsed = monotonic.elapsed().as_millis() as u64;
+                    if now.saturating_sub(wall) > elapsed.saturating_add(2000) || elapsed > 15000 {
+                        let _ = events::publish(&handle, &state, |home| {
+                            home.vpn.state = "unknown".into();
+                            home.vpn.kill_switch = "unknown".into();
+                            home.vpn.observed_at_ms = 0;
+                            home.vpn.error_code = Some("observation_stale".into());
+                            home.vpn.revision += 1;
+                        });
+                    }
+                    wall = now;
+                    monotonic = std::time::Instant::now();
                     let _ = vpn::nordvpn::refresh(&handle, &state).await;
+                    let interval = state
+                        .snapshot()
+                        .map(|home| {
+                            if ["connecting", "disconnecting"].contains(&home.vpn.state.as_str()) {
+                                1
+                            } else if home.sessions.iter().any(|s| s.kind == "streaming") {
+                                2
+                            } else {
+                                5
+                            }
+                        })
+                        .unwrap_or(5);
+                    tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+                }
+            });
+            let handle = app.handle().clone();
+            let state = app.state::<app_state::AppState>().inner().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut last_devices =
+                    std::time::Instant::now() - std::time::Duration::from_secs(10);
+                loop {
+                    outputs::control_window::recover(&handle, &state);
+                    streaming::sessions::reconcile(&handle, &state).await;
                     outputs::coordinator::reconcile(&handle, &state).await;
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    if last_devices.elapsed() >= std::time::Duration::from_secs(10) {
+                        let _ = lifecycle::reconcile_sources(&handle, &state).await;
+                        last_devices = std::time::Instant::now();
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                 }
             });
             use tauri::menu::{Menu, MenuItem, Submenu};
@@ -65,28 +140,23 @@ pub fn run() {
             let light = MenuItem::with_id(app, "theme-light", "Light", true, None::<&str>)?;
             let view = Submenu::with_items(app, "View", true, &[&dark, &light])?;
             app.set_menu(Menu::with_items(app, &[&view])?)?;
-            let window = app.get_webview_window("main").expect("main window");
-            let monitors = window.available_monitors()?;
-            let monitor = monitors
-                .into_iter()
-                .find(|m| {
-                    m.name()
-                        .is_some_and(|name| name.starts_with("eDP") || name.starts_with("LVDS"))
-                })
-                .or(window.primary_monitor()?);
-            if let Some(monitor) = monitor {
-                let scale = monitor.scale_factor();
-                let size = monitor.work_area().size.to_logical::<f64>(scale);
-                let width = 1280_f64.min(size.width);
-                let height = 800_f64.min(size.height);
-                window.set_min_size(Some(tauri::LogicalSize::new(
-                    800_f64.min(width),
-                    600_f64.min(height),
-                )))?;
-                window.set_size(tauri::LogicalSize::new(width, height))?;
-                window.set_position(monitor.work_area().position)?;
+            let state = app.state::<app_state::AppState>();
+            if let Err(error) = outputs::control_window::restore(app.handle(), &state) {
+                diagnostics::record(
+                    &state,
+                    "control_window",
+                    "initial_placement_failed",
+                    None,
+                    0,
+                    Some(&error.code),
+                );
             }
+            let _ = library::scanner::publish_summaries(app.handle(), &state);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            outputs::control_window::remember(window, event);
+            lifecycle::on_close(window, event);
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
             "theme-dark" => {

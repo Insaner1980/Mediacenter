@@ -23,6 +23,7 @@ fn number(props: &Props, key: &str) -> u64 {
 }
 #[derive(Clone, Debug)]
 pub struct Drive {
+    pub safe_to_remove: bool,
     pub id: String,
     pub path: String,
     pub name: String,
@@ -45,6 +46,7 @@ async fn read() -> Result<Devices, zbus::Error> {
     let objects = proxy.get_managed_objects().await?;
     let mut result = Devices::default();
     let mut identities = HashMap::new();
+    let mut hardware_ids = HashMap::new();
     for (path, interfaces) in &objects {
         let Some(props) = interfaces.get("org.freedesktop.UDisks2.Drive") else {
             continue;
@@ -54,10 +56,17 @@ async fn read() -> Result<Devices, zbus::Error> {
             path.as_str().rsplit('/').next().unwrap_or_default()
         );
         identities.insert(path.to_string(), id.clone());
+        let hardware = ["Id", "WWN", "Serial"]
+            .iter()
+            .map(|key| string(props, key))
+            .find(|value| !value.is_empty())
+            .unwrap_or_default();
+        hardware_ids.insert(path.to_string(), hardware);
         let name = format!("{} {}", string(props, "Vendor"), string(props, "Model"))
             .trim()
             .to_string();
         result.drives.push(Drive {
+            safe_to_remove: true,
             id,
             path: path.to_string(),
             name,
@@ -65,6 +74,58 @@ async fn read() -> Result<Devices, zbus::Error> {
             can_power_off: boolean(props, "CanPowerOff"),
             sibling_id: string(props, "SiblingId"),
         });
+    }
+    for interfaces in objects.values() {
+        let Some(block) = interfaces.get("org.freedesktop.UDisks2.Block") else {
+            continue;
+        };
+        let drive_path = block
+            .get("Drive")
+            .and_then(|v| <&zbus::zvariant::ObjectPath>::try_from(v).ok())
+            .map(|p| p.as_str())
+            .unwrap_or_default();
+        let crypto = block
+            .get("CryptoBackingDevice")
+            .and_then(|v| <&zbus::zvariant::ObjectPath>::try_from(v).ok())
+            .is_some_and(|p| p.as_str() != "/");
+        let unsafe_device = boolean(block, "HintSystem")
+            || boolean(block, "HintIgnore")
+            || crypto
+            || interfaces
+                .get("org.freedesktop.UDisks2.Swapspace")
+                .is_some_and(|p| boolean(p, "Active"));
+        if unsafe_device {
+            if let Some(drive) = result.drives.iter_mut().find(|d| d.path == drive_path) {
+                drive.safe_to_remove = false;
+            }
+        }
+        if let Some(backing) = block
+            .get("CryptoBackingDevice")
+            .and_then(|v| <&zbus::zvariant::ObjectPath>::try_from(v).ok())
+            .filter(|p| p.as_str() != "/")
+        {
+            if let Some(props) = objects
+                .iter()
+                .find(|(path, _)| path.as_str() == backing.as_str())
+                .and_then(|(_, interfaces)| interfaces.get("org.freedesktop.UDisks2.Block"))
+            {
+                if let Some(parent) = props
+                    .get("Drive")
+                    .and_then(|v| <&zbus::zvariant::ObjectPath>::try_from(v).ok())
+                {
+                    if let Some(drive) =
+                        result.drives.iter_mut().find(|d| d.path == parent.as_str())
+                    {
+                        drive.safe_to_remove = false;
+                    }
+                }
+            }
+        }
+        if ["raid", "other", "crypto"].contains(&string(block, "IdUsage").as_str()) {
+            if let Some(drive) = result.drives.iter_mut().find(|d| d.path == drive_path) {
+                drive.safe_to_remove = false;
+            }
+        }
     }
     for (path, interfaces) in &objects {
         let Some(block) = interfaces.get("org.freedesktop.UDisks2.Block") else {
@@ -109,7 +170,21 @@ async fn read() -> Result<Devices, zbus::Error> {
             ),
             path: path.to_string(),
             drive_id,
-            identity: (!uuid.is_empty()).then(|| format!("uuid:{uuid}")),
+            identity: if !uuid.is_empty() {
+                Some(format!("uuid:{uuid}"))
+            } else {
+                super::identity::fallback_fingerprint(
+                    hardware_ids
+                        .get(drive_path)
+                        .map(String::as_str)
+                        .unwrap_or_default(),
+                    interfaces
+                        .get("org.freedesktop.UDisks2.Partition")
+                        .map_or(0, |p| number(p, "Offset")),
+                    number(block, "Size"),
+                    &string(block, "IdType"),
+                )
+            },
             mounts,
             label: string(block, "IdLabel"),
             size: number(block, "Size"),

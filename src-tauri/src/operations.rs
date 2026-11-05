@@ -25,6 +25,8 @@ where
         }
         operations.insert(id.clone(), token.clone());
     }
+    crate::diagnostics::record(&state, "operation", "started", Some(&id), 0, None);
+    let started = std::time::Instant::now();
     let result = OperationRef {
         operation_id: id.clone(),
     };
@@ -37,6 +39,14 @@ where
                 "The operation stopped unexpectedly. Try again.",
             )),
         };
+        crate::diagnostics::record(
+            &state,
+            "operation",
+            "finished",
+            Some(&id),
+            started.elapsed().as_millis() as u64,
+            error.as_ref().map(|e| e.code.as_str()),
+        );
         if let Some(error) = &mut error {
             error.operation_id = Some(id.clone());
         }

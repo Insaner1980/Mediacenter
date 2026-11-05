@@ -1,10 +1,54 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Mediacenter", "version": "0.1.0", "identifier": "io.emma.mediacenter",
-  "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
-  "app": {
-    "windows": [{ "label": "main", "title": "Mediacenter", "width": 1280, "height": 800, "minWidth": 800, "minHeight": 600, "resizable": true, "decorations": true }],
-    "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'" }
+  "productName": "Mediacenter",
+  "version": "0.1.0",
+  "identifier": "io.emma.mediacenter",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
   },
-  "bundle": { "active": true, "targets": ["deb"], "category": "Entertainment", "shortDescription": "Personal Linux media center", "linux": { "deb": { "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "mpv", "ffmpeg", "pulseaudio-utils", "wmctrl", "x11-xserver-utils", "udisks2"] } } }
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Mediacenter",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb"
+    ],
+    "category": "Entertainment",
+    "shortDescription": "Personal Linux media center",
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "mpv",
+          "ffmpeg",
+          "pulseaudio-utils",
+          "wmctrl",
+          "x11-xserver-utils",
+          "udisks2"
+        ]
+      }
+    },
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
 }

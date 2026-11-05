@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-photo-image"
+description = "Enables the get_photo_image command without any pre-configured scope."
+commands.allow = ["get_photo_image"]
+
+[[permission]]
+identifier = "deny-get-photo-image"
+description = "Denies the get_photo_image command without any pre-configured scope."
+commands.deny = ["get_photo_image"]

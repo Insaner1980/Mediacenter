@@ -66,9 +66,33 @@ pub fn discover(
             })
         })
         .collect::<Vec<_>>();
+    let preferred = app
+        .try_state::<crate::app_state::AppState>()
+        .and_then(|state| {
+            state.db.lock().ok().and_then(|db| {
+                db.query_row(
+                    "SELECT value_json FROM settings WHERE key='control_monitor'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .ok()
+            })
+        })
+        .and_then(|s| serde_json::from_str::<String>(&s).ok());
+    let current = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .and_then(|m| m.name().cloned());
     let computer = monitors
         .iter()
-        .find(|m| m.connector.starts_with("eDP") || m.connector.starts_with("LVDS"))
+        .find(|m| Some(&m.id) == preferred.as_ref())
+        .or_else(|| {
+            monitors
+                .iter()
+                .find(|m| m.connector.starts_with("eDP") || m.connector.starts_with("LVDS"))
+        })
+        .or_else(|| monitors.iter().find(|m| Some(&m.id) == current.as_ref()))
         .or_else(|| monitors.iter().find(|m| m.primary))
         .or_else(|| monitors.first())
         .map(|m| m.id.clone());
