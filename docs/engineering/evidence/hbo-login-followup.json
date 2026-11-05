@@ -1,0 +1,131 @@
+{
+  "date": "2026-11-05",
+  "installedVersion": "0.1.1",
+  "userComparison": "User confirmed ordinary Chrome still reaches the email login form with VPN unchanged; screenshot supplied.",
+  "scope": "Disposable browser profiles on authenticated private Xvfb displays. No credentials entered, real user profiles reset, VPN settings or TV/audio settings changed. Minimal launch tests add a loopback diagnostic port or pipe; not identical to uninstrumented production.",
+  "results": [
+    {
+      "variant": "minimal Chrome with window manager",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": false,
+          "hasEmailInput": 0
+        },
+        {
+          "step": "normal:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": true,
+          "hasEmailInput": 0
+        }
+      ]
+    },
+    {
+      "variant": "minimal Chrome network diagnostics",
+      "observations": [
+        {
+          "step": "normal:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": true,
+          "hasEmailInput": 0
+        }
+      ]
+    },
+    {
+      "variant": "Playwright defaults",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": false,
+          "hasEmailInput": 1
+        }
+      ]
+    },
+    {
+      "variant": "disable AvoidCorsURLLoaderRestartOnRedirect",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": true,
+          "hasEmailInput": 0
+        }
+      ]
+    },
+    {
+      "variant": "direct auth/login flow",
+      "observations": [
+        {
+          "step": "app:direct-login",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": true,
+          "hasEmailInput": 0
+        }
+      ]
+    },
+    {
+      "variant": "disable ThirdPartyStoragePartitioning",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": true,
+          "hasEmailInput": 0
+        }
+      ]
+    },
+    {
+      "variant": "all Playwright disabled features",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": false,
+          "hasEmailInput": 0
+        }
+      ]
+    },
+    {
+      "variant": "allow popups first attempt",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": false,
+          "hasEmailInput": 1
+        }
+      ]
+    },
+    {
+      "variant": "minimal debugging pipe",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": true,
+          "hasEmailInput": 0
+        }
+      ]
+    },
+    {
+      "variant": "allow popups confirmation",
+      "observations": [
+        {
+          "step": "app:clicked-signin",
+          "url": "https://www.hbomax.com/auth/login",
+          "genericError": true,
+          "hasEmailInput": 0
+        }
+      ]
+    }
+  ],
+  "observedErrors": [
+    "HBO API requests failed CORS checks because Access-Control-Allow-Origin was missing, including the feature-flags decisions endpoint.",
+    "Some telemetry resources failed DNS resolution or returned 404; these also occurred in successful tests and are not established causes.",
+    "Some runs reported Sentry is not defined."
+  ],
+  "conclusion": "Original login error reproduced. A successful first popup-permission test failed on repetition, so no popup flag, disabled security feature, URL change or cookie reset was shipped. Precise cause remains unconfirmed. Native application code remains unchanged from 0.1.1.",
+  "pendingDecision": "User preference requested: HBO in their working ordinary Chrome profile, with manual output control, versus continued diagnosis preserving fully managed output control."
+}
