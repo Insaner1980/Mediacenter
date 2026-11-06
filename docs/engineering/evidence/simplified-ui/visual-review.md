@@ -1,0 +1,26 @@
+# Visual review — 6 November 2026
+
+The six approved PNGs remain immutable. [Gallery](index.html) contains side-by-side comparisons (reference left), 50% overlays, exact-size implementation PNGs, computed geometry, responsive captures and exceptional states. No implementation screenshot was promoted into an approved golden. Regenerate comparisons with `python3 docs/engineering/evidence/simplified-ui/rebuild-gallery.py` after running the visual suite.
+
+## Screen review and decisions
+
+| Screen | Reviewed regions and measured implementation | Differences and ruling |
+| --- | --- | --- |
+| Home / V1 | Brand x60/y68; library x60, width356; four rows; streaming x478/y295, width1134/height552. Header, section rules and tile composition align with the reference. | Actual local fonts, official SVG logos and shared icons replace generated approximations. Service wall bottom is roughly 6px lower; acceptable within the geometry tolerance. Logo proportions follow verified original assets. |
+| Music / V2 | Shared sidebar286, main x324; toolbar y265/height44; table y347; player y776/height140. Five rows and selected-track styling align with reference. | Removed duplicate header Settings as specified. Duration uses real monospace/time formatter; source/action columns follow the fixed table proportions. Native range controls and shared transport icons differ from generated art. |
+| Settings / V3 | Shared sidebar286 and content x324; two-column settings start y239. Picture/sound, VPN, appearance and diagnostics preserve reference hierarchy. | Explicitly normalized sidebar/header moves content left from generated x373. Controls auto-save independently; target saves explicitly. Kill switch is an enable-only action, not a reversible switch. Network explanation is available in VPN by service. Native selects use platform arrows and no generated gradient. |
+| Videos / V4 | Shared frame; toolbar x324/y208/height44; image grid y290, three columns and 30px gaps. Preview and play/resume are separate buttons. | **16:9 specification takes precedence over inconsistent generated crops.** Reference first-row images are about 1.9:1 and second row about 2.18:1. True 16:9 produces taller cards: second-row captions require vertical scrolling at 1717×916. This exceeds the 8px region-edge target and is an explicit geometry exception, not an exact-fidelity pass. Durations use `h:mm:ss`/`m:ss`; no decorative dot separators. |
+| Photos / V5 | Shared frame; toolbar y225 and grid y307 (reference about226/310); three equal 16:9 columns; image-first composition and one Slideshow entry. | Uniform 16:9 crops make the generated uneven second row slightly taller. View dialog starts with contain; thumbnails use cover. Slideshow button and shared icons follow control sizing rather than generated glyphs. |
+| Drives / V6 | Shared frame; list x324/y218; first removable device expanded, internal device compact; management row separated below. Volume region aligns vertically with reference. | Sizes say “GiB in volumes” because the backend exposes volume capacities, not guaranteed physical capacity. Details remains available on unmounted volumes. Mounted/status column shifts right to accommodate truthful content. Internal-row and management-rule bottoms are about8–10px lower; retained for readable row padding and accessible disclosures. |
+
+Bricolage Grotesque is used for display/control text and IBM Plex Mono for metadata. Weight, wrapping and optical size were compared; antialiasing is not pixel-identical to generated typography. Exact light tokens are asserted in every reference scenario: surface `#f1eddf`, ink `#191912`, muted `#626256`, rule `#5e6052`, border `#c5c6b5`, soft `#dbdccc`, hover `#e5e3d5`, active `#285a28`. Generated paper texture is intentionally absent.
+
+## Responsive and text enlargement
+
+All six screens were captured in light/dark at 1920×1080, 1440×900, 1280×800 and 800×600. Automated assertions check document and main-content horizontal overflow. At small sizes library content scrolls independently above the persistent player; Home services use two columns; Settings uses one column. The overview galleries were visually inspected for hierarchy, wrapping and visible navigation.
+
+200% text enlargement at800×600 revealed clipped navigation labels, fixed-height filter controls, colliding settings labels and an overflowing player time row. Fixed with wrapping, proportional line height, flexible fields and bounded grid tracks. Six enlarged captures and overflow assertions cover the correction. Sidebar and main content scroll independently; labels may wrap within words at this extreme size. Dialog keyboard trapping and opener restoration are exercised separately. The test doubles computed text sizes, rather than using a screenshot scale transform.
+
+## Native scope
+
+See [acceptance](acceptance.md) and `native-smoke.json`. Native screenshots are independent production WebKitGTK captures from a disposable configuration; they are not fixture screenshots. Black space outside the resized application belongs to the private1440×900 virtual display. OS menu chrome and WebKit font metrics differ from Chromium. Real media decoding, HDMI, audible playback, mounting and safe removal remain controlled hardware checks, not visual approvals.

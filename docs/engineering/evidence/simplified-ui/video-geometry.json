@@ -1,0 +1,60 @@
+{
+  "viewport": {
+    "width": 1717,
+    "height": 916
+  },
+  "geometry": {
+    ".app-header": {
+      "x": 30,
+      "y": 0,
+      "width": 1657,
+      "height": 88
+    },
+    ".brand": {
+      "x": 44,
+      "y": 24.5,
+      "width": 233.28125,
+      "height": 37.984375
+    },
+    ".sidebar": {
+      "x": 0,
+      "y": 102,
+      "width": 286,
+      "height": 814
+    },
+    ".page-header": {
+      "x": 324,
+      "y": 116,
+      "width": 1363,
+      "height": 62
+    },
+    ".library-toolbar": {
+      "x": 324,
+      "y": 208,
+      "width": 1363,
+      "height": 44
+    },
+    ".media-grid": {
+      "x": 324,
+      "y": 290,
+      "width": 1363,
+      "height": 684.625
+    },
+    ".music-table": null,
+    ".player-bar": null,
+    ".service-grid": null,
+    ".own-media": null,
+    ".settings-columns": null,
+    ".drive-list": null
+  },
+  "tokens": {
+    "--surface": "#f1eddf",
+    "--ink": "#191912",
+    "--muted": "#626256",
+    "--rule": "#5e6052",
+    "--border": "#c5c6b5",
+    "--soft": "#dbdccc",
+    "--hover": "#e5e3d5",
+    "--active": "#285a28"
+  }
+}

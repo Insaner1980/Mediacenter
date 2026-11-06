@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-06",
+  "applicationSource": "44e091902b22199456e68a3ab298aba2a76e6e50",
+  "testOnlyFollowup": "Text zoom capture waits for visible lazy-loaded images; six focused tests passed after full83-test visual run.",
+  "unit": 139,
+  "visual": 83,
+  "e2e": 12,
+  "textZoomFollowup": 6,
+  "nativeBinarySha256": "7cb23e1d58b4b5e1a96fb03a45a8dba185bb674f6e9fc1f852d3a9353dc49afd",
+  "releaseAssets": {
+    "index-BxnKmDjo.css": "0285f29d59df7fa3ddc7b9f10d74b0890d7c578a9ee288d0d0a0c2268a3537ef",
+    "index-Ct9h3jYY.js": "6e00f015a06d3630ae4e0e39e342316f8bf9b292f7dba106bfaf922e09000d4b"
+  },
+  "nativeMutations": "Only disposable configuration/theme, window navigation/dialog and resize. No user media, VPN, output or drive changes."
+}

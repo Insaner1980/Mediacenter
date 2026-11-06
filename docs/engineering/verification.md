@@ -122,3 +122,9 @@ A release handoff should name the exact artifact and checksum, list measured lim
 ## Open implementation details
 
 Exact previous browser geometry restoration and a dedicated local-player fullscreen toggle remain deferred minor details. Returning playback currently uses a reachable normal computer window. An outside-source subtitle picker is not provided; adjacent supported files within the selected source are supported. See [implementation decisions](implementation-decisions.md).
+
+## Simplified desktop UI — 6 November 2026
+
+Application revision `44e091902b22199456e68a3ab298aba2a76e6e50` implements the six-screen simplified design. [Acceptance record](evidence/simplified-ui/acceptance.md) records139 passing unit tests,83 visual checks,12 E2E workflows, type/lint/asset/copy/build checks and Rust integration. [Screenshot gallery](evidence/simplified-ui/index.html) includes immutable-reference comparisons, overlays, responsive/theme cases and disposable native WebKitGTK captures. [Visual rulings](evidence/simplified-ui/visual-review.md) explicitly record deviations including true16:9 video thumbnails.
+
+A native release executable was built without bundles and exercised on a private authenticated virtual display with private XDG directories. Both themes, font/logo rendering, real dialog open/Escape focus return and resizing were observed. This is not physical-display, media-codec, HDMI/audio, mount/eject or provider acceptance. All unperformed hardware rows above remain pending. No update was installed over the user's application and no existing user configuration was reset.
