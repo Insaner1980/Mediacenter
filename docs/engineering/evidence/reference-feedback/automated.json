@@ -1,0 +1,24 @@
+{
+  "uiUnit": {
+    "passed": 150
+  },
+  "rust": {
+    "passed": 132,
+    "ignoredHardware": 2
+  },
+  "browserWorkflows": {
+    "passed": 14
+  },
+  "visual": {
+    "passed": 103
+  },
+  "typecheck": "passed",
+  "eslint": "passed",
+  "clippy": "passed",
+  "rustfmt": "passed",
+  "assetsAndCopy": "passed",
+  "releaseBuild": "passed",
+  "nativeReferenceFeedback": "passed",
+  "nativeDirectPlayback": "passed, including five distinct visible video frames after switching",
+  "sourceBase": "65ecc0d"
+}

@@ -68,14 +68,14 @@ pub(crate) fn arguments(media: &OpenMedia) -> Vec<OsString> {
     .map(OsString::from)
     .collect::<Vec<_>>();
     args.push(format!("--demuxer-lavf-o=protocol_whitelist=file,format_whitelist=%{}%{},enable_drefs=0,use_absolute_path=0",formats.len(),formats).into());
-    args.push(
-        if media.kind == MediaKind::Audio {
-            "--force-window=no"
-        } else {
-            "--force-window=yes"
+    // Music uses this same visible player even when the file has no artwork.
+    args.push("--force-window=yes".into());
+    if media.kind == MediaKind::Audio {
+        args.push("--script-opts=osc-visibility=always".into());
+        if let Some(name) = media.relative.file_name() {
+            args.push(format!("--force-media-title={}", name.to_string_lossy()).into());
         }
-        .into(),
-    );
+    }
     args.push("--".into());
     args.push(crate::library::files::descriptor_path(&media.file).into_os_string());
     args
@@ -260,14 +260,10 @@ async fn launch(
         phase: "ready".into(),
         target: PlaybackTarget::default(),
     };
-    let window = if media.kind == MediaKind::Video {
-        crate::outputs::x11::wmctrl(&["-lpG"])
-            .await
-            .ok()
-            .and_then(|text| crate::outputs::x11::owned_window(&text, pid))
-    } else {
-        None
-    };
+    let window = crate::outputs::x11::wmctrl(&["-lpG"])
+        .await
+        .ok()
+        .and_then(|text| crate::outputs::x11::owned_window(&text, pid));
     let snapshot = PlayerSnapshot {
         revision: 0,
         session_id,

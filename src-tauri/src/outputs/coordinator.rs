@@ -330,17 +330,13 @@ pub async fn move_player(
         .filter(|p| p.session.id == id)
         .ok_or_else(|| AppError::new("player_missing", "This player session is unavailable."))?;
     player.routing_target = Some(target.clone());
-    let picture = if player.media.kind == MediaKind::Audio {
-        Ok(None)
-    } else {
-        picture(
-            Owner::Player(player),
-            monitor,
-            Some(&monitor.id) == outputs.computer_monitor_id.as_ref(),
-        )
-        .await
-        .map(Some)
-    };
+    let picture = picture(
+        Owner::Player(player),
+        monitor,
+        Some(&monitor.id) == outputs.computer_monitor_id.as_ref(),
+    )
+    .await
+    .map(Some);
     if let Some(id) = &target.audio_sink_id {
         if outputs
             .audio_sinks
@@ -441,10 +437,7 @@ pub async fn reconcile_audio(app: &tauri::AppHandle, state: &AppState) {
             .await;
     }
     let actual = result.as_ref().ok().cloned();
-    let status = combined_state(
-        player.media.kind == MediaKind::Audio || player.session.target.monitor_id.is_some(),
-        result.is_ok(),
-    );
+    let status = combined_state(player.session.target.monitor_id.is_some(), result.is_ok());
     let Ok(snapshot) = state.snapshot() else {
         return;
     };

@@ -1,0 +1,56 @@
+{
+  "localChanges": true,
+  "scope": "Native release executable, synthetic media in private XDG system folders, private Xvfb/session bus; no user media or host device/network/output mutations; private null audio output only",
+  "source": "65ecc0da420e5abaadbbacd3588580832d8cb56c",
+  "binary": "/tmp/mediacenter-016-inspect-df0m88yo/usr/bin/mediacenter",
+  "binarySha256": "ff755c101e5ab4fb1cf78c99952d0e410cf9dd32d17311528efaf58cc6cde92a",
+  "version": "0.1.6",
+  "display": [
+    1440,
+    900
+  ],
+  "renderer": "WebKitGTK with software compositing for isolated Xvfb capture",
+  "themes": [
+    {
+      "theme": "dark",
+      "windowPresent": true,
+      "processAlive": true,
+      "captures": [
+        "native-dark-1280.png",
+        "native-dark-800.png"
+      ]
+    }
+  ],
+  "resumePositionMs": 25300,
+  "restartPositionMs": 5300,
+  "closeAndReplay": "passed: q and WM_DELETE_WINDOW",
+  "secondVideoPositionMs": 5200,
+  "secondVideoFrames": {
+    "colorFractions": [
+      0.8846527777777777,
+      0.9324305555555555,
+      0.9353819444444444,
+      0.924375,
+      0.9171006944444444
+    ],
+    "uniqueFrames": 5
+  },
+  "audioSink": "private PipeWire null sink, one mpv stream on isolated server; no speaker listening test",
+  "musicPositionMs": 5311,
+  "secondTrackPositionMs": 5283,
+  "musicToVideoPositionMs": 5300,
+  "queueAutoAdvance": "passed: near-EOF seek advances to the queued second track",
+  "transitions": [
+    "resume",
+    "restart active video",
+    "close/replay",
+    "video to video",
+    "video to music",
+    "music row duration click",
+    "music across navigation",
+    "music to video",
+    "music after video close",
+    "automatic next track"
+  ],
+  "result": "PASS: real native playback transitions, saved advancing positions, single owned mpv, generated media; screenshots reviewed separately"
+}

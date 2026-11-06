@@ -1,6 +1,6 @@
 import type {MediaItem} from '../../app/contracts';
 import {MediaThumbnail} from '../library/MediaThumbnail';
-import {formatTime} from '../player/PlayerBar';
+import {formatTime} from '../player/formatTime';
 import {Icon} from '../../ui/Icons';
 export function VideoCard({item,onPlay,disabled=false}:{item:MediaItem;onPlay:(resume:boolean)=>void;disabled?:boolean}){
  const available=item.availability==='available',resume=available&&(item.resumePositionMs??0)>=10000,duration=item.durationMs;

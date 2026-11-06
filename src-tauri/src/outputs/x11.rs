@@ -100,7 +100,7 @@ pub fn placement_request(
             "Automatic placement requires X11. Move the playback window manually.",
         ));
     }
-    if !verified || !matches!(kind, "streaming" | "local-video") {
+    if !verified || !matches!(kind, "streaming" | "local-video" | "local-audio") {
         return Err(AppError::new(
             "ownership_uncertain",
             "This window is not a verified playback window.",
@@ -138,6 +138,14 @@ mod placement_tests {
                 height: 2160,
             },
         }
+    }
+    #[test]
+    fn visible_music_window_uses_verified_playback_placement() {
+        assert_eq!(
+            placement_request("x11", "local-audio", true, &monitor()).unwrap(),
+            (-3840, 0, 3840, 2160)
+        );
+        assert!(placement_request("x11", "local-audio", false, &monitor()).is_err());
     }
     #[test]
     fn move_playback_never_moves_main_window() {

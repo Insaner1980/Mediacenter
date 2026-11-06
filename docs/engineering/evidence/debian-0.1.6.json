@@ -1,0 +1,21 @@
+{
+  "version": "0.1.6",
+  "sourceBase": "65ecc0d",
+  "changes": "Reference screenshot feedback; see reference-feedback/acceptance.md",
+  "file": "Mediacenter_0.1.6_amd64.deb",
+  "sha256": "8c358c66f8c961cc57dfb5f7c2af9c8ed3c6e8754a99b9d19e2014c9024dc19e",
+  "size": 7785928,
+  "files": [
+    "DEBIAN/control",
+    "DEBIAN/md5sums",
+    "usr/bin/mediacenter",
+    "usr/share/applications/Mediacenter.desktop",
+    "usr/share/icons/hicolor/128x128/apps/mediacenter.png"
+  ],
+  "packageFields": "Package: mediacenter\nVersion: 0.1.6\nArchitecture: amd64\nInstalled-Size: 24325\nMaintainer: emma\nPriority: optional\nDepends: libwebkit2gtk-4.1-0, libgtk-3-0, mpv, ffmpeg, pulseaudio-utils, wmctrl, x11-xserver-utils, udisks2, libwebkit2gtk-4.1-0, libgtk-3-0\nDescription: Personal Linux media center\n (none)\n",
+  "desktopEntry": "[Desktop Entry]\nCategories=Network;\nComment=Personal Linux media center\nExec=mediacenter\nStartupWMClass=mediacenter\nIcon=mediacenter\nName=Mediacenter\nTerminal=false\nType=Application\n",
+  "maintainerScripts": false,
+  "linkedLibrariesResolve": true,
+  "installed": false,
+  "extractedBinarySha256": "ff755c101e5ab4fb1cf78c99952d0e410cf9dd32d17311528efaf58cc6cde92a"
+}

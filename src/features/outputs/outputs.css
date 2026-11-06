@@ -1,0 +1,3 @@
+.modal-popover{position:fixed;inset:92px 24px auto auto;margin:0;width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 116px)}
+.output-compact .setting-row{grid-template-columns:80px minmax(0,1fr);gap:16px;font-size:20px;margin:0 0 20px}.output-compact .setting-row select{font-size:18px}.output-compact .save-target{width:100%;margin:0 0 20px}.output-compact .setting-disclosure>summary{font-size:18px;padding:12px 0}.output-compact .setting-disclosure p{font-size:16px}.output-compact .actions .control{font-size:16px}.output-compact .message{font-size:16px}
+@media(max-width:700px){.modal-popover{inset:16px 16px auto 16px;width:auto;max-height:calc(100dvh - 32px)}.output-compact .setting-row{grid-template-columns:1fr;gap:8px}}

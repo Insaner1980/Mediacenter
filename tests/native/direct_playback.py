@@ -37,11 +37,14 @@ def stop(p):
   try:p.wait(timeout=5)
   except subprocess.TimeoutExpired:os.killpg(p.pid,signal.SIGKILL);p.wait()
 def capture(name):
- subprocess.run(['xrefresh'],env=env,capture_output=True,check=True)
+ # xrefresh can invalidate an mpv GL surface on headless Xvfb. Do not
+ # mutate the display while measuring playback; capture its actual pixels.
+ tree=subprocess.check_output(['xwininfo','-root','-tree'],env=env,text=True)
+ if '"mpv"' not in tree:subprocess.run(['xrefresh'],env=env,capture_output=True,check=True)
  time.sleep(1)
  subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-f','x11grab','-video_size','1440x900','-i',display,'-frames:v','1','-y',str(out/name)],env=env,check=True,capture_output=True,timeout=15)
 audio_processes=[]
-record={'localChanges':bool(subprocess.check_output(['git','diff','--name-only','--','src','src-tauri','package.json','package-lock.json','vite.config.ts'],cwd=root,text=True).strip()),'scope':'Native release executable, synthetic media in private XDG system folders, private Xvfb/session bus; no user media or host device/network/output mutations; private null audio output only','source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'binary':str(binary),'binarySha256':__import__('hashlib').sha256(binary.read_bytes()).hexdigest(),'version':json.loads((root/'package.json').read_text())['version'],'display':[1440,900],'renderer':'WebKitGTK with software compositing for isolated Xvfb capture','themes':[]}
+record={'localChanges':bool(subprocess.check_output(['git','status','--porcelain','--','src','src-tauri','package.json','package-lock.json','vite.config.ts'],cwd=root,text=True).strip()),'scope':'Native release executable, synthetic media in private XDG system folders, private Xvfb/session bus; no user media or host device/network/output mutations; private null audio output only','source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'binary':str(binary),'binarySha256':__import__('hashlib').sha256(binary.read_bytes()).hexdigest(),'version':json.loads((root/'package.json').read_text())['version'],'display':[1440,900],'renderer':'WebKitGTK with software compositing for isolated Xvfb capture','themes':[]}
 try:
  for _ in range(50):
   if subprocess.run(['xwininfo','-root'],env=env,capture_output=True).returncode==0:break
@@ -157,6 +160,21 @@ try:
      if len(p)==1 and p[0]!=previous:return p[0]
      time.sleep(.3)
     capture('failed-switch.png');raise AssertionError('Player did not switch')
+   def verify_video_frames():
+    tree=subprocess.check_output(['xwininfo','-root','-tree'],env=env,text=True)
+    movie=re.search(r'(0x[0-9a-f]+).*\("[^"]+" "mpv"\)',tree);assert movie,tree
+    (out/'video-stacking-before.txt').write_text(tree)
+    x11.XRaiseWindow(d,int(movie.group(1),16));x11.XSetInputFocus(d,int(movie.group(1),16),1,0);x11.XFlush(d);time.sleep(1)
+    info=subprocess.check_output(['xwininfo','-id',movie.group(1)],env=env,text=True)
+    def field(label):return int(re.search(re.escape(label)+r':\s*(-?\d+)',info).group(1))
+    x,y,w,h=[field(label) for label in ['Absolute upper-left X','Absolute upper-left Y','Width','Height']]
+    # Sample consecutive actual window frames, independently of saved position.
+    subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-f','x11grab','-framerate','5','-video_size',f'{w}x{h}','-i',f'{display}+{x},{y}','-frames:v','5','-y',str(out/'second-video-frame-%02d.png')],env=env,check=True,capture_output=True,timeout=15)
+    ratios=[];hashes=[]
+    for frame in sorted(out.glob('second-video-frame-*.png')):
+     pixels=list(Image.open(frame).convert('RGB').getdata());ratios.append(sum(max(pixel)-min(pixel)>80 for pixel in pixels)/len(pixels));hashes.append(__import__('hashlib').sha256(frame.read_bytes()).hexdigest())
+    record['secondVideoFrames']={'colorFractions':ratios,'uniqueFrames':len(set(hashes))}
+    assert len(ratios)==5 and min(ratios)>.3 and len(set(hashes))>1,record['secondVideoFrames']
    def link_audio():
     for _ in range(50):
      streams=json.loads(subprocess.check_output(['pactl','-f','json','list','sink-inputs'],env=env,text=True))
@@ -182,7 +200,7 @@ try:
    # A restart must replace the already running process and reset the timeline.
    app_click(330,605);second=changed_player(first);record['restartPositionMs']=progress('Native sample.mp4',1000,10000)
    close_movie();app_click(350,523);third=wait_player();assert third!=second;time.sleep(2);close_movie(window_close=True);record['closeAndReplay']='passed: q and WM_DELETE_WINDOW'
-   app_click(330,400);fourth=wait_player();app_click(650,523);fifth=changed_player(fourth);record['secondVideoPositionMs']=progress('Other sample.mp4');capture('second-video.png')
+   app_click(330,400);fourth=wait_player();app_click(650,523);fifth=changed_player(fourth);record['secondVideoPositionMs']=progress('Other sample.mp4');capture('second-video.png');verify_video_frames()
    app_click(100,330);verify_index('audio');app_click(450,447);audio=changed_player(fifth);capture('music-before-link.png');link_audio();record['musicPositionMs']=progress('Native sample.wav');capture('music-playing.png')
    # Click duration cell, not the play icon, to select another track.
    app_click(1020,503);audio2=changed_player(audio);link_audio();record['secondTrackPositionMs']=progress('Other sample.wav')
@@ -190,7 +208,12 @@ try:
    app_click(100,255);app_click(330,400);video=changed_player(audio2);record['musicToVideoPositionMs']=progress('Native sample.mp4',3000);time.sleep(2);assert players()==[video];capture('music-to-video.png');close_movie()
    app_click(100,330);app_click(450,447);audio3=wait_player();link_audio();time.sleep(6);assert players()==[audio3];capture('music-after-video-close.png')
    # Queue a second track and seek near EOF: natural completion must still advance.
-   app_click(1166,503);app_click(825,762);next_audio=changed_player(audio3);link_audio();time.sleep(2);assert players()==[next_audio];capture('queue-auto-advance.png')
+   app_click(1166,503)
+   tree=subprocess.check_output(['xwininfo','-root','-tree'],env=env,text=True)
+   movie=re.search(r'(0x[0-9a-f]+).*\("[^"]+" "mpv"\)',tree);assert movie,tree
+   x11.XSetInputFocus(d,int(movie.group(1),16),1,0)
+   keycode=x11.XKeysymToKeycode(d,0xff52);xt.XTestFakeKeyEvent(d,keycode,1,0);xt.XTestFakeKeyEvent(d,keycode,0,0);x11.XFlush(d)
+   next_audio=changed_player(audio3);link_audio();time.sleep(2);assert players()==[next_audio];capture('queue-auto-advance.png')
    record['queueAutoAdvance']='passed: near-EOF seek advances to the queued second track'
    record['transitions']=['resume','restart active video','close/replay','video to video','video to music','music row duration click','music across navigation','music to video','music after video close','automatic next track']
    x11.XResizeWindow(d,int(wid,16),800,600);x11.XFlush(d);time.sleep(2);capture(f'native-{theme}-800.png');x11.XCloseDisplay(d)

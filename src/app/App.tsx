@@ -3,7 +3,6 @@ import {SlideshowProvider} from '../features/photos/SlideshowProvider';
 import {SlideshowStrip} from '../features/photos/SlideshowControls';
 import {SourceManagerProvider} from '../features/library/SourceManagerProvider';
 import {PlaybackProvider} from '../features/player/PlaybackProvider';
-import {PlayerBar} from '../features/player/PlayerBar';
 import {NavigationGuardProvider,type NavigationGuard} from './NavigationGuard';
 import type {MainScreen,SettingsSection,MusicTab,NavigationState} from './navigation';
 import {AppServicesProvider,useAppServices,productionServices,type AppServices} from './AppServices';
@@ -20,7 +19,6 @@ import {MusicScreen} from '../features/music/MusicScreen';
 import {PhotosScreen} from '../features/photos/PhotosScreen';
 import {PresentationScreen} from '../features/photos/PresentationScreen';
 import {ExitDialog} from '../features/settings/ExitDialog';
-import {LocalPlayerControls} from '../features/player/LocalPlayerControls';
 import type {MediaItem} from './contracts';
 import {VideosScreen} from '../features/videos/VideosScreen';
 import {DrivesScreen} from '../features/drives/DrivesScreen';
@@ -29,12 +27,12 @@ const initial: HomeSnapshot = {revision:0,theme:document.documentElement.dataset
 function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationState>}={}) {
   const {backend,subscribeHome,canUseMedia}=useAppServices();
   const [snapshot,setSnapshot] = useState(initial);
-  const [screen,setScreen] = useState<Screen|'streaming'|'player'>(initialNavigation?.route??'home');
+  const [screen,setScreen] = useState<Screen|'streaming'>(initialNavigation?.route??'home');
   const [settingsSection,setSettingsSection]=useState<SettingsSection|null>(initialNavigation?.settingsSection??null);
   const [musicTab,setMusicTab]=useState<MusicTab>(initialNavigation?.musicTab??'library');
   const guard=useRef<NavigationGuard|null>(null);
   const register=useCallback((value:NavigationGuard|null)=>{guard.current=value;},[]);
-  function navigate(route:Screen|'streaming'|'player'){const go=()=>setScreen(route);if(guard.current)guard.current(go);else go();}
+  function navigate(route:Screen|'streaming'){const go=()=>setScreen(route);if(guard.current)guard.current(go);else go();}
   const [busy,setBusy]=useState(false);
   const [message,setMessage] = useState('');
   useEffect(()=>{
@@ -49,7 +47,7 @@ function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationS
     else {
       if(busy)return;
       if(!canUseMedia){setMessage('Open the desktop application to launch a service.');return;}
-      if(snapshot.sessions.some(s=>s.kind.startsWith('local-'))){setScreen('player');setMessage('Stop local playback before opening a service.');return;}
+      if(snapshot.sessions.some(s=>s.kind.startsWith('local-'))){setMessage('Close the player window before opening a service.');return;}
       setBusy(true);setMessage('Opening service');
       try{await backend.openService(a.serviceId);setMessage(a.serviceId==='hbo_max'?'Continue in Chrome for HBO Max. Choose its display and sound in your system settings.':'');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}
     }
@@ -61,9 +59,9 @@ function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationS
     document.documentElement.dataset.theme=value;
     setSnapshot(s=>({...s,theme:value}));
   }
-  return <NavigationGuardProvider register={register}><AppShell snapshot={snapshot} route={screen} onNavigate={navigate} onOpenSettings={section=>{setSettingsSection(section??null);navigate('settings');}} player={<><SlideshowStrip/><PlayerBar onOpenQueue={()=>{const go=()=>{setMusicTab('queue');setScreen('audio');};if(guard.current)guard.current(go);else go();}} onOpenPlayer={()=>navigate('player')}/></>} >
+  return <NavigationGuardProvider register={register}><AppShell snapshot={snapshot} route={screen} onNavigate={navigate} onOpenSettings={section=>{setSettingsSection(section??null);navigate('settings');}} player={<SlideshowStrip/>} >
     {screen==='home'?<HomeScreen snapshot={snapshot} onAction={action} message={message} onPlaybackControls={()=>{setScreen('streaming');setMessage('');}}/>:
-    <section className="screen">{screen==='player'?<><LocalPlayerControls/><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind.startsWith('local-'))}/></>:screen==='streaming'?<><StreamingSession session={snapshot.sessions.find(s=>s.kind==='streaming')} services={snapshot.services}/><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind==='streaming')}/></>:<>{screen==='settings'?<SettingsScreen snapshot={snapshot} onThemeChange={theme} initialSection={settingsSection}/>:screen==='drives'?<DrivesScreen/>:screen==='audio'?<MusicScreen tab={musicTab} onTabChange={setMusicTab}/>:screen==='photo'?<PhotosScreen/>:<VideosScreen onPlay={play}/>}</>}{message&&<p role="alert" className="message">{message}</p>}</section>}
+    <section className="screen">{screen==='streaming'?<><StreamingSession session={snapshot.sessions.find(s=>s.kind==='streaming')} services={snapshot.services}/><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind==='streaming')}/></>:<>{screen==='settings'?<SettingsScreen snapshot={snapshot} onThemeChange={theme} initialSection={settingsSection}/>:screen==='drives'?<DrivesScreen/>:screen==='audio'?<MusicScreen tab={musicTab} onTabChange={setMusicTab}/>:screen==='photo'?<PhotosScreen/>:<VideosScreen onPlay={play}/>}</>}{message&&<p role="alert" className="message">{message}</p>}</section>}
   </AppShell></NavigationGuardProvider>;
 }
 

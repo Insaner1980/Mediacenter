@@ -1,0 +1,4 @@
+> mediacenter@0.1.5 test
+> vitest run
+ Test Files  25 passed (25)
+      Tests  150 passed (150)

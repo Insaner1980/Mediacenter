@@ -1,7 +1,7 @@
 import {useEffect,useId,useRef,type ReactNode,type RefObject} from 'react';
 import {createPortal} from 'react-dom';
 import './controls.css';
-export interface DialogProps {open:boolean;title:string;onRequestClose:()=>void;children:ReactNode;footer?:ReactNode;initialFocusRef?:RefObject<HTMLElement|null>;busy?:boolean;variant?:'sheet'|'dialog'|'viewer'}
+export interface DialogProps {open:boolean;title:string;onRequestClose:()=>void;children:ReactNode;footer?:ReactNode;initialFocusRef?:RefObject<HTMLElement|null>;busy?:boolean;variant?:'sheet'|'dialog'|'viewer'|'popover'}
 const focusable='button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, a[href], [tabindex="0"]';
 // Multiple modals share ownership of background inertness. Closing a parent
 // and confirmation in one React commit must not restore an intermediate state.

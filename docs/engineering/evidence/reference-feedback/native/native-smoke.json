@@ -1,0 +1,32 @@
+{
+  "localChanges": true,
+  "scope": "Native release executable, synthetic media in private XDG system folders, private Xvfb/session bus; no user media or host device/network/output mutations; private null audio output only",
+  "source": "65ecc0da420e5abaadbbacd3588580832d8cb56c",
+  "binary": "/tmp/mediacenter-016-inspect-df0m88yo/usr/bin/mediacenter",
+  "binarySha256": "ff755c101e5ab4fb1cf78c99952d0e410cf9dd32d17311528efaf58cc6cde92a",
+  "version": "0.1.6",
+  "display": [
+    1440,
+    900
+  ],
+  "renderer": "WebKitGTK with software compositing for isolated Xvfb capture",
+  "themes": [
+    {
+      "theme": "dark",
+      "windowPresent": true,
+      "processAlive": true,
+      "captures": [
+        "native-dark-1280.png",
+        "native-dark-800.png"
+      ]
+    }
+  ],
+  "audioSink": "private PipeWire null sink, one mpv stream on isolated server; no speaker listening test",
+  "plainPositionMs": 5230,
+  "resumedPlainPositionMs": 11524,
+  "coverPositionMs": 5265,
+  "queueAutoAdvance": "PASS: native player seek to EOF advances to queued cover track",
+  "musicWindows": "PASS: plain WAV and MP3 with embedded artwork; pause/resume, replace, close/replay, one mpv window",
+  "uiChecks": "Output popup and photo viewer captured on native WebKitGTK; behavior and focus assertions covered by browser/unit tests",
+  "result": "PASS: real native playback transitions, saved advancing positions, single owned mpv, generated media; screenshots reviewed separately"
+}

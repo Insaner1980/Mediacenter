@@ -28,4 +28,7 @@ it('opening a photo brings the full viewer into keyboard focus',async()=>{
  await userEvent.click(await screen.findByRole('button',{name:/Holiday.jpg/}));
  expect(await screen.findByRole('dialog',{name:'Holiday.jpg'})).toContainElement(document.activeElement as HTMLElement);
  expect(await screen.findByRole('img',{name:'Holiday.jpg'})).toHaveAttribute('src','data:image/jpeg;base64,/9j/');
+ expect(screen.queryByRole('button',{name:'Close photo'})).not.toBeInTheDocument();
+ await userEvent.click(screen.getByRole('button',{name:'Close'}));
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

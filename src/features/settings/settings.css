@@ -4,3 +4,4 @@
 @media(min-width:1440px){.setting-row{margin:18px 0}.save-target{min-height:52px}.settings-columns h2{font-weight:800}}
 @media(max-width:1199px){.setting-row{grid-template-columns:minmax(0,7em) minmax(0,1fr)}}
 .settings-columns h2{line-height:1.2}.setting-row>span{overflow-wrap:anywhere}
+.media-folders-entry{margin-top:28px;border-top:1px solid var(--border)}.media-folders-entry+.diagnostics-entry{margin-top:0;border-top:0}

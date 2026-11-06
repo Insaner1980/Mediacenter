@@ -1,0 +1,8 @@
+> mediacenter@0.1.6 tauri
+> tauri build --bundles deb -- --locked
+> mediacenter@0.1.6 build
+> tsc --noEmit && vite build
+    Finished `release` profile [optimized] target(s) in 1m 16s
+       Built application at: /home/emma/Dev/Mediacenter/src-tauri/target/release/mediacenter
+    Bundling Mediacenter_0.1.6_amd64.deb (/home/emma/Dev/Mediacenter/src-tauri/target/release/bundle/deb/Mediacenter_0.1.6_amd64.deb)
+    Finished 1 bundle at:

@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {usePlayback} from './PlaybackProvider';
-import {formatTime} from './PlayerBar';
+import {formatTime} from './formatTime';
 export function LocalPlayerControls(){
  const {player,error,pending:busy,playerAction:run}=usePlayback();const [seek,setSeek]=useState<number|null>(null);
  if(!player)return <section>{error?<p role="alert" className="message">{error}</p>:<p>No local player is open.</p>}</section>;

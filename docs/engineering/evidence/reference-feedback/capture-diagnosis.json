@@ -1,0 +1,24 @@
+{
+  "binarySha256": "ff755c101e5ab4fb1cf78c99952d0e410cf9dd32d17311528efaf58cc6cde92a",
+  "forcedXrefresh": {
+    "colorFractions": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "uniqueFrames": 1
+  },
+  "withoutForcedXrefresh": {
+    "colorFractions": [
+      0.8940104166666667,
+      0.9132118055555556,
+      0.9331423611111112,
+      0.93125,
+      0.8834375
+    ],
+    "uniqueFrames": 5
+  },
+  "finding": "Forced xrefresh during playback caused the black video surface in this headless Xvfb harness. Capture now leaves active mpv surfaces untouched and checks five successive decoded/displayed video frames. No production change or GPU-cache workaround was needed."
+}

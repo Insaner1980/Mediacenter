@@ -136,3 +136,7 @@ Revision `3062630` adds automatic Pictures/Videos/Music selection and indexing, 
 ## Direct playback corrections — 6 November 2026
 
 Version 0.1.5 removes the video preview/local-controls detour and makes the full video card and music library row launch playback. Closed mpv instances are retired; explicit playback replaces the previously owned local player. Queue transitions share the same gate, and stale queue edits cannot restore a departed session. [Acceptance and native playback evidence](evidence/direct-playback/acceptance.md) records the reproduced old close/replay failure, regression checks, and the exact packaged executable tested. Hardware HDMI and audible-speaker acceptance remain separate from the private null-sink playback test.
+
+## Annotated screenshot feedback — 6 November 2026
+
+Version 0.1.6 removes the duplicate music bar and photo Close button, places folder administration in Settings, and opens a consistent Picture & sound popup from every route. Music with or without artwork has an external player; queue navigation/repeat controls remain in Queue. Visible music windows use the same ownership-checked picture routing as video, and failed picture placement remains partial during audio reconciliation. See [acceptance and screenshots](evidence/reference-feedback/acceptance.md) and [package inspection](evidence/debian-0.1.6.json). Physical HDMI, audible speaker output, and host installation/update acceptance are not covered by isolated playback checks.
