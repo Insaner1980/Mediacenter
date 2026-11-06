@@ -1,0 +1,12 @@
+{
+  "date": "2026-11-06",
+  "source": "3062630",
+  "unit": 146,
+  "visual": 95,
+  "e2e": 13,
+  "rustPassed": 130,
+  "rustIgnored": 2,
+  "binarySha256": "7bc3f95004fe5918561979fe982b4f319498a9bc5c5fe765e764b8f7686db0e2",
+  "native": "Three synthetic files automatically indexed and displayed through production commands in private XDG folders. No real playback or device changes.",
+  "installation": "Not installed; existing application-menu binary unchanged."
+}

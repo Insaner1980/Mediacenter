@@ -1,0 +1,5 @@
+
+> mediacenter@0.1.3 verify:assets
+> node scripts/verify-assets.mjs
+
+Verified 8 official logos and 18 local fonts

@@ -1,0 +1,28 @@
+{
+  "localChanges": false,
+  "scope": "Native release executable, synthetic media in private XDG system folders, private Xvfb/session bus; no user media or device/network/output mutations",
+  "source": "306263042e16517f3b0412c05874da77c1a01808",
+  "binary": "src-tauri/target/release/mediacenter",
+  "display": [
+    1440,
+    900
+  ],
+  "renderer": "WebKitGTK with software compositing for isolated Xvfb capture",
+  "themes": [
+    {
+      "theme": "dark",
+      "windowPresent": true,
+      "processAlive": true,
+      "captures": [
+        "native-dark-1280.png",
+        "native-dark-800.png"
+      ]
+    }
+  ],
+  "indexedKinds": {
+    "audio": 1,
+    "photo": 1,
+    "video": 1
+  },
+  "result": "process, window, asset capture and resize completed; see manual screenshot review"
+}

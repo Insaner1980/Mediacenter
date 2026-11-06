@@ -1,0 +1,3 @@
+
+> mediacenter@0.1.3 rust:format
+> cargo fmt --manifest-path src-tauri/Cargo.toml --check

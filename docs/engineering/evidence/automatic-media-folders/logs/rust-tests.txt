@@ -1,0 +1,179 @@
+
+> mediacenter@0.1.3 rust:test
+> cargo test --manifest-path src-tauri/Cargo.toml
+
+   Compiling mediacenter v0.1.3 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.45s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-f5c38fa4e8d76596)
+
+running 116 tests
+test commands::tests::presentation_cannot_invoke_privileged_operations ... ok
+test devices::actions::tests::mount_resolves_opaque_volume_id_and_confirms_new_state ... ok
+test devices::actions::tests::no_power_off_support_reports_unmounted_only ... ok
+test devices::actions::tests::internal_and_system_drives_cannot_be_removed ... ok
+test contracts::tests::contracts_match_generated_types ... ok
+test devices::actions::tests::one_volume_failure_prevents_false_drive_success ... ok
+test devices::actions::tests::readers_that_do_not_close_prevent_os_mutations ... ok
+test devices::actions::tests::power_off_failure_never_reports_safe_removal ... ok
+test devices::actions::tests::remounted_volume_prevents_power_off_and_success ... ok
+test devices::actions::tests::unsafe_block_topology_prevents_eject_even_when_removable ... ok
+test devices::actions::tests::whole_drive_removal_drains_every_volume_then_unmounts_and_powers_off ... ok
+test devices::actions::tests::shared_physical_device_requires_explicit_complete_confirmation ... ok
+test devices::identity::tests::fingerprint_requires_actual_hardware_and_filesystem_evidence ... ok
+test devices::identity::tests::fingerprint_distinguishes_partition_and_device_but_not_mount_path ... ok
+test devices::registry::tests::duplicate_uuid_requires_disambiguation ... ok
+test devices::registry::tests::replug_at_new_mount_path_preserves_source_id ... ok
+test devices::udisks::native_tests::host_device_discovery ... ignored, read-only host UDisks2 integration probe
+test devices::registry::tests::usb_c_does_not_require_separate_media_logic ... ok
+test diagnostics::tests::logs_rotate_with_only_structured_fields ... ok
+test library::defaults::tests::configured_folder_is_registered_idempotently_and_existing_parent_reused ... ok
+test library::confirmation::tests::uuidless_source_requires_native_confirmation_after_restart_or_remount ... ok
+test library::defaults::tests::existing_child_is_not_silently_duplicated_by_default_registration ... ok
+test library::defaults::tests::missing_or_disabled_default_does_not_grant_home_or_root ... ok
+test library::files::tests::kernel_boundary_rejects_external_symlink ... ok
+test library::files::tests::descriptor_survives_path_replacement ... ok
+test library::defaults::attachment_tests::automatic_registration_cannot_confirm_a_uuidless_attachment ... ok
+test library::repository::tests::duplicate_root_merges_kinds_without_duplicate_index ... ok
+test library::repository::tests::removing_source_does_not_delete_files ... ok
+test library::resources::tests::removal_cancels_existing_and_blocks_new_readers ... ok
+test library::probe::tests::external_reference_never_fetches_http ... ok
+test library::scanner::tests::cancelled_scan_does_not_mark_files_missing ... ok
+test library::probe::tests::local_only_probe_uses_open_descriptor ... ok
+test library::source_service::tests::source_add_cannot_bypass_active_device_gate ... ok
+test library::sources::tests::external_symlink_and_cycles_are_rejected ... ok
+test library::sources::tests::grant_is_single_use_and_expires ... ok
+test library::scanner::tests::incomplete_scan_does_not_mark_files_missing ... ok
+test library::sources::tests::non_utf8_path_identity_is_lossless ... ok
+test library::sources::tests::overlapping_roots_are_detected ... ok
+test lifecycle::tests::partial_failure_keeps_os_error_and_reports_stale_library ... ok
+test library::sources::tests::source_root_validation_rejects_file ... ok
+test library::scanner::tests::changed_file_invalidates_thumbnail ... ok
+test music::playlists::tests::invalid_edits_are_atomic_and_delete_only_playlist ... ok
+test music::playlists::tests::duplicates_offline_and_order_survive_save_and_reload ... ok
+test music::playlists::tests::playlist_limits_count_unicode_characters_and_item_occurrences ... ok
+test music::queue::tests::duplicates_advance_as_independent_entries_and_end ... ok
+test music::queue::tests::manual_stop_wins_over_a_delayed_natural_end_callback ... ok
+test music::queue::tests::offline_entries_are_retained_and_skipped_without_repeat_loop ... ok
+test music::playlists::tests::unplugged_source_overrides_available_file_and_retains_playlist ... ok
+test music::queue::tests::previous_never_reselects_an_unavailable_current_track ... ok
+test music::queue::tests::repeat_all_wraps_and_previous_wraps ... ok
+test music::queue::tests::persistence_restores_order_and_modes_without_restarting_playback ... ok
+test music::queue::tests::seeded_shuffle_restores_original_order_and_current_occurrence ... ok
+test music::queue::tests::repeat_one_repeats_natural_end_but_next_advances ... ok
+test music::queue::tests::stale_and_invalid_edits_leave_queue_unchanged ... ok
+test music::queue::tests::stale_session_cannot_advance_replacement_queue ... ok
+test music::queue::tests::bounds_and_current_removal_are_explicit ... ok
+test music::service::tests::unplugged_volume_is_skipped_but_player_ownership_failure_is_not ... ok
+test outputs::audio::tests::ambiguous_stream_is_not_rerouted ... ok
+test outputs::audio::tests::unavailable_port_is_not_a_working_hdmi_sink ... ok
+test outputs::audio::tests::unrelated_chrome_audio_is_untouched ... ok
+test outputs::control_window::tests::geometry_is_reachable_on_small_negative_scaled_display ... ok
+test outputs::coordinator::tests::audio_failure_does_not_report_complete_success ... ok
+test outputs::monitors::tests::negative_geometry_and_scaling_preserve_reachability ... ok
+test outputs::monitors::tests::reordered_outputs_and_duplicate_names_use_identity ... ok
+test outputs::x11::placement_tests::move_playback_never_moves_main_window ... ok
+test outputs::x11::placement_tests::unverified_window_is_not_moved ... ok
+test outputs::x11::placement_tests::wayland_reports_manual_placement ... ok
+test outputs::x11::tests::ambiguous_windows_are_not_guessed ... ok
+test outputs::x11::tests::title_cannot_claim_unrelated_window ... ok
+test photos::presenter::tests::preload_retention_releases_previous_frame_and_keeps_only_next_two ... ok
+test photos::presenter::tests::presentation_capability_grants_no_privileged_operations ... ok
+test music::service::tests::persistence_failure_keeps_live_queue_ownership ... ok
+test player::ipc::tests::cancelling_a_command_removes_its_pending_slot_and_ignores_late_reply ... ok
+test music::service::tests::externally_stopped_player_is_not_reported_as_active ... ok
+test player::ipc::tests::concurrent_replies_are_routed_by_id_instead_of_arrival_order ... ok
+test player::ipc::tests::interleaved_events_do_not_consume_replies ... ok
+test player::ipc::tests::malformed_peer_is_reported_after_request_is_received ... ok
+test photos::presenter::tests::source_removal_cancels_frames_and_releases_all_buffers_and_handles ... ok
+test player::ipc::tests::unexpected_eof_fails_every_pending_request_and_future_commands ... ok
+test player::resume::tests::changed_duration_clamps_resume ... ok
+test player::resume::tests::completed_video_does_not_resume_near_end ... ok
+test player::resume::tests::resume_waits_for_file_loaded ... ok
+test player::subtitles::tests::authorized_adjacent_subtitles_preserve_raw_names_and_descriptors ... ok
+test player::subtitles::tests::external_sidecar_links_and_parent_escape_are_rejected ... ok
+test player::subtitles::tests::real_mpv_loads_authorized_sidecar_with_production_restrictions ... ok
+test process::registry::tests::pid_reuse_is_not_treated_as_owned ... ok
+test process::runner::tests::arguments_are_not_shell_interpreted ... ok
+test process::runner::tests::cancellation_releases_command ... ok
+test library::query::tests::ten_thousand_items_are_paged_with_stable_cursor ... ok
+test process::runner::tests::oversized_output_is_bounded ... ok
+test storage::database::tests::migration_failure_preserves_previous_database ... ok
+test storage::database::tests::offline_source_is_not_deleted ... ok
+test streaming::browser::tests::linked_profile_parent_does_not_modify_external_directories ... ok
+test streaming::browser::tests::locked_profile_is_not_deleted ... ok
+test streaming::browser::tests::normal_chrome_profile_is_untouched ... ok
+test streaming::browser::tests::unknown_service_id_is_rejected ... ok
+test streaming::external::tests::cancelled_handoff_does_not_spawn ... ok
+test streaming::external::tests::hbo_handoff_preserves_the_users_chrome_profile ... ok
+test streaming::external::tests::immediate_launcher_failure_is_not_reported_as_success ... ok
+test player::ipc::tests::timeout_releases_pending_request_and_late_reply_cannot_complete_next ... ok
+test streaming::placement::tests::ignored_placement_is_not_reported_as_ready ... ok
+test streaming::placement::tests::restored_tv_window_is_moved_and_verified_on_computer ... ok
+test streaming::switching::tests::every_different_service_preflights_then_retires_only_the_owned_window ... ok
+test streaming::switching::tests::failed_preflight_or_cancellation_keeps_the_current_service ... ok
+test streaming::switching::tests::native_switches_preserve_profiles_and_leave_another_chrome_untouched ... ignored, requires an explicitly isolated X11 display and window manager
+test streaming::switching::tests::same_service_focuses_without_closing_or_preflighting_its_locked_profile ... ok
+test streaming::switching::tests::uncertain_ownership_prevents_replacement_and_keeps_the_session_registered ... ok
+test vpn::parser::tests::ansi_extra_fields_and_disconnected_are_parsed ... ok
+test vpn::parser::tests::observed_connected_and_disabled_settings_are_distinct ... ok
+test vpn::parser::tests::unrecognized_output_never_means_connected ... ok
+test vpn::policy::tests::current_connection_service_does_not_change_vpn ... ok
+test vpn::policy::tests::required_service_rejects_disconnected_stale_or_unknown ... ok
+test vpn::policy::tests::required_service_rejects_unverified_kill_switch ... ok
+test process::runner::tests::command_timeout_reaps_owned_child ... ok
+test player::ipc::tests::oversized_incoming_lines_are_rejected_with_or_without_newline ... ok
+test streaming::external::tests::long_lived_browser_survives_handoff_and_later_cancellation ... ok
+
+test result: ok. 114 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 2.34s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/mediacenter-e982657a4effb11b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/default_media_permissions.rs (src-tauri/target/debug/deps/default_media_permissions-8a5b30b2876c80d7)
+
+running 1 test
+test system_folder_opening_is_available_only_to_the_main_window ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/photos_decode.rs (src-tauri/target/debug/deps/photos_decode-2e9f1f2c7ca7ca03)
+
+running 5 tests
+test cancellation_prevents_image_delivery ... ok
+test oversized_pixel_dimensions_are_rejected_before_frame_decoding ... ok
+test unsafe_corrupt_and_oversize_files_are_rejected ... ok
+test supported_avif_decodes_to_safe_jpeg ... ok
+test raster_decoding_and_exif_orientation ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/photos_model.rs (src-tauri/target/debug/deps/photos_model-567f3d7518aa2455)
+
+running 4 tests
+test omitted_options_default_to_five_seconds_and_source_order ... ok
+test ordered_navigation_pause_resume_and_release ... ok
+test shuffle_preserves_members_and_restores_original_order ... ok
+test bounds_reject_empty_oversize_invalid_interval_and_accept_single_photo ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/thumbnails.rs (src-tauri/target/debug/deps/thumbnails-241d821e7a63300a)
+
+running 6 tests
+test thumbnails_cache_hits_restore_missing_accounting_and_remove_orphans ... ok
+test thumbnails_regenerate_a_truncated_cached_png ... ok
+test thumbnails_real_jpeg_and_png_decode_to_bounded_pngs ... ok
+test thumbnails_lru_budget_evicts_oldest_files_and_keeps_recent_images ... ok
+test thumbnails_source_changes_never_return_the_previous_image ... ok
+test thumbnails_reject_corrupt_and_oversize_photos_without_caching ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+   Doc-tests mediacenter_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

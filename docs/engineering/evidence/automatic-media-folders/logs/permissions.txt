@@ -1,0 +1,8 @@
+   Compiling mediacenter v0.1.3 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.59s
+     Running tests/default_media_permissions.rs (src-tauri/target/debug/deps/default_media_permissions-8a5b30b2876c80d7)
+
+running 1 test
+test system_folder_opening_is_available_only_to_the_main_window ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

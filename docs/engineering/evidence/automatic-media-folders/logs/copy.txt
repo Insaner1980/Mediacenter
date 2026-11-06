@@ -1,0 +1,5 @@
+
+> mediacenter@0.1.3 verify:ui-copy
+> node scripts/verify-ui-copy.mjs
+
+No forbidden dot decoration found in application source; visual review is still required

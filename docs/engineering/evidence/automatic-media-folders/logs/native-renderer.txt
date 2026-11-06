@@ -1,0 +1,29 @@
+dbus-daemon[104235]: [session uid=1000 pid=104235] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=1000 pid=104236 comm="/home/emma/Dev/Mediacenter/src-tauri/target/releas" label="unconfined")
+dbus-daemon[104235]: [session uid=1000 pid=104235] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[104235]: [session uid=1000 pid=104235] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.2' (uid=1000 pid=104236 comm="/home/emma/Dev/Mediacenter/src-tauri/target/releas" label="unconfined")
+dbus-daemon[104235]: [session uid=1000 pid=104235] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.3' (uid=1000 pid=104259 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+dbus-daemon[104235]: [session uid=1000 pid=104235] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[104235]: [session uid=1000 pid=104235] Activating service name='org.freedesktop.portal.Documents' requested by ':1.3' (uid=1000 pid=104259 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+dbus-daemon[104235]: [session uid=1000 pid=104235] Successfully activated service 'org.freedesktop.portal.Documents'
+Ignoring invalid max threads value 4294967295 > max (100000).
+dbus-daemon[104235]: [session uid=1000 pid=104235] Activating service name='org.freedesktop.impl.portal.desktop.xapp' requested by ':1.3' (uid=1000 pid=104259 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+dbus-daemon[104254]: Activating service name='org.a11y.atspi.Registry' requested by ':1.1' (uid=1000 pid=104281 comm="/usr/libexec/xdg-desktop-portal-xapp" label="unconfined")
+dbus-daemon[104254]: Successfully activated service 'org.a11y.atspi.Registry'
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+dbus-daemon[104235]: [session uid=1000 pid=104235] Successfully activated service 'org.freedesktop.impl.portal.desktop.xapp'
+dbus-daemon[104235]: [session uid=1000 pid=104235] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.3' (uid=1000 pid=104259 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+dbus-daemon[104235]: [session uid=1000 pid=104235] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+(/usr/libexec/xdg-desktop-portal:104259): xdg-desktop-portal-WARNING **: 14:50:56.864: Failed connect to PipeWire: Couldn't connect to PipeWire
+dbus-daemon[104235]: [session uid=1000 pid=104235] Activating service name='org.freedesktop.secrets' requested by ':1.3' (uid=1000 pid=104259 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+GNOME_KEYRING_CONTROL=/run/user/1000/keyring
+SSH_AUTH_SOCK=/run/user/1000/keyring/ssh
+
+(/usr/libexec/xdg-desktop-portal:104259): xdg-desktop-portal-WARNING **: 14:51:21.894: Failed to create secret proxy: Error calling StartServiceByName for org.freedesktop.secrets: Timeout was reached
+
+(/usr/libexec/xdg-desktop-portal:104259): xdg-desktop-portal-WARNING **: 14:51:21.894: No skeleton to export
+dbus-daemon[104235]: [session uid=1000 pid=104235] Successfully activated service 'org.freedesktop.portal.Desktop'
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+
+** (gst-plugin-scanner:104502): CRITICAL **: 14:51:22.439: _dma_fmt_to_dma_drm_fmts: assertion 'fmt != GST_VIDEO_FORMAT_UNKNOWN' failed

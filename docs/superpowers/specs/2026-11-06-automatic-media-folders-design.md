@@ -1,0 +1,9 @@
+# Automatic media folders
+
+The user wants Photos, Videos and Music to show their standard computer folders automatically and delegates the presentation choice: simple, tidy and visually polished. Use the existing image gallery and track list, including media in subfolders. A filesystem tree would add a second navigation system; retain the current library instead. This is the implementer's choice, not a user-selected folder-tree design.
+
+Resolve Pictures/Videos/Music through native system-directory APIs (including configured/localized XDG paths). Entering a media screen registers its corresponding existing directory, selects it and refreshes its index automatically. Do not create missing folders, traverse the whole home directory when an XDG directory is disabled, or accept an arbitrary frontend path as a default-folder grant. Existing source identities and media records are retained. Existing ancestor sources may be reused; conflicting descendant registrations produce a visible error instead of duplicate indexes.
+
+Add a prominent Open folder action to each library view. A single native picker choice adds the appropriate media kind, selects the folder and starts indexing automatically. This works for mounted external disks/USB as well as other local folders. Previously opened folders remain in the existing source dropdown. Management and cancellation stay available via the secondary folder-management action. Drives & USB retains Mount and Safely remove; no drive is automatically mounted or ejected.
+
+Loading/scanning/errors are visible; canceling a picker leaves the current view unchanged. A delayed default lookup cannot overwrite a user's folder selection. Refresh rescans the selected source so new disk contents appear. Scans survive navigation. No installation or real device/VPN/output mutation is part of implementation verification.
