@@ -249,6 +249,12 @@
           "markdownDescription": "Enables the enable_kill_switch command without any pre-configured scope."
         },
         {
+          "description": "Enables the ensure_default_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ensure-default-media-source",
+          "markdownDescription": "Enables the ensure_default_media_source command without any pre-configured scope."
+        },
+        {
           "description": "Enables the export_diagnostics command without any pre-configured scope.",
           "type": "string",
           "const": "allow-export-diagnostics",
@@ -529,6 +535,12 @@
           "type": "string",
           "const": "deny-enable-kill-switch",
           "markdownDescription": "Denies the enable_kill_switch command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ensure_default_media_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ensure-default-media-source",
+          "markdownDescription": "Denies the ensure_default_media_source command without any pre-configured scope."
         },
         {
           "description": "Denies the export_diagnostics command without any pre-configured scope.",

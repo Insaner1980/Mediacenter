@@ -8,6 +8,27 @@ pub async fn add(
     grant_id: String,
     kinds: Vec<MediaKind>,
 ) -> Result<String, AppError> {
+    add_selected(state, Selection::Picker(grant_id), kinds).await
+}
+
+pub async fn add_default(
+    state: AppState,
+    root: std::path::PathBuf,
+    kind: MediaKind,
+) -> Result<String, AppError> {
+    add_selected(state, Selection::Default(root), vec![kind]).await
+}
+
+enum Selection {
+    Picker(String),
+    Default(std::path::PathBuf),
+}
+
+async fn add_selected(
+    state: AppState,
+    selection: Selection,
+    kinds: Vec<MediaKind>,
+) -> Result<String, AppError> {
     let gate = state.device_gate.clone().try_lock_owned().map_err(|_| {
         AppError::new(
             "device_busy",
@@ -17,21 +38,33 @@ pub async fn add(
     let devices = crate::devices::udisks::discover().await?;
     tokio::task::spawn_blocking(move || {
         let _gate = gate;
-        let root = state
-            .grants
-            .lock()
-            .map_err(|_| AppError::new("state_error", "Folder selection is unavailable."))?
-            .consume(&grant_id)?;
+        let automatic = matches!(selection, Selection::Default(_));
+        let root = match selection {
+            Selection::Picker(grant_id) => state
+                .grants
+                .lock()
+                .map_err(|_| AppError::new("state_error", "Folder selection is unavailable."))?
+                .consume(&grant_id)?,
+            Selection::Default(root) => root,
+        };
         let db = state
             .db
             .lock()
             .map_err(|_| AppError::new("database_error", "The library is unavailable."))?;
+        let root = if automatic {
+            let root = super::defaults::registration_root(&db, &root, &devices)?;
+            super::defaults::check_automatic_attachment(&state, &db, &root, &devices)?;
+            root
+        } else {
+            root
+        };
         let id = repository::add(&db, &root, &kinds, &devices)?;
         let record = repository::get(&db, &id)?;
-        if record
-            .volume
-            .as_deref()
-            .is_some_and(|v| v.starts_with("fingerprint:"))
+        if !automatic
+            && record
+                .volume
+                .as_deref()
+                .is_some_and(|v| v.starts_with("fingerprint:"))
         {
             state
                 .source_confirmations

@@ -1,0 +1,6 @@
+import {test,expect} from '@playwright/test';
+import {mkdir} from 'node:fs/promises';
+for(const screen of ['photo','video','audio'])for(const theme of ['light','dark'])for(const width of [800,1717])test(`folder actions ${screen} ${theme} ${width}`,async({page})=>{
+ await page.setViewportSize({width,height:width===800?600:916});await page.goto(`/?fixture=redesign&screen=${screen}&theme=${theme}`);await expect(page.getByRole('button',{name:'Open folder',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Manage folders',exact:true})).toBeVisible();await expect(page.locator('[role=status]').filter({hasText:/Loading/})).toHaveCount(0);await page.evaluate(()=>document.fonts.ready);
+ if(screen!=='audio')await expect(page.locator('.media-grid article').first().locator('img')).toBeVisible();await page.locator('img').evaluateAll(images=>Promise.all(images.map(i=>(i as HTMLImageElement).decode().catch(()=>{}))));expect(await page.locator('.main-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);await mkdir('docs/engineering/evidence/automatic-media-folders',{recursive:true});await page.screenshot({path:`docs/engineering/evidence/automatic-media-folders/${screen}-${theme}-${width}.png`});
+});

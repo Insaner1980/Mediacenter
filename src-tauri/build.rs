@@ -7,6 +7,7 @@ fn main() {
             "choose_media_source",
             "add_media_source",
             "list_media_sources",
+            "ensure_default_media_source",
             "remove_media_source",
             "list_drives",
             "rescan_source",

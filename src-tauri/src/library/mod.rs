@@ -8,3 +8,5 @@ pub mod scanner;
 pub mod source_service;
 pub mod sources;
 pub mod thumbnails;
+
+pub mod defaults;

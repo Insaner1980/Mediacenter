@@ -1,4 +1,4 @@
-import {invoke} from '@tauri-apps/api/core';
+import {invoke,isTauri} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import type {PlayerSnapshot,PlayerAction,MediaPage,EncodedImage,SourceGrant,MediaSource,MediaKind,DriveDescriptor,OutputList,PlaybackTarget,HomeSnapshot,Theme,CountryOption,VpnSnapshot,ServiceId,OperationRef,OperationFinished,AppError} from './contracts';
 import {RevisionStore} from './controller';
@@ -11,6 +11,7 @@ export const backend = {
   scanSource:(sourceId:string)=>performOperation('rescan_source',{sourceId},0),
   cancelScan:(sourceId:string)=>invoke<void>('cancel_source_scan',{sourceId}),
   chooseSource:()=>invoke<SourceGrant|null>('choose_media_source'),
+  ensureDefaultSource:(kind:MediaKind)=>isTauri()?invoke<string|null>('ensure_default_media_source',{kind}):Promise.resolve(null),
   sources:()=>invoke<MediaSource[]>('list_media_sources'),
   addSource:(grantId:string,kinds:MediaKind[])=>invoke<string>('add_media_source',{grantId,kinds}),
   removeSource:(sourceId:string)=>invoke<void>('remove_media_source',{sourceId}),

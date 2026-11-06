@@ -2,3 +2,4 @@
 @media(max-width:1099px){.media-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.library-toolbar{grid-template-columns:minmax(160px,1fr) minmax(140px,.7fr) 44px;gap:12px;margin-bottom:28px}.library-toolbar input,.library-toolbar select{font-size:18px}.search-field input{padding-left:44px}.search-field .icon{width:24px;left:10px}}
 @media(max-width:849px){.media-grid{grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))}.library-toolbar{grid-template-columns:minmax(0,1fr) 44px}.search-field{grid-column:1/-1}}
 .library-toolbar input,.library-toolbar select{height:auto;min-height:44px;line-height:1.3}.media-grid h2{max-height:2.546em}
+.folder-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.library-scan{display:flex;align-items:center;gap:16px;margin:-18px 0 20px;color:var(--muted)}

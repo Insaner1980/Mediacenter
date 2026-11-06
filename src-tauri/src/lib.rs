@@ -33,6 +33,7 @@ pub fn run() {
             commands::choose_media_source,
             commands::add_media_source,
             commands::list_media_sources,
+            commands::ensure_default_media_source,
             commands::remove_media_source,
             commands::list_drives,
             commands::rescan_source,

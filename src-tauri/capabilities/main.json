@@ -25,6 +25,7 @@
     "allow-choose-media-source",
     "allow-add-media-source",
     "allow-list-media-sources",
+    "allow-ensure-default-media-source",
     "allow-remove-media-source",
     "allow-list-drives",
     "allow-rescan-source",

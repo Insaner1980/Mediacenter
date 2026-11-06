@@ -276,6 +276,47 @@ pub async fn add_media_source(
     crate::library::source_service::add(state.inner().clone(), grant_id, kinds).await
 }
 
+/// Only the main UI may request a built-in system media directory. Arbitrary
+/// folders still require the single-use grant from the native picker.
+#[tauri::command]
+pub async fn ensure_default_media_source(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    kind: MediaKind,
+) -> Result<Option<String>, AppError> {
+    guard(window.label())?;
+    let directory = match kind {
+        MediaKind::Photo => app.path().picture_dir(),
+        MediaKind::Audio => app.path().audio_dir(),
+        MediaKind::Video => app.path().video_dir(),
+    }
+    .ok();
+    let home = app.path().home_dir().map_err(|_| {
+        AppError::new(
+            "home_unavailable",
+            "The computer media folder is unavailable.",
+        )
+    })?;
+    let root =
+        tokio::task::spawn_blocking(move || crate::library::defaults::resolve(&home, directory))
+            .await
+            .map_err(|_| {
+                AppError::new(
+                    "source_error",
+                    "The computer media folder could not be opened.",
+                )
+            })??;
+    match root {
+        Some(root) => {
+            crate::library::source_service::add_default(state.inner().clone(), root, kind)
+                .await
+                .map(Some)
+        }
+        None => Ok(None),
+    }
+}
+
 #[tauri::command]
 pub async fn list_media_sources(
     window: tauri::WebviewWindow,
