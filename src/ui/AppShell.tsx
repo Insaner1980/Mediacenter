@@ -1,23 +1,14 @@
-import type { ReactNode } from 'react';
-import type { HomeSnapshot } from '../features/home/homeModel';
-import { Icon } from './Icons';
+import type {ReactNode} from 'react';
+import type {HomeSnapshot} from '../features/home/homeModel';
+import type {AppRoute,MainScreen,SettingsSection} from '../app/navigation';
+import {Icon} from './Icons';
+import {Sidebar} from './Sidebar';
 import {useVpnObservation} from '../features/vpn/useVpnObservation';
-export function AppShell({snapshot, children}: {snapshot: HomeSnapshot; children: ReactNode}) {
-  const vpn = useVpnObservation(snapshot.vpn);
-  const connected = vpn.state === 'connected';
-  const vpnLabel: Record<string,string> = {connected:'NordVPN connected',disconnected:'VPN disconnected',unknown:'VPN status unknown',unavailable:'NordVPN unavailable',connecting:'VPN connecting',disconnecting:'VPN disconnecting',unauthenticated:'Sign in to NordVPN',error:'VPN status unavailable'};
-  return <div className="app-container"><main className="app">
-    <header className="app-header">
-      <div className="brand"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 2 14 8 4 14z"/></svg></span>mediacenter</div>
-      <div className="connections">
-        <div className="connection connection-vpn" data-connected={connected}>
-          <Icon name="shield"/>
-          <div><span className="connection-label">{vpnLabel[vpn.state] ?? 'VPN status unknown'}</span><span className="connection-value">{connected ? vpn.country ?? 'Country unavailable' : 'Connection settings'}</span></div>
-        </div>
-        <div className="connection"><Icon name="display"/><div><span className="connection-label">{snapshot.outputs.state === 'ready' ? 'Picture & sound' : 'Playback output'}</span><span className="connection-value">{snapshot.outputs.label}</span></div></div>
-      </div>
-    </header>
-    {children}
-    <footer className="app-footer"><div className="output-path"><Icon name="laptop"/><span><strong>Controls on this computer</strong></span></div><span>Playback output: {snapshot.outputs.label}</span></footer>
-  </main></div>;
+import './shell.css';
+export interface AppShellProps {snapshot:HomeSnapshot;route:AppRoute;onNavigate:(screen:MainScreen)=>void;onOpenSettings:(section?:SettingsSection)=>void;children:ReactNode;player?:ReactNode}
+export function AppShell({snapshot,route,onNavigate,onOpenSettings,children,player}:AppShellProps){
+ const vpn=useVpnObservation(snapshot.vpn),connected=vpn.state==='connected';
+ const labels:Record<string,string>={disconnected:'VPN disconnected',unknown:'VPN status unknown',unavailable:'NordVPN unavailable',connecting:'VPN connecting',disconnecting:'VPN disconnecting',unauthenticated:'Sign in to NordVPN',error:'VPN status unavailable'};
+ const output=snapshot.outputs;
+ return <div className={`app ${route==='home'?'app-home':'app-inner'}`}><header className="app-header"><div className="brand"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 2 14 8 4 14z"/></svg></span>mediacenter</div><div className="connections"><button className="connection connection-vpn" data-connected={connected} onClick={()=>onOpenSettings('vpn')}><Icon name="shield"/><span>{connected?<>VPN: <strong>{vpn.country??'Country unavailable'}</strong></>:labels[vpn.state]??'VPN status unknown'}</span></button><button className="connection" onClick={()=>onOpenSettings('outputs')}><Icon name="display"/><span>{output.state==='ready'?output.label:output.state==='unavailable'?'Output unavailable':'Check playback output'}</span><Icon name="chevron"/></button>{route==='home'&&<button className="connection" onClick={()=>onOpenSettings()}><Icon name="settings"/><span>Settings</span></button>}</div></header><div className="workspace">{route!=='home'&&<Sidebar route={route==='player'?(snapshot.sessions.some(s=>s.kind==='local-audio')?'audio':'video'):route} onNavigate={onNavigate}/>}<main className="main-content">{children}</main></div>{player&&<div className="persistent-controls">{player}</div>}</div>;
 }
