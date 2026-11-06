@@ -1,0 +1,17 @@
+import {test,expect} from '@playwright/test';
+import {mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
+const screens=[['home',1672,941],['audio',1717,916],['settings',1672,941],['video',1717,916],['photo',1717,916],['drives',1717,916]] as const;
+const evidence='docs/engineering/evidence/simplified-ui';
+for(const [screen,width,height] of screens){test(`approved reference geometry ${screen}`,async({page})=>{
+ await page.setViewportSize({width,height});await page.goto(`/?fixture=redesign&screen=${screen}&theme=light`);await expect(page.locator('.app')).toBeVisible();await expect(page.locator('[role=status]').filter({hasText:/Loading/})).toHaveCount(0);await page.evaluate(()=>document.fonts.ready);await page.locator('img').evaluateAll(images=>Promise.all(images.map(i=>(i as HTMLImageElement).decode().catch(()=>{}))));
+ if(screen==='video'||screen==='photo')await expect(page.locator('.media-grid img')).toHaveCount(6);
+ if(screen==='home')await expect(page.locator('.service')).toHaveCount(8);
+ const geometry=await page.evaluate(()=>{const selectors=['.app-header','.brand','.sidebar','.page-header','.library-toolbar','.media-grid','.music-table','.player-bar','.service-grid','.own-media','.settings-columns','.drive-list'];return Object.fromEntries(selectors.map(selector=>{const element=document.querySelector(selector);if(!element)return [selector,null];const r=element.getBoundingClientRect();return [selector,{x:r.x,y:r.y,width:r.width,height:r.height}];}));});
+ if(screen!=='home'){expect(geometry['.sidebar']!.width).toBe(286);expect(Math.abs(geometry['.app-header']!.height-88)).toBeLessThanOrEqual(4);expect(Math.abs(geometry['.page-header']!.x-324)).toBeLessThanOrEqual(4);}
+ const tokens=await page.evaluate(()=>{const style=getComputedStyle(document.documentElement);return Object.fromEntries(['--surface','--ink','--muted','--rule','--border','--soft','--hover','--active'].map(key=>[key,style.getPropertyValue(key).trim()]));});expect(tokens['--surface']).toBe('#f1eddf');expect(tokens['--ink']).toBe('#191912');
+ await mkdir(evidence,{recursive:true});await page.screenshot({path:`${evidence}/${screen}-implementation.png`});await writeFile(`${evidence}/${screen}-geometry.json`,JSON.stringify({viewport:{width,height},geometry,tokens},null,2));
+});}
+for(const theme of ['light','dark'])for(const [width,height] of [[1920,1080],[1440,900],[1280,800],[800,600]])for(const [screen] of screens){test(`${screen} ${theme} usable at ${width}`,async({page})=>{
+ await page.setViewportSize({width,height});await page.goto(`/?fixture=redesign&screen=${screen}&theme=${theme}`);await expect(page.locator('.app')).toBeVisible();await expect(page.locator('[role=status]').filter({hasText:/Loading/})).toHaveCount(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(await page.locator('.main-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);await expect(page.getByRole('button',{name:'Settings',exact:true})).toBeVisible();
+});}
+test('release excludes all fixture transport and sample files',async()=>{for(const name of await readdir('dist/assets'))if(name.endsWith('.js'))expect(await readFile(`dist/assets/${name}`,'utf8')).not.toMatch(/MEDIACENTER_REDESIGN_FIXTURE_ONLY|__fixtures\/redesign|Evening piano\.flac|Lapland Trip 2025|LG TV via HDMI/);expect(await readdir('dist')).not.toContain('__fixtures');});

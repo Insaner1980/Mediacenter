@@ -11,7 +11,7 @@ it('keeps connection actions disabled until an operation terminates and exposes 
   await userEvent.selectOptions(await screen.findByLabelText('VPN country'),'Finland');
   await userEvent.click(screen.getByRole('button',{name:'Connect'}));
   expect(screen.getByRole('button',{name:'Connect'})).toBeDisabled();
-  expect(screen.getByRole('button',{name:'Disconnect'})).toBeDisabled();
+  expect(screen.getByLabelText('VPN country')).toBeDisabled();
   await act(async()=>reject(new Error('Provider unavailable')));
   expect(await screen.findByRole('alert')).toHaveTextContent('Provider unavailable');
   expect(screen.getByRole('button',{name:'Connect'})).toBeEnabled();

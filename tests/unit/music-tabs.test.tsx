@@ -1,0 +1,11 @@
+import {render,screen} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import {expect,it,vi} from 'vitest';
+import {MusicScreen} from '../../src/features/music/MusicScreen';
+import {AppServicesProvider,productionServices} from '../../src/app/AppServices';
+const queue={revision:7,sessionId:null,items:[],originalMediaIds:[],currentIndex:null,shuffle:false,repeat:'off' as const,message:null};
+it('starts in Library and confirms dirty playlist closure with Cancel and Discard',async()=>{
+ const services={...productionServices,canUseMedia:true,backend:{...productionServices.backend,player:async()=>null,sources:async()=>[],queryMedia:async()=>({items:[],nextCursor:null})},player:{observe:async()=>()=>{}},music:{...productionServices.music,queue:async()=>queue,subscribe:async()=>()=>{},playlists:async()=>[],save:vi.fn(async()=> 'new')}};
+ const user=userEvent.setup();render(<AppServicesProvider services={services}><MusicScreen/></AppServicesProvider>);
+ expect(screen.getByRole('tab',{name:'Library'})).toHaveAttribute('aria-selected','true');await user.click(screen.getByRole('tab',{name:'Playlists'}));await user.click(screen.getByRole('button',{name:'New playlist'}));await user.type(screen.getByLabelText('Playlist name'),'Draft');expect(services.music.save).not.toHaveBeenCalled();await user.click(screen.getByRole('button',{name:'Close'}));await user.click(screen.getByRole('button',{name:'Cancel'}));expect(screen.getByLabelText('Playlist name')).toHaveValue('Draft');await user.click(screen.getByRole('button',{name:'Close'}));await user.click(screen.getByRole('button',{name:'Discard'}));expect(screen.queryByLabelText('Playlist name')).not.toBeInTheDocument();
+});

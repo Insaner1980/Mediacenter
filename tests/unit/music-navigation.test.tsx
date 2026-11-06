@@ -13,9 +13,9 @@ vi.mock('../../src/app/backend',async importOriginal=>{
 });
 it('moves and recovers currently playing music after navigating home to settings',async()=>{
  render(<App/>);
- await userEvent.click(await screen.findByRole('button',{name:/VPN & Sound/}));
- await userEvent.selectOptions(await screen.findByLabelText('Playback audio'),'computer');
- await userEvent.click(screen.getByRole('button',{name:'Move playback'}));
+ await userEvent.click(await screen.findByRole('button',{name:'Settings'}));
+ await userEvent.selectOptions(await screen.findByLabelText('Sound'),'computer');
+ await userEvent.click(screen.getByText('Connection details'));await userEvent.click(screen.getByRole('button',{name:'Move playback'}));
  expect(backend.moveSession).toHaveBeenCalledWith('current-music',{monitorId:null,audioSinkId:'computer'});
  await userEvent.click(screen.getByRole('button',{name:'Bring back to computer'}));
  expect(backend.moveSession).toHaveBeenLastCalledWith('current-music',{monitorId:null,audioSinkId:null});

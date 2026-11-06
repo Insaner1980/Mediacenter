@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import {AppShell} from '../../src/ui/AppShell';
 import { HomeScreen } from '../../src/features/home/HomeScreen';
 import type { HomeSnapshot } from '../../src/features/home/homeModel';
 const snapshot: HomeSnapshot = {
@@ -17,16 +18,17 @@ describe('home actions', () => {
     await userEvent.click(tile);
     expect(action).toHaveBeenCalledWith({type:'service',serviceId:'youtube'});
   });
-  it('opens the chosen local section and shows the supplied empty state', async () => {
+  it('opens the chosen local section without routine summaries', async () => {
     const action = vi.fn(); render(<HomeScreen snapshot={snapshot} onAction={action}/>);
     await userEvent.click(screen.getByRole('button',{name:/Videos/}));
     expect(action).toHaveBeenCalledWith({type:'navigate',screen:'video'});
-    expect(screen.getByText('Add a video folder')).toBeVisible();
+    expect(screen.queryByText('Add a video folder')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button',{name:/^(Videos|Music|Photos|Drives & USB)$/})).toHaveLength(4);
     expect(screen.queryByText('United Kingdom')).not.toBeInTheDocument();
     expect(screen.queryByText('LG TV via HDMI')).not.toBeInTheDocument();
   });
   it('does not show a country as connected when the observation is unknown', () => {
-    render(<HomeScreen snapshot={{...snapshot,vpn:{...snapshot.vpn,state:'unknown',country:'Finland'}}} onAction={()=>{}}/>);
+    render(<AppShell route="home" onNavigate={()=>{}} onOpenSettings={()=>{}} snapshot={{...snapshot,vpn:{...snapshot.vpn,state:'unknown',country:'Finland'}}}><HomeScreen snapshot={snapshot} onAction={()=>{}}/></AppShell>);
     expect(screen.queryByText('Finland')).not.toBeInTheDocument();
     expect(screen.getByText('VPN status unknown')).toBeVisible();
   });

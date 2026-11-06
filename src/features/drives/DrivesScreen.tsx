@@ -1,51 +1,21 @@
-import {useCallback,useEffect,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {errorMessage} from '../../app/backend';
+import {useAppServices} from '../../app/AppServices';
 import type {DriveDescriptor} from '../../app/contracts';
-import {SourcePicker} from '../library/SourcePicker';
+import {useOptionalSources} from '../library/SourceManagerProvider';
+import {FolderManager} from '../library/FolderManager';
 import {drivesApi,type EjectPreview} from './api';
-export function DrivesScreen({api=drivesApi}:{api?:typeof drivesApi}){
- const [sourceRevision,setSourceRevision]=useState(0);
- const [drives,setDrives]=useState<DriveDescriptor[]>([]);
- const [error,setError]=useState('');
- const [busy,setBusy]=useState('');
- const [message,setMessage]=useState('');
- const [confirmation,setConfirmation]=useState<{driveId:string;preview:EjectPreview}|null>(null);
- const refresh=useCallback(async()=>{setBusy('Checking drives');setError('');setMessage('');setConfirmation(null);try{setDrives(await api.list());setSourceRevision(value=>value+1);}catch(reason){setError(errorMessage(reason));}finally{setBusy('');}},[api]);
- useEffect(()=>{void refresh();},[refresh]);
- async function mount(volumeId:string){
-  setBusy('Mounting volume');setError('');setMessage('');setConfirmation(null);
-  try{await api.mount(volumeId);setDrives(await api.list());setSourceRevision(value=>value+1);setMessage('Volume mounted.');}catch(reason){setError(errorMessage(reason));}finally{setBusy('');}
- }
- async function prepare(driveId:string){
-  setBusy('Checking the whole device');setError('');setMessage('');setConfirmation(null);
-  try{setConfirmation({driveId,preview:await api.prepare(driveId)});}catch(reason){setError(errorMessage(reason));}finally{setBusy('');}
- }
- async function eject(){
-  if(!confirmation)return;
-  setBusy('Stopping media and safely removing the device');setError('');setMessage('');
-  try{
-   const result=await api.eject(confirmation.driveId,confirmation.preview.driveIds);
-   setDrives(await api.list());setSourceRevision(value=>value+1);
-   setMessage(result.status==='powered_off'?'Safe to remove. The device has been powered off.':'All volumes are unmounted. Safe to disconnect the device; power-off is not supported.');
-  }catch(reason){setError(errorMessage(reason));try{setDrives(await api.list());setSourceRevision(value=>value+1);}catch{/* Keep the original removal error visible. */}}
-  finally{setBusy('');setConfirmation(null);}
- }
- return <>
-  <button className="control" disabled={!!busy} onClick={()=>void refresh()}>Refresh drives</button>
-  {busy && <p role="status">{busy}</p>}{message && <p role="status">{message}</p>}
-  {error && <p role="alert" className="message">{error}</p>}
-  {confirmation && <section aria-label="Confirm safe removal"><h2>Remove the whole device</h2>
-   <p>{confirmation.preview.driveNames.join(', ')}</p>
-   {confirmation.preview.driveIds.length>1 && <p>These drives share a physical device. Removing it affects every listed drive.</p>}
-   <p>{confirmation.preview.volumeIds.length} volumes will be checked. Mediacenter will stop playback, slideshows, scans and image loading on this device, then wait for its files to close.</p>
-   {confirmation.preview.activeUses.length>0 && <div aria-label="Active use"><h3>Currently using this device</h3>{confirmation.preview.activeUses.map(use=><p key={use}>{use}</p>)}</div>}
-   <p>Another application may still prevent removal. Library records remain available offline.</p>
-   <div className="actions"><button className="control" disabled={!!busy} onClick={()=>void eject()}>Stop using and safely remove</button><button className="control" disabled={!!busy} onClick={()=>setConfirmation(null)}>Cancel</button></div>
-  </section>}
-  {!busy && !error && drives.length===0 && <p>No storage devices found.</p>}
-  <div className="media-list">{drives.map(d=><article key={d.id}><h2>{d.name||'Storage device'}</h2><p>{d.removable?'Removable storage':'Internal storage'}</p>
-   {d.volumes.map(v=><section key={v.id}><strong>{v.label||'Volume'}</strong><p>{(v.size/1024**3).toFixed(1)} GiB total</p><p>{v.ambiguous?'Ambiguous volume identity':v.mounted?'Mounted':'Unmounted'}</p>{v.mountPoints.map(path=><p key={path}>{path}</p>)}{!v.mounted && d.removable && <button className="control" aria-label={`Mount ${v.label||'volume'}`} disabled={!!busy} onClick={()=>void mount(v.id)}>Mount</button>}</section>)}
-   {d.removable && <button className="control" disabled={!!busy} onClick={()=>void prepare(d.id)}>Safely remove</button>}
-  </article>)}</div><SourcePicker key={sourceRevision}/>
- </>;
+import {DriveRow} from './DriveRow';
+import {EjectDialog} from './EjectDialog';
+import {PageHeader} from '../../ui/PageHeader';
+import {Icon} from '../../ui/Icons';
+import './drives.css';
+export function DrivesScreen({api:override}:{api?:typeof drivesApi}){
+ const services=useAppServices(),api=override??services.drives,sources=useOptionalSources();const refreshSources=sources?.refresh;
+ const [drives,setDrives]=useState<DriveDescriptor[]>([]),[expanded,setExpanded]=useState<Record<string,boolean>>({}),[error,setError]=useState(''),[busy,setBusy]=useState(''),[message,setMessage]=useState(''),[folders,setFolders]=useState(false),[confirmation,setConfirmation]=useState<{driveId:string;preview:EjectPreview}|null>(null);const loaded=useRef(false),lock=useRef(false),generation=useRef(0);
+ const observe=useCallback(async()=>{const ticket=++generation.current;const value=await api.list();if(ticket!==generation.current)return;const firstLoad=!loaded.current;setDrives(value);setExpanded(previous=>Object.fromEntries(value.map(d=>[d.id,previous[d.id]??(firstLoad&&d.id===value.find(x=>x.removable)?.id)])));loaded.current=true;},[api]);
+ useEffect(()=>{if(!services.canUseMedia&&!override)return;void observe().catch(e=>setError(errorMessage(e)));return()=>{generation.current++;};},[observe,services.canUseMedia,override]);
+ async function run(label:string,work:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(label);setError('');setMessage('');try{await work();}catch(e){setError(errorMessage(e));try{await observe();await refreshSources?.();}catch{/* Preserve the action error. */}}finally{lock.current=false;setBusy('');}}
+ async function eject(){if(!confirmation)return;const confirmed=confirmation;await run('Stopping media and safely removing the device',async()=>{const result=await api.eject(confirmed.driveId,confirmed.preview.driveIds);await observe();await refreshSources?.();setMessage(result.status==='powered_off'?'Safe to remove. The device has been powered off.':'All volumes are unmounted. Safe to disconnect the device; power-off is not supported.');});setConfirmation(null);}
+ return <><PageHeader title="Drives & USB" actions={<button className="text-button" disabled={!!busy} onClick={()=>void run('Checking drives',observe)}><Icon name="refresh"/>Refresh</button>}/>{busy&&<p role="status">{busy}</p>}{message&&<p role="status">{message}</p>}{error&&<p role="alert" className="message">{error}</p>}{!busy&&!error&&!drives.length&&<p>No storage devices found.</p>}<div className="drive-list">{drives.map(d=><DriveRow key={d.id} drive={d} pending={!!busy} expanded={expanded[d.id]??false} onExpandedChange={open=>setExpanded(previous=>previous[d.id]===open?previous:{...previous,[d.id]:open})} onMount={id=>void run('Mounting volume',async()=>{await api.mount(id);await observe();await refreshSources?.();setMessage('Volume mounted.');})} onPrepareEject={id=>void run('Checking the whole device',async()=>setConfirmation({driveId:id,preview:await api.prepare(id)}))}/>)}</div><button className="disclosure-button manage-drives" onClick={()=>setFolders(true)}><span><Icon name="folder"/>Manage media folders</span><span aria-hidden="true">›</span></button><FolderManager open={folders} onRequestClose={()=>setFolders(false)}/><EjectDialog preview={confirmation?.preview??null} pending={!!busy} onRequestClose={()=>setConfirmation(null)} onConfirm={()=>void eject()}/></>;
 }

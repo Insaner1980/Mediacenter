@@ -1,44 +1,23 @@
-import {useEffect,useRef,useState} from 'react';
-import {backend,errorMessage} from '../../app/backend';
-import type {MediaItem,MediaPage,MediaSource,MonitorDescriptor,PhotoImage,SlideshowSnapshot} from '../../app/contracts';
-import {SourcePicker} from '../library/SourcePicker';
-import {photosApi,rasterUrl} from './api';
+import {useState} from 'react';
+import {backend} from '../../app/backend';
+import type {MediaItem} from '../../app/contracts';
+import {AppServicesProvider,useAppServices} from '../../app/AppServices';
+import {SourceManagerProvider} from '../library/SourceManagerProvider';
+import {useMediaLibrary} from '../library/useMediaLibrary';
+import {LibraryToolbar} from '../library/LibraryToolbar';
+import {LibraryPagination} from '../library/LibraryPagination';
+import {MediaThumbnail} from '../library/MediaThumbnail';
+import {FolderManager} from '../library/FolderManager';
+import {PageHeader} from '../../ui/PageHeader';
+import {Icon} from '../../ui/Icons';
+import {photosApi} from './api';
+import {PhotoViewer} from './PhotoViewer';
+import {SlideshowProvider,useOptionalSlideshow,useSlideshow} from './SlideshowProvider';
+import {SlideshowControls} from './SlideshowControls';
 import './photos.css';
-function Thumbnail({item,api}:{item:MediaItem;api:typeof backend}){
- const [url,setUrl]=useState<string|null>(null);
- useEffect(()=>{let active=true;if(item.availability==='available')void api.thumbnail(item.id).then(image=>{if(active)setUrl(rasterUrl(image));}).catch(()=>{});return()=>{active=false;};},[item.id,item.availability,api]);
- return <div className="photo-thumbnail">{url?<img src={url} alt="" loading="lazy"/>:<span>Photo</span>}</div>;
-}
-export function PhotosScreen({api=photosApi,libraryApi=backend}:{api?:typeof photosApi;libraryApi?:typeof backend}){
- const viewer=useRef<HTMLElement>(null);
- const [query,setQuery]=useState('');const [source,setSource]=useState('');const [sources,setSources]=useState<MediaSource[]>([]);
- const [page,setPage]=useState<MediaPage>({items:[],nextCursor:null});const [cursor,setCursor]=useState<string|null>(null);const [previous,setPrevious]=useState<(string|null)[]>([]);
- const [monitors,setMonitors]=useState<MonitorDescriptor[]>([]);const [monitor,setMonitor]=useState('');
- const [interval,setIntervalSeconds]=useState(5);const [shuffle,setShuffle]=useState(false);const [snapshot,setSnapshot]=useState<SlideshowSnapshot|null>(null);
- const [selected,setSelected]=useState<MediaItem|null>(null);const [preview,setPreview]=useState<PhotoImage|null>(null);const [actual,setActual]=useState(false);
- const [busy,setBusy]=useState(false);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [version,setVersion]=useState(0);
- useEffect(()=>{let active=true;void Promise.all([libraryApi.sources(),libraryApi.outputs()]).then(([folders,outputs])=>{if(active){setSources(folders);setMonitors(outputs.monitors);}}).catch(reason=>{if(active)setError(errorMessage(reason));});return()=>{active=false;};},[libraryApi,version]);
- useEffect(()=>{let active=true;let timer:ReturnType<typeof setTimeout>;async function refresh(){try{const result=await api.snapshot();if(active)setSnapshot(result);}catch(reason){if(active)setError(errorMessage(reason));}finally{if(active)timer=setTimeout(()=>void refresh(),1000);}}void refresh();return()=>{active=false;clearTimeout(timer);};},[api]);
- useEffect(()=>{let active=true;const timer=setTimeout(()=>{setLoading(true);void libraryApi.queryMedia('photo',source||null,query,cursor).then(value=>{if(active)setPage(value);}).catch(reason=>{if(active)setError(errorMessage(reason));}).finally(()=>{if(active)setLoading(false);});},200);return()=>{active=false;clearTimeout(timer);};},[libraryApi,query,source,cursor,version]);
- useEffect(()=>{if(selected){viewer.current?.focus({preventScroll:true});viewer.current?.scrollIntoView?.({block:'start'});}},[selected]);
- useEffect(()=>{let active=true;if(selected){void api.image(selected.id).then(image=>{if(active)setPreview(image);}).catch(reason=>{if(active)setError(errorMessage(reason));});}return()=>{active=false;};},[api,selected]);
- async function run(work:()=>Promise<unknown>){if(busy)return;setBusy(true);setError('');try{await work();}catch(reason){setError(errorMessage(reason));}finally{setBusy(false);}}
- function reset(){setCursor(null);setPrevious([]);setSelected(null);setPreview(null);}
- async function start(){
-   const ids:string[]=[];let next:string|null=null;
-   do {const result=await libraryApi.queryMedia('photo',source||null,query,next);ids.push(...result.items.filter(item=>item.availability==='available').map(item=>item.id));next=result.nextCursor;if(ids.length>10_000 || (ids.length===10_000 && next))throw {message:'Narrow the source or search to at most 10,000 photos.'};}while(next);
-   setSnapshot(await api.start({mediaIds:ids,monitorId:monitor||null,intervalSeconds:interval,shuffle}));
- }
- const active=Boolean(snapshot?.sessionId);const previewUrl=rasterUrl(preview?.image);
- return <><div className="library-filters"><label className="field">Search photos<input value={query} maxLength={200} onChange={event=>{setQuery(event.target.value);reset();}}/></label><label className="field">Source<select value={source} onChange={event=>{setSource(event.target.value);reset();}}><option value="">All photo folders</option>{sources.filter(s=>s.kinds.includes('photo')).map(s=><option key={s.id} value={s.id}>{s.label} ({s.availability})</option>)}</select></label></div>
- <section className="photo-controls"><h2>Slideshow</h2>{active?<><p role="status">{snapshot?.phase==='display_missing'?'Display disconnected':snapshot?.paused?'Paused':'Playing'}, photo {(snapshot?.index??0)+1} of {snapshot?.total}</p><div className="actions"><button className="control" disabled={busy} onClick={()=>void run(async()=>setSnapshot(await api.control({type:'previous'})))}>Previous photo</button><button className="control" disabled={busy||snapshot?.phase==='display_missing'} onClick={()=>void run(async()=>setSnapshot(await api.control({type:'pause',paused:!snapshot?.paused})))}>{snapshot?.paused?'Resume':'Pause'}</button><button className="control" disabled={busy} onClick={()=>void run(async()=>setSnapshot(await api.control({type:'next'})))}>Next photo</button><button className="control" disabled={busy} onClick={()=>void run(async()=>setSnapshot(await api.control({type:'stop'})))}>Stop slideshow</button><button className="control" disabled={busy} onClick={()=>void run(async()=>setSnapshot(await api.control({type:'continue_on_computer'})))}>Continue on computer</button></div></>:<><label className="field">Display<select value={monitor} onChange={event=>setMonitor(event.target.value)}><option value="">This computer</option>{monitors.filter(m=>m.connected).map(m=><option value={m.id} key={m.id}>{m.name}</option>)}</select></label><button className="control" disabled={busy||loading||page.items.length===0||interval<1||interval>60||!Number.isInteger(interval)} onClick={()=>void run(start)}>Start slideshow</button></>}
- <div className="library-filters"><label className="field">Seconds per photo<input type="number" min={1} max={60} step={1} value={active?snapshot?.intervalSeconds:interval} disabled={busy} onChange={event=>{const seconds=Number(event.target.value);if(active){if(Number.isInteger(seconds)&&seconds>=1&&seconds<=60)void run(async()=>setSnapshot(await api.control({type:'interval',seconds})));}else setIntervalSeconds(seconds);}}/></label><label className="field"><span><input type="checkbox" checked={active?snapshot?.shuffle:shuffle} disabled={busy} onChange={event=>{const enabled=event.target.checked;if(active)void run(async()=>setSnapshot(await api.control({type:'shuffle',enabled})));else setShuffle(enabled);}}/> Shuffle photos</span></label></div>
- {(snapshot?.error||error)&&<p role="alert" className="message">{error||snapshot?.error}</p>}</section>
- {loading&&<p role="status">Loading photos</p>}{!loading&&page.items.length===0&&<p>No matching photos. Choose a photo folder below, then scan it.</p>}
- <div className="photo-grid">{page.items.map(item=><article key={item.id}><button className="photo-card" disabled={item.availability!=='available'} onClick={()=>{setSelected(item);setPreview(null);setActual(false);}}><Thumbnail item={item} api={libraryApi}/><strong>{item.displayName}</strong>{item.modifiedAtMs!=null&&<span>Modified {new Date(item.modifiedAtMs).toLocaleDateString()}</span>}<span>{item.availability}</span></button></article>)}</div>
- <div className="actions"><button className="control" disabled={loading||previous.length===0} onClick={()=>{setCursor(previous.at(-1)??null);setPrevious(value=>value.slice(0,-1));}}>Previous page</button><button className="control" disabled={loading||!page.nextCursor} onClick={()=>{setPrevious(value=>[...value,cursor]);setCursor(page.nextCursor);}}>Next page</button><button className="control" disabled={busy} onClick={()=>setVersion(value=>value+1)}>Refresh photos</button></div>
- {selected&&<section className="photo-viewer" ref={viewer} tabIndex={-1} aria-label={`Photo viewer: ${selected.displayName}`}><h2>{selected.displayName}</h2>{preview?.modifiedAtMs!=null&&<p>Modified {new Date(preview.modifiedAtMs).toLocaleDateString()}</p>}<div className="actions"><button className="control" aria-pressed={!actual} onClick={()=>setActual(false)}>Fit</button><button className="control" aria-pressed={actual} onClick={()=>setActual(true)}>Actual size</button><button className="control" onClick={()=>{setSelected(null);setPreview(null);}}>Close photo</button></div><div className={`photo-preview ${actual?'photo-actual':''}`}>{previewUrl?<img src={previewUrl} alt={selected.displayName}/>:<p role="status">Loading photo</p>}</div><p>Images are decoded at up to 1920 × 1080 pixels.</p></section>}
- <SourcePicker kind="photo" api={libraryApi} onChanged={()=>{reset();setVersion(value=>value+1);}}/>
- </>;
+export function PhotosScreen({api,libraryApi}:{api?:typeof photosApi;libraryApi?:typeof backend}){const services=useAppServices(),shared=useOptionalSlideshow();if(shared)return <PhotosContent/>;return <AppServicesProvider services={{...services,photos:api??services.photos,backend:libraryApi??services.backend,canUseMedia:true}}><SourceManagerProvider><SlideshowProvider><PhotosContent/></SlideshowProvider></SourceManagerProvider></AppServicesProvider>;}
+function PhotosContent(){
+ const library=useMediaLibrary('photo'),slideshow=useSlideshow(),[folders,setFolders]=useState(false),[setup,setSetup]=useState(false),[selected,setSelected]=useState<MediaItem|null>(null);
+ return <><PageHeader title="Photos" actions={<><button className="text-button" onClick={()=>setFolders(true)}><Icon name="folder"/>Manage folders</button><button className="control primary" onClick={()=>setSetup(true)}><Icon name="play"/>{slideshow.snapshot?.sessionId?'Show slideshow controls':'Slideshow'}<Icon name="chevron"/></button></>}/><LibraryToolbar kind="photo" {...library} onQueryChange={library.setQuery} onSourceChange={library.setSourceId} onRefresh={library.refresh}/>{library.error&&<p role="alert">{library.error}</p>}{library.loading&&<p role="status">Loading photos</p>}<div className="media-grid photo-grid" data-testid="photo-grid" aria-busy={library.loading}>{library.items.map(item=><article key={item.id}><button className="thumbnail-button photo-card" disabled={library.loading||item.availability!=='available'} onClick={()=>setSelected(item)}><MediaThumbnail item={item}/><strong title={item.displayName}>{item.displayName}</strong></button>{item.availability!=='available'&&<span>{item.availability}</span>}</article>)}</div>{!library.loading&&!library.items.length&&<div className="library-empty"><p>{library.sources.length?'No matching photos':'No photos yet'}</p>{!library.sources.length?<button className="control" onClick={()=>setFolders(true)}>Add folder</button>:library.query&&<button className="control" onClick={()=>library.setQuery('')}>Clear search</button>}</div>}<LibraryPagination library={library}/><FolderManager open={folders} kind="photo" onRequestClose={()=>setFolders(false)}/><SlideshowControls open={setup} onRequestClose={()=>setSetup(false)} library={library}/>{selected&&<PhotoViewer item={library.items.find(i=>i.id===selected.id)??selected} onRequestClose={()=>setSelected(null)}/>}</>;
 }
 export default PhotosScreen;

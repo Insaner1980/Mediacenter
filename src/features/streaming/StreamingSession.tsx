@@ -1,7 +1,9 @@
 import {useState} from 'react';
 import type {ManagedSession,ServiceDefinition} from '../../app/contracts';
-import {backend,errorMessage} from '../../app/backend';
+import {errorMessage} from '../../app/backend';
+import {useAppServices} from '../../app/AppServices';
 export function StreamingSession({session,services}:{session:ManagedSession|undefined;services:ServiceDefinition[]}) {
+  const {backend}=useAppServices();
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   async function run(work:()=>Promise<unknown>){if(busy)return;setBusy(true);setError('');try{await work();}catch(reason){setError(errorMessage(reason));}finally{setBusy(false);}}
   if(!session)return <p>No managed service is open.</p>;

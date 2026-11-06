@@ -8,7 +8,7 @@ const preview={driveIds:['drive:usb','drive:other'],driveNames:['USB','Other dis
 it('shows shared physical drives before confirmation and never shows safe removal on busy failure',async()=>{
  const api={list:async()=>[drive],mount:async()=>({volumeId:'volume:a'}),prepare:async()=>preview,eject:async()=>{throw new Error('Another application is using this drive.');}};
  render(<DrivesScreen api={api}/>);
- await userEvent.click(await screen.findByRole('button',{name:'Safely remove'}));
+ await userEvent.click(await screen.findByRole('button',{name:/Safely remove/}));
  expect(await screen.findByText(/Other disk/)).toBeVisible();
  expect(screen.getByText('Video playback')).toBeVisible();
  expect(screen.getByText('Library scan')).toBeVisible();
@@ -28,12 +28,12 @@ it('does not offer eject for internal storage',async()=>{
  const api={list:async()=>[{...drive,removable:false}],mount:async()=>({volumeId:'volume:a'}),prepare:async()=>preview,eject:async()=>({driveIds:[],status:'unmounted' as const})};
  render(<DrivesScreen api={api}/>);
  await screen.findByText('Internal storage');
- expect(screen.queryByRole('button',{name:'Safely remove'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:/Safely remove/})).not.toBeInTheDocument();
 });
 it('reports unmounted completion without claiming the hardware powered off',async()=>{
  const api={list:async()=>[drive],mount:async()=>({volumeId:'volume:a'}),prepare:async()=>preview,eject:async()=>({driveIds:preview.driveIds,status:'unmounted' as const})};
  render(<DrivesScreen api={api}/>);
- await userEvent.click(await screen.findByRole('button',{name:'Safely remove'}));
+ await userEvent.click(await screen.findByRole('button',{name:/Safely remove/}));
  await userEvent.click(await screen.findByRole('button',{name:'Stop using and safely remove'}));
  expect(await screen.findByRole('status')).toHaveTextContent('All volumes are unmounted. Safe to disconnect');
  expect(screen.queryByText(/device has been powered off/)).not.toBeInTheDocument();

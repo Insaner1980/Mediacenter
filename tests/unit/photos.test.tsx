@@ -15,7 +15,7 @@ it('presentation accepts only assigned decoded raster images',async()=>{
 it('disconnected display recovery remains an explicit computer action',async()=>{
  const control=vi.fn().mockResolvedValue({...snapshot,phase:'playing',paused:false,error:null,monitorId:'eDP-1'});
  render(<PhotosScreen api={{...photosApi,snapshot:vi.fn().mockResolvedValue(snapshot),control}} libraryApi={{...backend,sources:vi.fn().mockResolvedValue([]),queryMedia:vi.fn().mockResolvedValue({items:[],nextCursor:null}),outputs:vi.fn().mockResolvedValue({monitors:[],audioSinks:[],computerMonitorId:null})}}/>);
- const button=await screen.findByRole('button',{name:'Continue on computer'});expect(control).not.toHaveBeenCalled();await userEvent.click(button);expect(control).toHaveBeenCalledWith({type:'continue_on_computer'});
+ await userEvent.click(await screen.findByRole('button',{name:'Show slideshow controls'}));const button=await screen.findByRole('button',{name:'Continue on computer'});expect(control).not.toHaveBeenCalled();await userEvent.click(button);expect(control).toHaveBeenCalledWith({type:'continue_on_computer'});
 });
 
 it('presentation shows the assigned safe image with no privileged controls',async()=>{
@@ -26,6 +26,6 @@ it('opening a photo brings the full viewer into keyboard focus',async()=>{
  const item={id:'photo',sourceId:'source',kind:'photo' as const,displayName:'Holiday.jpg',availability:'available',modifiedAtMs:0,durationMs:null,thumbnailId:null,resumePositionMs:null};
  render(<PhotosScreen api={{...photosApi,snapshot:vi.fn().mockResolvedValue({...snapshot,sessionId:null}),image:vi.fn().mockResolvedValue({image:{mime:'image/jpeg',base64:'/9j/'},width:100,height:50,modifiedAtMs:0})}} libraryApi={{...backend,sources:vi.fn().mockResolvedValue([]),queryMedia:vi.fn().mockResolvedValue({items:[item],nextCursor:null}),thumbnail:vi.fn().mockResolvedValue({mime:'image/jpeg',base64:'/9j/'}),outputs:vi.fn().mockResolvedValue({monitors:[],audioSinks:[],computerMonitorId:null,audioError:null})}}/>);
  await userEvent.click(await screen.findByRole('button',{name:/Holiday.jpg/}));
- expect(await screen.findByRole('region',{name:'Photo viewer: Holiday.jpg'})).toHaveFocus();
+ expect(await screen.findByRole('dialog',{name:'Holiday.jpg'})).toContainElement(document.activeElement as HTMLElement);
  expect(await screen.findByRole('img',{name:'Holiday.jpg'})).toHaveAttribute('src','data:image/jpeg;base64,/9j/');
 });
