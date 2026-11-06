@@ -61,6 +61,7 @@ pub(crate) fn arguments(media: &OpenMedia) -> Vec<OsString> {
         "--idle=yes",
         "--keep-open=yes",
         "--terminal=no",
+        "--gpu-sw=yes",
         "--demuxer=lavf",
     ]
     .iter()
@@ -305,6 +306,22 @@ pub async fn play(
     resume: bool,
     cancel: CancellationToken,
 ) -> Result<(), AppError> {
+    // Share the music transition gate so delayed queue advancement cannot
+    // replace an explicitly selected video between its stop and start steps.
+    let _music = state.music_gate.lock().await;
+    play_in_transition(app, state.clone(), id, resume, cancel).await
+}
+// The caller holds music_gate for the entire playback transition.
+pub(crate) async fn play_in_transition(
+    app: tauri::AppHandle,
+    state: AppState,
+    id: String,
+    resume: bool,
+    cancel: CancellationToken,
+) -> Result<(), AppError> {
+    if cancel.is_cancelled() {
+        return Err(AppError::new("cancelled", "Player startup cancelled."));
+    }
     let _session = state
         .session_gate
         .try_lock()
@@ -338,16 +355,21 @@ pub async fn play(
             "Stop the slideshow before opening a local video.",
         ));
     }
-    let mut registry = state
-        .player
-        .try_lock()
-        .map_err(|_| AppError::new("player_busy", "Another player action is running."))?;
-    if registry.is_some() {
-        return Err(AppError::new(
-            "session_switch_required",
-            "Stop the current local player before starting another item.",
-        ));
+    let mut registry = state.player.lock().await;
+    if cancel.is_cancelled() {
+        return Err(AppError::new("cancelled", "Player startup cancelled."));
     }
+    let previous_id = registry.as_ref().map(|p| p.session.id.clone());
+    let retired = retire(&app, &state, &mut registry).await;
+    if registry.is_none() {
+        if let Some(id) = previous_id {
+            // Queue reconciliation uses music -> player lock order.
+            drop(registry);
+            crate::music::service::clear_session(&app, &state, &id).await;
+            registry = state.player.lock().await;
+        }
+    }
+    retired?;
     let (mut player, events) = launch(&state, &id, resume, cancel.clone()).await?;
     if cancel.is_cancelled() {
         player.stop().await?;
@@ -364,23 +386,57 @@ pub async fn play(
         session_id.clone(),
         events,
     ));
-    crate::events::publish(&app, &state, |home| {
-        home.sessions.retain(|s| !s.kind.starts_with("local-"));
-        home.sessions.push(session);
-    })?;
-    let target = state.snapshot()?.outputs.desired;
-    let default_target = target.monitor_id.is_none() && target.audio_sink_id.is_none();
-    let output = crate::outputs::coordinator::move_player(&app, &state, &session_id, target).await;
-    if output.is_ok() || default_target {
-        if let Some(player) = state.player.lock().await.as_ref() {
-            player
-                .ipc
-                .command(json!(["set_property", "pause", false]))
-                .await?;
+    let result = async {
+        crate::events::publish(&app, &state, |home| {
+            home.sessions.retain(|s| !s.kind.starts_with("local-"));
+            home.sessions.push(session);
+        })?;
+        let target = state.snapshot()?.outputs.desired;
+        let default_target = target.monitor_id.is_none() && target.audio_sink_id.is_none();
+        let output =
+            crate::outputs::coordinator::move_player(&app, &state, &session_id, target).await;
+        if !default_target {
+            output?;
         }
+        if cancel.is_cancelled() {
+            return Err(AppError::new("cancelled", "Player startup cancelled."));
+        }
+        let registry = state.player.lock().await;
+        let player = registry
+            .as_ref()
+            .filter(|p| p.session.id == session_id)
+            .ok_or_else(|| AppError::new("player_missing", "The player closed during startup."))?;
+        player
+            .ipc
+            .command(json!(["set_property", "pause", false]))
+            .await?;
+        Ok(())
     }
-    Ok(())
+    .await;
+    if result.is_err() {
+        let _ = control(&app, &state, &session_id, PlayerAction::Stop).await;
+    }
+    result
 }
+// A registered player is released only after its owned process has stopped.
+async fn retire(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    registry: &mut Option<Player>,
+) -> Result<Option<String>, AppError> {
+    let Some(player) = registry.as_mut() else {
+        return Ok(None);
+    };
+    let saved = save(state, player);
+    player.stop().await?;
+    let id = player.session.id.clone();
+    *registry = None;
+    crate::events::publish(app, state, |home| home.sessions.retain(|s| s.id != id))?;
+    let _ = app.emit_to("main", "player_changed", Option::<PlayerSnapshot>::None);
+    saved?;
+    Ok(Some(id))
+}
+
 fn apply(snapshot: &mut PlayerSnapshot, event: &Value) {
     if event["event"] != "property-change" {
         return;
@@ -472,6 +528,7 @@ async fn observe(
         let before = player.snapshot.phase.clone();
         let mut changed = false;
         let mut save_soon = false;
+        let mut terminal = false;
         use std::os::unix::fs::MetadataExt;
         if player.media.lease.cancelled()
             || !std::fs::metadata(&player.media.root).is_ok_and(|m| {
@@ -483,12 +540,12 @@ async fn observe(
             player.snapshot.phase = "error".into();
             player.snapshot.error = Some("The media source disconnected. Playback stopped.".into());
             changed = true;
+            terminal = true;
         }
         while let Ok(event) = events.try_recv() {
             changed = true;
             if event["event"] == "ipc-disconnected" {
-                player.snapshot.phase = "error".into();
-                player.snapshot.error = Some("The player connection closed.".into());
+                terminal = true;
                 break;
             }
             if event["event"] == "property-change"
@@ -503,6 +560,7 @@ async fn observe(
             apply(&mut player.snapshot, &event);
         }
         if let Ok(Some(status)) = player.child.try_wait() {
+            terminal = true;
             if player.snapshot.phase != "error" {
                 player.snapshot.phase = if player.natural_end {
                     "ended"
@@ -536,13 +594,19 @@ async fn observe(
                 }
             });
         }
-        if player.natural_end && player.media.kind == MediaKind::Audio {
+        if !terminal && player.natural_end && player.media.kind == MediaKind::Audio {
             drop(registry);
             crate::music::on_end(app.clone(), state.clone(), id.clone()).await;
             return;
         }
-        if matches!(player.child.try_wait(), Ok(Some(_))) {
-            return;
+        if terminal {
+            let _ = retire(&app, &state, &mut registry).await;
+            let removed = registry.is_none();
+            drop(registry);
+            if removed {
+                crate::music::service::clear_session(&app, &state, &id).await;
+                return;
+            }
         }
     }
 }
@@ -559,12 +623,13 @@ pub async fn control(
         .ok_or_else(|| AppError::new("player_missing", "This player session is unavailable."))?;
     let command = match action {
         PlayerAction::Stop => {
-            let saved = save(state, player);
-            player.stop().await?;
-            *registry = None;
-            crate::events::publish(app, state, |home| home.sessions.retain(|s| s.id != id))?;
-            let _ = app.emit_to("main", "player_changed", Option::<PlayerSnapshot>::None);
-            return saved;
+            let result = retire(app, state, &mut registry).await;
+            let removed = registry.is_none();
+            drop(registry);
+            if removed {
+                crate::music::service::clear_session(app, state, id).await;
+            }
+            return result.map(|_| ());
         }
         PlayerAction::Pause { paused } => json!(["set_property", "pause", paused]),
         PlayerAction::Mute { muted } => json!(["set_property", "mute", muted]),

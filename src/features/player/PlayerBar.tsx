@@ -6,7 +6,7 @@ import './player.css';
 export function formatTime(seconds:number|null|undefined){if(seconds==null||!Number.isFinite(seconds))return '';const n=Math.max(0,Math.floor(seconds));return n>=3600?`${Math.floor(n/3600)}:${String(Math.floor(n/60)%60).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`:`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;}
 export function PlayerBar({onOpenQueue,onOpenPlayer}:{onOpenQueue:()=>void;onOpenPlayer:()=>void}){
  const {player,queue,error,pending,playerAction,musicAction}=usePlayback();const [seek,setSeek]=useState<number|null>(null),[volume,setVolume]=useState<number|null>(null);
- if(!player||['stopped','ended'].includes(player.phase))return null;
+ if(!player||queue?.sessionId!==player.sessionId||['stopped','ended','error'].includes(player.phase))return null;
  const audio=queue?.sessionId===player.sessionId,title=queue?.items.find(e=>e.item.mediaId===player.mediaId)?.item.title??(audio?'Local audio':'Local video');
  const duration=player.durationSeconds,repeat=queue?.repeat??'off';
  function commitSeek(){if(seek!==null){void playerAction({type:'seek',seconds:seek});setSeek(null);}}

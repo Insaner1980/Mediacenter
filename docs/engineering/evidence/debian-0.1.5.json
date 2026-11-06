@@ -1,0 +1,20 @@
+{
+  "version": "0.1.5",
+  "sourceBase": "a26bdb0",
+  "changes": "Direct playback fixes in working tree; see direct-playback verification record",
+  "file": "Mediacenter_0.1.5_amd64.deb",
+  "sha256": "828674ff985a35f2648c3504f1a06b742d916caba04e1012a15afd91da503850",
+  "size": 7786806,
+  "files": [
+    "DEBIAN/control",
+    "DEBIAN/md5sums",
+    "usr/bin/mediacenter",
+    "usr/share/applications/Mediacenter.desktop",
+    "usr/share/icons/hicolor/128x128/apps/mediacenter.png"
+  ],
+  "maintainerScripts": false,
+  "linkedLibrariesResolve": true,
+  "installed": false,
+  "extractedBinarySha256": "46541a1a78325de84f2bc913d98f504add414aa64655564eaba83173bb7c7789",
+  "sourceDiffSha256": "cac390b71c79adcdfa82ce02bca893f5c4566eb48d70b820c8707a7c1c7de955"
+}

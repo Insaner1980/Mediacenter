@@ -1,4 +1,4 @@
-import {render,screen} from '@testing-library/react';
+import {render,screen,waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {expect,it,vi} from 'vitest';
 import {MusicScreen} from '../../src/features/music/MusicScreen';
@@ -16,4 +16,13 @@ it('shows an explicit save failure inside the open editor',async()=>{
 it('only offers folder opening in the Library tab where its feedback is visible',async()=>{
  const services={...productionServices,canUseMedia:true,backend:{...productionServices.backend,player:async()=>null,sources:async()=>[],queryMedia:async()=>({items:[],nextCursor:null})},player:{observe:async()=>()=>{}},music:{...productionServices.music,queue:async()=>queue,subscribe:async()=>()=>{},playlists:async()=>[]}};
  const user=userEvent.setup();render(<AppServicesProvider services={services}><MusicScreen/></AppServicesProvider>);expect(screen.getByRole('button',{name:'Open folder'})).toBeVisible();await user.click(screen.getByRole('tab',{name:'Queue'}));expect(screen.queryByRole('button',{name:'Open folder'})).not.toBeInTheDocument();await user.click(screen.getByRole('tab',{name:'Playlists'}));expect(screen.queryByRole('button',{name:'Open folder'})).not.toBeInTheDocument();
+});
+
+it('plays from the track title and row cells, while enqueue only adds to the queue',async()=>{
+ const play=vi.fn(async()=>{}),control=vi.fn(async()=>queue);
+ const services={...productionServices,canUseMedia:true,backend:{...productionServices.backend,player:async()=>null,sources:async()=>[],queryMedia:async()=>({items:[{id:'song',displayName:'Test song',kind:'audio' as const,sourceId:'folder',availability:'available',durationMs:60000,resumePositionMs:null,thumbnailId:null}],nextCursor:null})},player:{observe:async()=>()=>{}},music:{...productionServices.music,queue:async()=>queue,subscribe:async()=>()=>{},playlists:async()=>[],play,control}};
+ const user=userEvent.setup();render(<AppServicesProvider services={services}><MusicScreen/></AppServicesProvider>);
+ await user.click(await screen.findByText('Test song'));await waitFor(()=>expect(play).toHaveBeenCalledWith(['song']));
+ await user.click(screen.getByText('1:00'));await waitFor(()=>expect(play).toHaveBeenCalledTimes(2));
+ await user.click(screen.getByRole('button',{name:'Add Test song to queue'}));expect(control).toHaveBeenCalled();expect(play).toHaveBeenCalledTimes(2);
 });

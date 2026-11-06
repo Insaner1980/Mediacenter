@@ -132,3 +132,7 @@ A native release executable was built without bundles and exercised on a private
 ## Automatic default media folders — 6 November 2026
 
 Revision `3062630` adds automatic Pictures/Videos/Music selection and indexing, plus one-step Open folder for other local or mounted removable folders. [Acceptance](evidence/automatic-media-folders/acceptance.md) records146 UI unit tests,95 visual checks,13 E2E workflows and130 passing Rust tests with2 existing hardware tests ignored. A production native smoke automatically indexed/displayed synthetic PNG/MP4/WAV files from private XDG media folders. A new native command is enabled only for the main window; UUID-less attachment confirmations are preserved. [Gallery](evidence/automatic-media-folders/index.html) contains the new UI and native evidence. The installed application-menu binary and user runtime state were not updated.
+
+## Direct playback corrections — 6 November 2026
+
+Version 0.1.5 removes the video preview/local-controls detour and makes the full video card and music library row launch playback. Closed mpv instances are retired; explicit playback replaces the previously owned local player. Queue transitions share the same gate, and stale queue edits cannot restore a departed session. [Acceptance and native playback evidence](evidence/direct-playback/acceptance.md) records the reproduced old close/replay failure, regression checks, and the exact packaged executable tested. Hardware HDMI and audible-speaker acceptance remain separate from the private null-sink playback test.

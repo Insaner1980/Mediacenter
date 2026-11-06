@@ -62,6 +62,14 @@ pub async fn get(state: &AppState) -> Result<MusicQueue, AppError> {
     }
     Ok(queue.snapshot())
 }
+pub(crate) async fn clear_session(app: &tauri::AppHandle, state: &AppState, id: &str) {
+    let mut queue = state.music.lock().await;
+    if queue.session_id.as_deref() == Some(id) {
+        queue.session_id = None;
+        queue.revision = queue.revision.wrapping_add(1);
+        publish(app, &queue);
+    }
+}
 async fn stop_owned(
     app: &tauri::AppHandle,
     state: &AppState,
@@ -74,13 +82,12 @@ async fn stop_owned(
         .as_ref()
         .map(|p| p.session.id.clone());
     if let Some(active) = active {
-        if queue.session_id.as_deref() != Some(&active) {
-            return Err(AppError::new(
-                "session_switch_required",
-                "Stop the current local player before starting this queue.",
-            ));
+        if let Err(error) = mpv::control(app, state, &active, PlayerAction::Stop).await {
+            // The observer may already have retired this exact session.
+            if error.code != "player_missing" {
+                return Err(error);
+            }
         }
-        mpv::control(app, state, &active, PlayerAction::Stop).await?;
     }
     queue.session_id = None;
     Ok(())
@@ -113,7 +120,7 @@ async fn start_current(
             queue.message = Some("Music playback was cancelled.".into());
             return Err(AppError::new("cancelled", "Music playback was cancelled."));
         }
-        match mpv::play(
+        match mpv::play_in_transition(
             app.clone(),
             state.clone(),
             id.clone(),
@@ -171,10 +178,13 @@ pub async fn play(
         let db = state.db.lock().map_err(|_| database_error())?;
         playlists::items(&db, &media_ids)?
     };
-    let mut next = state.music.lock().await.clone();
-    let mut replacement = next.clone();
+    let mut current = state.music.lock().await.clone();
+    let mut replacement = current.clone();
     replacement.replace(items, start_index)?;
-    stop_owned(&app, &state, &mut next).await?;
+    if cancel.is_cancelled() {
+        return Err(AppError::new("cancelled", "Music playback was cancelled."));
+    }
+    stop_owned(&app, &state, &mut current).await?;
     let result = start_current(&app, &state, &mut replacement, cancel).await;
     let saved = store(&state, &mut replacement).await;
     publish(&app, &replacement);
@@ -226,6 +236,9 @@ pub async fn control(
     let mut next = queue.clone();
     let playback = next.edit(current_revision, action, items, crate::app_state::now_ms())?;
     let result = if playback {
+        if cancel.is_cancelled() {
+            return Err(AppError::new("cancelled", "Music playback was cancelled."));
+        }
         stop_owned(&app, &state, &mut queue).await?;
         next.session_id = None;
         start_current(&app, &state, &mut next, cancel).await
@@ -282,11 +295,23 @@ pub fn on_end(
 }
 
 async fn store(state: &AppState, queue: &mut Queue) -> Result<(), AppError> {
+    // Hold the queue while observing the player: observer cleanup releases the
+    // player before taking this mutex, so it either precedes this reconciliation
+    // or clears the result afterwards. A cloned edit cannot resurrect a session.
+    let mut stored = state.music.lock().await;
+    let active = state.player.lock().await;
+    if queue.session_id.is_some()
+        && queue.session_id.as_deref() != active.as_ref().map(|p| p.session.id.as_str())
+    {
+        queue.session_id = None;
+        queue.revision = queue.revision.wrapping_add(1);
+    }
+    drop(active);
     let saved = persist(state, queue);
     if let Err(error) = &saved {
         queue.message = Some(error.message.clone());
     }
-    *state.music.lock().await = queue.clone();
+    *stored = queue.clone();
     saved
 }
 #[cfg(test)]
@@ -301,7 +326,7 @@ mod tests {
         )));
     }
     #[tokio::test]
-    async fn persistence_failure_keeps_live_queue_ownership() {
+    async fn persistence_failure_keeps_live_queue_edits() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::open(dir.path().to_path_buf()).unwrap();
         state
@@ -311,12 +336,23 @@ mod tests {
             .execute("DROP TABLE settings", [])
             .unwrap();
         let mut queue = state.music.lock().await.clone();
-        queue.session_id = Some("new-player".into());
+        queue.shuffle = true;
         assert!(store(&state, &mut queue).await.is_err());
-        assert_eq!(
-            state.music.lock().await.session_id.as_deref(),
-            Some("new-player")
-        );
+        assert!(state.music.lock().await.shuffle);
+    }
+    #[tokio::test]
+    async fn queued_edit_cannot_restore_an_externally_closed_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().to_path_buf()).unwrap();
+        state.music.lock().await.session_id = Some("closed-player".into());
+        let mut edit = state.music.lock().await.clone();
+        edit.shuffle = true;
+        // Observer cleanup lands after the edit cloned its input.
+        state.music.lock().await.session_id = None;
+        store(&state, &mut edit).await.unwrap();
+        let stored = state.music.lock().await;
+        assert!(stored.shuffle);
+        assert_eq!(stored.session_id, None);
     }
     #[tokio::test]
     async fn externally_stopped_player_is_not_reported_as_active() {

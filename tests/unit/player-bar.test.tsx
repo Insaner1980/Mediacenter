@@ -21,3 +21,9 @@ it('flushes a volume chosen during the reconciliation fetch',async()=>{
  render(<AppServicesProvider services={fake}><PlaybackProvider><PlayerBar onOpenQueue={()=>{}} onOpenPlayer={()=>{}}/></PlaybackProvider></AppServicesProvider>);
  fireEvent.change(await screen.findByRole('slider',{name:'Volume'}),{target:{value:'20'}});await waitFor(()=>expect(read).toHaveBeenCalled());fireEvent.change(screen.getByRole('slider',{name:'Volume'}),{target:{value:'37'}});await act(async()=>resolve(player));await waitFor(()=>expect(command).toHaveBeenLastCalledWith('audio-session',{type:'volume',value:37}));
 });
+
+it('does not display video transport or a stale video error while browsing',async()=>{
+ const fake={...productionServices,canUseMedia:true,player:{observe:async(update:(p:PlayerSnapshot|null)=>void)=>{update({...player,sessionId:'video-session',error:'The player connection closed.'});return()=>{};}},music:{...productionServices.music,subscribe:async()=>()=>{},queue:async()=>queue}};
+ await act(async()=>{render(<AppServicesProvider services={fake}><PlaybackProvider><PlayerBar onOpenQueue={()=>{}} onOpenPlayer={()=>{}}/></PlaybackProvider></AppServicesProvider>);});
+ expect(screen.queryByRole('region',{name:'Playback'})).not.toBeInTheDocument();
+});

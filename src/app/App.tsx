@@ -54,7 +54,7 @@ function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationS
       try{await backend.openService(a.serviceId);setMessage(a.serviceId==='hbo_max'?'Continue in Chrome for HBO Max. Choose its display and sound in your system settings.':'');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}
     }
   }
-  async function play(item:MediaItem,resume:boolean){if(busy)return;setBusy(true);setMessage('Opening local media');try{await backend.playMedia(item.id,resume);setScreen('player');setMessage('');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}}
+  async function play(item:MediaItem,resume:boolean){if(busy)return;setBusy(true);setMessage('Opening local media');try{await backend.playMedia(item.id,resume);setMessage('');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}}
   async function theme(value: Theme) {
     if(canUseMedia) {try{await backend.setTheme(value);}catch{setMessage('The theme could not be saved.');return;}}
     localStorage.setItem('mediacenter.theme',value);

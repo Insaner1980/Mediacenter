@@ -1,0 +1,23 @@
+{
+  "uiUnit": {
+    "passed": 148
+  },
+  "rust": {
+    "passed": 131,
+    "ignored": 2
+  },
+  "browserE2E": {
+    "passed": 13
+  },
+  "visual": {
+    "passed": 95
+  },
+  "typecheck": "pass",
+  "eslint": "pass",
+  "clippy": "pass",
+  "rustfmt": "pass",
+  "assets": "8 logos and 18 fonts verified",
+  "uiCopy": "pass",
+  "debian": "archive and linked libraries inspected; extracted executable tested; host installation not performed",
+  "sourceDiffSha256": "cac390b71c79adcdfa82ce02bca893f5c4566eb48d70b820c8707a7c1c7de955"
+}
