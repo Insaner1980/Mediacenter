@@ -1,0 +1,18 @@
+{
+  "version": "0.1.4",
+  "sourceBase": "eba6f7f",
+  "changes": "Version-only changes in package/Cargo/tauri manifests and locks; implementation3062630",
+  "file": "Mediacenter_0.1.4_amd64.deb",
+  "sha256": "900a58e1d855e8be1690889c600b2f6e69d44ff9303a58eca63c81b3ec3f5e08",
+  "size": 7782070,
+  "files": [
+    "DEBIAN/control",
+    "DEBIAN/md5sums",
+    "usr/bin/mediacenter",
+    "usr/share/applications/Mediacenter.desktop",
+    "usr/share/icons/hicolor/128x128/apps/mediacenter.png"
+  ],
+  "maintainerScripts": false,
+  "linkedLibrariesResolve": true,
+  "installed": false
+}
