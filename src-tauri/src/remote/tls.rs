@@ -28,7 +28,7 @@ pub enum IdentityNamespace {
     Development,
 }
 impl IdentityNamespace {
-    fn directory(self) -> &'static str {
+    pub(super) fn directory(self) -> &'static str {
         match self {
             Self::Production => "remote-production",
             Self::Development => "remote-development",
@@ -143,7 +143,7 @@ impl ServerIdentity {
         self.repair
     }
 }
-fn read_private(path: &Path) -> Result<Option<Vec<u8>>> {
+pub(super) fn read_private(path: &Path) -> Result<Option<Vec<u8>>> {
     let metadata = match fs::symlink_metadata(path) {
         Ok(m) => m,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -169,7 +169,7 @@ fn read_private(path: &Path) -> Result<Option<Vec<u8>>> {
     }
     Ok(Some(bytes))
 }
-fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+pub(super) fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
     let temporary = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4()));
     let mut file = fs::OpenOptions::new()
         .write(true)

@@ -16,3 +16,7 @@ pub mod limits;
 pub mod pairing;
 pub mod server;
 pub mod tls;
+
+pub mod network;
+pub mod setup;
+pub mod discovery;

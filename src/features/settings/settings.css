@@ -5,3 +5,5 @@
 @media(max-width:1199px){.setting-row{grid-template-columns:minmax(0,7em) minmax(0,1fr)}}
 .settings-columns h2{line-height:1.2}.setting-row>span{overflow-wrap:anywhere}
 .media-folders-entry{margin-top:28px;border-top:1px solid var(--border)}.media-folders-entry+.diagnostics-entry{margin-top:0;border-top:0}
+
+.remote-settings .field{margin-block:20px}.remote-settings .control{margin:8px 12px 8px 0}.remote-device{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border)}.pairing-qr{display:block;width:min(100%,420px);height:auto;background:white;margin:24px auto}.verification-words,.manual-code{font-size:1.3em;letter-spacing:.04em;overflow-wrap:anywhere}.remote-pairing details{margin:20px 0}

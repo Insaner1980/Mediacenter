@@ -322,6 +322,13 @@ pub fn typescript() -> String {
         crate::diagnostics::DependencyStatus::decl(&cfg),
         crate::diagnostics::DiagnosticReport::decl(&cfg),
     ]);
+    declarations.extend([
+        crate::remote::network::NetworkInterface::decl(&cfg),
+        crate::remote::setup::RemoteSettingsSnapshot::decl(&cfg),
+        crate::remote::setup::RemoteEnableRequest::decl(&cfg),
+        crate::remote::setup::RemotePairingDisplay::decl(&cfg),
+        crate::remote::setup::RemoteDevice::decl(&cfg),
+    ]);
     declarations.extend(crate::music::typescript(&cfg));
     declarations.extend(crate::photos::presenter::typescript(&cfg));
     declarations.extend([

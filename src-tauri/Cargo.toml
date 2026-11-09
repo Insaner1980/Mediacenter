@@ -21,7 +21,7 @@ tokio = { version = "=1.54.1", features = ["full"] }
 tokio-util = { version = "=0.7.20", features = ["rt"] }
 rusqlite = { version = "=0.41.1", features = ["bundled", "backup"] }
 uuid = { version = "=1.29.0", features = ["v4", "serde"] }
-nix = { version = "=0.31.3", features = ["signal", "process"] }
+nix = { version = "=0.31.3", features = ["signal", "process", "net", "socket"] }
 ts-rs = { version = "=12.0.1", features = ["serde-compat"] }
 tauri-plugin-dialog = "=2.8.4"
 tauri-plugin-single-instance = "=2.5.5"
@@ -41,6 +41,8 @@ hyper = { version = "=1.12.0", features = ["server", "http1"] }
 hyper-util = { version = "=0.1.21", features = ["tokio"] }
 http-body-util = "=0.1.5"
 bytes = "=1.12.1"
+mdns-sd = { version = "=0.21.6", default-features = false }
+qrcode = { version = "=0.14.1", default-features = false }
 
 [dev-dependencies]
 tempfile = "=3.27.0"

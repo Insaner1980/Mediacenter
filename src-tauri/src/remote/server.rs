@@ -120,6 +120,23 @@ impl ServerRuntime {
             .map_err(|_| dispatch::unavailable())?
             .begin(addresses, port)
     }
+    pub(super) fn identity(&self) -> &Arc<ServerIdentity> { &self.identity }
+    pub fn cancel_pairing(&self, attempt: &Id) -> Result<(), RemoteError> {
+        self.pairing.lock().map_err(|_| dispatch::unavailable())?.close_attempt(attempt);
+        Ok(())
+    }
+    pub fn pairing_status(&self) -> Result<Option<(Id, std::time::Duration)>, RemoteError> {
+        Ok(self.pairing.lock().map_err(|_| dispatch::unavailable())?.active_attempt())
+    }
+    pub fn list_devices(&self) -> Result<Vec<PairedDevice>, RemoteError> {
+        let mut db=self.state().db.lock().map_err(|_|dispatch::unavailable())?;
+        super::store::RemoteStore::new(&mut db,self.identity.id()).active_devices().map_err(dispatch::native_error)
+    }
+    pub fn revoke_device(&self, device:&Id) -> Result<(), RemoteError> {
+        let mut db=self.state().db.lock().map_err(|_|dispatch::unavailable())?;
+        self.auth.revoke_device(&mut db,device,crate::app_state::now_ms() as i64)?;
+        Ok(())
+    }
     fn state(&self) -> &crate::app_state::AppState {
         &self.dispatcher.services.state
     }

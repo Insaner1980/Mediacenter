@@ -108,6 +108,14 @@ impl PairingManager {
             verification_phrase: self.phrase.clone(),
         })
     }
+    /// Read-only native setup projection; validates the monotonic deadline.
+    pub fn active_attempt(&mut self) -> Option<(Id, Duration)> {
+        let now = self.now();
+        self.active().ok().map(|attempt| (attempt.id.clone(), attempt.expires.saturating_duration_since(now)))
+    }
+    pub fn close_attempt(&mut self, id: &Id) {
+        if self.attempt.as_ref().is_some_and(|attempt| &attempt.id == id) { self.close(); }
+    }
     pub fn close(&mut self) {
         self.attempt = None;
     }
