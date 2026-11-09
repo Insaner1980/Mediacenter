@@ -304,27 +304,43 @@ impl CertificateProbe {
             .with_no_client_auth(),
         )
     }
-    pub fn phrase(&self) -> Option<VerificationPhrase> {
+    /// Capture once for the confirmation UI. Later/retried probes may replace
+    /// the latest observation, but cannot change this value's phrase or pin.
+    pub fn observation(&self) -> Option<CertificateObservation> {
         self.observed
             .lock()
             .unwrap()
             .as_ref()
-            .map(|der| verification_phrase(&Sha256::digest(der).into()))
+            .map(|der| CertificateObservation {
+                phrase: verification_phrase(&Sha256::digest(der).into()),
+                pin: fingerprint(der),
+            })
     }
-    /// Calling with true represents the native client's explicit confirmation UI.
+}
+/// An immutable certificate observation: display this phrase and retain this
+/// exact object until the user confirms or rejects it. It carries no shared
+/// reference to the probe's mutable observation slot.
+pub struct CertificateObservation {
+    phrase: VerificationPhrase,
+    pin: Fingerprint,
+}
+impl CertificateObservation {
+    pub fn phrase(&self) -> &VerificationPhrase {
+        &self.phrase
+    }
+    pub fn fingerprint(&self) -> &Fingerprint {
+        &self.pin
+    }
+    /// Consumes the exact observation whose phrase the native UI displayed.
     /// The returned pin is temporary; persist it only after successful pairing.
-    pub fn confirm_phrase(&self, matches: bool) -> Result<ConfirmedCertificate> {
+    pub fn confirm_phrase(self, matches: bool) -> Result<ConfirmedCertificate> {
         if !matches {
             return Err(RemoteError::new(
                 ErrorCode::Unauthorized,
                 "Certificate phrase must be confirmed.",
             ));
         }
-        let observed = self.observed.lock().unwrap();
-        let der = observed.as_ref().ok_or_else(RemoteError::invalid)?;
-        Ok(ConfirmedCertificate {
-            pin: fingerprint(der),
-        })
+        Ok(ConfirmedCertificate { pin: self.pin })
     }
 }
 pub struct ConfirmedCertificate {

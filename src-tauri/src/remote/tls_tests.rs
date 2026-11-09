@@ -184,7 +184,7 @@ fn manual_probe_aborts_tls_and_code_requires_explicit_phrase_confirmation() {
         ServerIdentity::load_or_create(root.path(), IdentityNamespace::Development, &mut db, 1)
             .unwrap();
     let probe = CertificateProbe::default();
-    assert!(probe.confirm_phrase(true).is_err());
+    assert!(probe.observation().is_none());
     let (failed, received) = exchange(
         identity.server_config(),
         probe.client_config(),
@@ -192,12 +192,13 @@ fn manual_probe_aborts_tls_and_code_requires_explicit_phrase_confirmation() {
     );
     assert!(failed);
     assert!(received.is_empty());
+    let observation = probe.observation().unwrap();
     assert_eq!(
-        probe.phrase().unwrap(),
-        verification_phrase(&Sha256::digest(identity.certificate().as_ref()).into())
+        observation.phrase(),
+        &verification_phrase(&Sha256::digest(identity.certificate().as_ref()).into())
     );
-    assert!(probe.confirm_phrase(false).is_err());
-    let confirmed = probe.confirm_phrase(true).unwrap();
+    assert!(probe.observation().unwrap().confirm_phrase(false).is_err());
+    let confirmed = observation.confirm_phrase(true).unwrap();
     let (failed, received) = exchange(
         identity.server_config(),
         confirmed.client_config(),
@@ -230,4 +231,56 @@ fn missing_uuid_does_not_silently_reassign_an_existing_certificate() {
         2
     )
     .is_err());
+}
+
+#[test]
+fn confirming_displayed_phrase_a_cannot_authorize_later_probe_b() {
+    let root = tempfile::tempdir().unwrap();
+    let mut db = db();
+    let a = ServerIdentity::load_or_create(root.path(), IdentityNamespace::Development, &mut db, 1)
+        .unwrap();
+    let b = ServerIdentity::load_or_create(root.path(), IdentityNamespace::Production, &mut db, 1)
+        .unwrap();
+    let probe = CertificateProbe::default();
+    let (failed, received) = exchange(
+        a.server_config(),
+        probe.client_config(),
+        b"no-application-data",
+    );
+    assert!(failed);
+    assert!(received.is_empty());
+    let displayed_observation = probe.observation().unwrap();
+    assert_eq!(
+        displayed_observation.phrase(),
+        &verification_phrase(&Sha256::digest(a.certificate().as_ref()).into())
+    );
+    // A retry/parallel handshake completes while A's confirmation is displayed.
+    let (failed, received) = exchange(
+        b.server_config(),
+        probe.client_config(),
+        b"no-application-data",
+    );
+    assert!(failed);
+    assert!(received.is_empty());
+    assert_eq!(probe.observation().unwrap().fingerprint(), &b.fingerprint());
+    let confirmed = displayed_observation.confirm_phrase(true).unwrap();
+    assert_eq!(
+        confirmed.fingerprint(),
+        &a.fingerprint(),
+        "confirmation must bind the displayed observation A, never newly observed B"
+    );
+    let (failed, received) = exchange(
+        b.server_config(),
+        confirmed.client_config(),
+        b"ABCDEF234567",
+    );
+    assert!(failed);
+    assert!(received.is_empty());
+    let (failed, received) = exchange(
+        a.server_config(),
+        confirmed.client_config(),
+        b"ABCDEF234567",
+    );
+    assert!(!failed);
+    assert_eq!(received, b"ABCDEF234567");
 }

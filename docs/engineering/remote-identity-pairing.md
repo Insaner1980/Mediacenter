@@ -60,9 +60,15 @@ window and does not extend or consume the attempt.
 
 Manual clients first use `CertificateProbe`, whose verifier records the
 presented certificate and deliberately rejects the TLS handshake before
-application data. They derive the six-word phrase locally, require explicit
-human confirmation, then obtain a fresh strictly pinned configuration via
-`confirm_phrase(true)`. Only this new connection may request a challenge or
+application data. They call `probe.observation()` once to capture an immutable
+`CertificateObservation`, display that object's locally derived `phrase()`, and
+retain the exact object in the confirmation UI. Explicit human confirmation
+consumes that displayed object via `observation.confirm_phrase(true)` to obtain
+a fresh strictly pinned configuration. A retry or parallel probe can produce a
+new observation, but cannot alter the phrase or fingerprint of the displayed
+one. Never fetch a new observation in the confirmation callback: any replacement
+observation requires displaying its own phrase and a new explicit confirmation.
+Only this new connection may request a challenge or
 transmit the 12-character base32 code. Persist the pin only after pairing success.
 The fixed `bip39-en-v1` list selects six consecutive 11-bit indices from the
 first 66 bits of the complete certificate's SHA-256 hash, most-significant bit
