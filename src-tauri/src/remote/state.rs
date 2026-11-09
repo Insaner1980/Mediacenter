@@ -26,10 +26,20 @@ pub async fn subscribe_with_snapshot(
     principal: &RemotePrincipal,
     services: &ControlServices,
 ) -> Result<RemoteSubscription, RemoteError> {
-    let mut events = services
+    let events = services
         .state
         .event_hub
         .subscribe_owner(Some(principal.device_id.clone()));
+    snapshot_from_admitted_subscription(principal, services, events).await
+}
+/// Authenticated transports MUST pass the subscription obtained atomically from
+/// AuthManager here. Creating a fresh subscription after authentication loses the
+/// revocation boundary. No authentication gate is held across snapshot awaits.
+pub async fn snapshot_from_admitted_subscription(
+    principal: &RemotePrincipal,
+    services: &ControlServices,
+    mut events: Subscription,
+) -> Result<RemoteSubscription, RemoteError> {
     let snapshot = capture(principal, services, events.boundary, || {}).await?;
     let buffered_events = checked(events.drain()?)?;
     if serde_json::to_vec(&snapshot)
@@ -372,6 +382,49 @@ mod tests {
     use super::*;
     fn principal() -> RemotePrincipal {
         checked(serde_json::json!({"deviceId":"phone","scopes":["browse"]})).unwrap()
+    }
+    #[tokio::test]
+    async fn revoked_admission_before_or_during_snapshot_never_resubscribes() {
+        use crate::remote::{
+            auth::AuthManager,
+            store::{CredentialHash, RemoteStore},
+        };
+        use std::{future::Future, task::Poll};
+        for during_capture in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let state = AppState::open(dir.path().into()).unwrap();
+            let identity: Id = checked("server").unwrap();
+            let services = ControlServices::native(state.clone(), identity.clone()).unwrap();
+            let auth = AuthManager::new(&identity, state.event_hub.clone()).unwrap();
+            let credential: BearerCredential = checked("a".repeat(43)).unwrap();
+            let device:PairedDevice=checked(serde_json::json!({"deviceId":"phone","label":"Phone","scopes":["browse"],"createdAtMs":1,"revoked":false})).unwrap();
+            let (_, admitted) = {
+                let mut db = state.db.lock().unwrap();
+                RemoteStore::new(&mut db, &identity)
+                    .add_device(&device, &CredentialHash::from_credential(&credential))
+                    .unwrap();
+                auth.authenticate_subscription(&mut db, &credential)
+                    .unwrap()
+            };
+            let player = state.player.lock().await;
+            let principal = principal();
+            let snapshot = snapshot_from_admitted_subscription(&principal, &services, admitted);
+            tokio::pin!(snapshot);
+            if during_capture {
+                std::future::poll_fn(|cx| {
+                    assert!(snapshot.as_mut().poll(cx).is_pending());
+                    Poll::Ready(())
+                })
+                .await;
+            }
+            auth.revoke_device(&mut state.db.lock().unwrap(), &device.device_id, 2)
+                .unwrap();
+            drop(player);
+            assert!(
+                matches!(snapshot.await,Err(e) if e.code==ErrorCode::Unauthorized),
+                "snapshot must preserve revoked admission instead of silently resubscribing"
+            );
+        }
     }
     #[tokio::test]
     async fn native_snapshot_has_actual_queue_and_no_renderer_claim() {

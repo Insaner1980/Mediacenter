@@ -28,6 +28,7 @@ pub fn index(topic: &Topic) -> usize {
 struct Client {
     queue: VecDeque<RemoteEvent>,
     resync: bool,
+    closed: bool,
     owner: Option<Id>,
     changed: Arc<tokio::sync::Notify>,
 }
@@ -39,6 +40,7 @@ struct Inner {
     clients: Vec<Weak<Mutex<Client>>>,
 }
 pub struct EventHub {
+    pub(crate) admission: Mutex<()>,
     epoch: Id,
     revisions: [AtomicU64; 10],
     inner: Mutex<Inner>,
@@ -54,6 +56,7 @@ struct PositionPending {
 impl Default for EventHub {
     fn default() -> Self {
         Self {
+            admission: Mutex::new(()),
             epoch: serde_json::from_value(serde_json::json!(uuid::Uuid::new_v4().to_string()))
                 .unwrap(),
             revisions: std::array::from_fn(|_| AtomicU64::new(0)),
@@ -113,6 +116,18 @@ impl EventHub {
             boundary: inner.sequence,
         }
     }
+    /// Revocation discards buffered private data and wakes any waiting receiver.
+    pub(crate) fn close_device(&self, owner: &Id) {
+        let inner = self.inner.lock().unwrap();
+        for client in inner.clients.iter().filter_map(Weak::upgrade) {
+            let mut client = client.lock().unwrap();
+            if client.owner.as_ref() == Some(owner) {
+                client.closed = true;
+                client.queue.clear();
+                client.changed.notify_one();
+            }
+        }
+    }
     pub fn publish(&self, stamp: Stamp, make: impl FnOnce(Id, Decimal) -> RemoteEvent) {
         let mut event = None;
         let mut make = Some(make);
@@ -142,7 +157,7 @@ impl EventHub {
                 return false;
             };
             let mut client = client.lock().unwrap();
-            if client.resync {
+            if client.closed || client.resync {
                 return true;
             }
             if client.queue.len() == EVENT_CAPACITY {
@@ -229,6 +244,12 @@ impl Subscription {
 
     pub fn drain(&mut self) -> Result<Vec<RemoteEvent>, RemoteError> {
         let mut client = self.client.lock().unwrap();
+        if client.closed {
+            return Err(RemoteError::new(
+                ErrorCode::Unauthorized,
+                "Pair this device again.",
+            ));
+        }
         if client.resync {
             return Err(RemoteError::new(
                 ErrorCode::ResyncRequired,

@@ -320,12 +320,12 @@ def kotlin(schema):
             lines += [f'        return JSONArray(value.map {{ write{subtype}(it) }})']
         else:lines += ['        return value']
         lines += ['    }', '']
-    for name in ['PairingCandidate','ManualPairingCandidate','PairRequest','ManualPairRequest','PairedMediacenter']:
+    for name in ['PairingCandidate','ManualPairingCandidate','PairRequest','ManualPairRequest','PairedMediacenter','ManualChallengeRequest','ManualChallengeResponse']:
         lines += [f'    fun parse{name}(input: String): {name} = safely {{ read{name}(document(input, 65536)) }}', f'    fun encode{name}(value: {name}): String = write{name}(value).toString()', '']
     lines += ['}', '']
     # Emit only codecs reachable from public wire entry points. Core service DTOs
     # remain typed declarations, but do not add unused private wire helpers.
-    shared_roots = {m['params'] for m in methods} | {m['result'] for m in methods} | {'Expected', 'ErrorPayload'} | {'PairingCandidate','ManualPairingCandidate','PairRequest','ManualPairRequest','PairedMediacenter'}
+    shared_roots = {m['params'] for m in methods} | {m['result'] for m in methods} | {'Expected', 'ErrorPayload'} | {'PairingCandidate','ManualPairingCandidate','PairRequest','ManualPairRequest','PairedMediacenter','ManualChallengeRequest','ManualChallengeResponse'}
     def reachable(roots):
         seen = set()
         def walk(name):

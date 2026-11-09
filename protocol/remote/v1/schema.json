@@ -6872,6 +6872,48 @@
           ]
         }
       ]
+    },
+    "ManualChallengeMode": {
+      "type": "string",
+      "enum": [
+        "manual_challenge"
+      ]
+    },
+    "ManualChallengeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "$ref": "#/$defs/Version"
+        },
+        "mode": {
+          "$ref": "#/$defs/ManualChallengeMode"
+        }
+      },
+      "required": [
+        "v",
+        "mode"
+      ]
+    },
+    "ManualChallengeResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "$ref": "#/$defs/Version"
+        },
+        "serverDeviceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "v",
+        "serverDeviceId",
+        "attemptId"
+      ]
     }
   },
   "x-methods": [

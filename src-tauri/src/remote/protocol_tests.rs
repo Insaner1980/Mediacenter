@@ -329,6 +329,8 @@ fn pairing_dtos_roundtrip_and_secrets_are_redacted() {
     roundtrip!("pairRequest", PairRequest);
     roundtrip!("manualPairRequest", ManualPairRequest);
     roundtrip!("pairedMediacenter", PairedMediacenter);
+    roundtrip!("manualChallengeRequest", ManualChallengeRequest);
+    roundtrip!("manualChallengeResponse", ManualChallengeResponse);
 }
 
 #[test]

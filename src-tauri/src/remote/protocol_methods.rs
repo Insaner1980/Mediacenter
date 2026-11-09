@@ -2058,6 +2058,27 @@ pub enum PairingPreparation {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManualChallengeMode {
+    #[serde(rename = "manual_challenge")]
+    ManualChallenge,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualChallengeRequest {
+    pub v: Version,
+    pub mode: ManualChallengeMode,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualChallengeResponse {
+    pub v: Version,
+    pub server_device_id: Id,
+    pub attempt_id: Id,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params")]
 pub enum RemoteCommand {

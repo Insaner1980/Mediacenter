@@ -3333,5 +3333,14 @@
         "serverEpoch": "opaque-1"
       }
     }
-  ]
+  ],
+  "manualChallengeRequest": {
+    "v": 1,
+    "mode": "manual_challenge"
+  },
+  "manualChallengeResponse": {
+    "v": 1,
+    "serverDeviceId": "server-1",
+    "attemptId": "attempt-1"
+  }
 }

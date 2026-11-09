@@ -9,3 +9,7 @@ pub mod operations;
 #[cfg(test)]
 mod protocol_tests;
 pub mod state;
+
+pub mod auth;
+pub mod pairing;
+pub mod tls;
