@@ -18,6 +18,7 @@ impl RemoteError {
             message: BoundedText(message.into()),
             retryable: false,
             refresh: BoundedList(vec![]),
+            replacement_preview: None,
         }
     }
 }

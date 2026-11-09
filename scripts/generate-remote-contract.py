@@ -44,14 +44,35 @@ def rust(schema):
             item = definition['items']['$ref'].split('/')[-1]
             result += [f"pub type {name} = BoundedList<{item}, {definition.get('minItems', 0)}, {definition['maxItems']}, false>;", '']
         elif definition.get('type') == 'object':
-            result += ['#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]', '#[serde(rename_all = "camelCase")]', f'pub struct {name} {{']
+            stale_preview = definition.get('x-validation') == 'confirmation_stale_preview'
+            derives = 'Clone, Debug, PartialEq, Deserialize' if stale_preview else 'Clone, Debug, PartialEq, Serialize, Deserialize'
+            result += [f'#[derive({derives})]', '#[serde(rename_all = "camelCase")]']
+            if stale_preview:
+                result += [f'#[serde(try_from = "{name}Wire")]']
+            result += [f'pub struct {name} {{']
+            fields = []
             for field, rule in definition['properties'].items():
                 typename = rule['$ref'].split('/')[-1]
+                if stale_preview and typename == 'ConfirmationPreview':
+                    typename = f'Box<{typename}>'
                 if field not in definition['required']:
-                    result += ['    #[serde(default, skip_serializing_if = "Option::is_none")]']
+                    fields += ['    #[serde(default, skip_serializing_if = "Option::is_none")]']
                     typename = f'Option<{typename}>'
-                result += [f'    pub {snake(field)}: {typename},']
+                fields += [f'    pub {snake(field)}: {typename},']
+            result += fields
             result += ['}', '']
+            if stale_preview:
+                result += ['#[derive(Serialize, Deserialize)]', '#[serde(rename_all = "camelCase")]', f'struct {name}Wire {{']
+                result += [line.replace('    pub ', '    ') for line in fields]
+                result += ['}', f'impl TryFrom<{name}Wire> for {name} {{', "    type Error = &'static str;", f'    fn try_from(value: {name}Wire) -> Result<Self, Self::Error> {{',
+                           '        if value.code == WireErrorCode::ConfirmationStale && value.replacement_preview.is_none() { return Err("confirmation_stale requires a replacement preview"); }', '        Ok(Self {']
+                result += [f'            {snake(field)}: value.{snake(field)},' for field in definition['properties']]
+                result += ['        })', '    }', '}', f'impl Serialize for {name} {{', '    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {',
+                           '        if self.code == WireErrorCode::ConfirmationStale && self.replacement_preview.is_none() { return Err(serde::ser::Error::custom("confirmation_stale requires a replacement preview")); }', f'        {name}Wire {{']
+                for field, rule in definition['properties'].items():
+                    suffix = '' if rule['$ref'].endswith('/Bool') else '.clone()'
+                    result += [f'            {snake(field)}: self.{snake(field)}{suffix},']
+                result += ['        }.serialize(serializer)', '    }', '}', '']
     result += ['#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]', '#[serde(tag = "method", content = "params")]', 'pub enum RemoteCommand {']
     for method in schema['x-methods']:
         result += [f'    #[serde(rename = "{method["name"]}")]', f'    {method["type"]}({method["params"]}),']
@@ -240,13 +261,16 @@ def kotlin(schema):
                 lines[-1] = '        obj(value)'
                 lines += [f'        return {name}']
             else:
-                lines += [f'        return {name}(']
+                stale_preview = definition.get('x-validation') == 'confirmation_stale_preview'
+                lines += [f'        '+('val result = ' if stale_preview else 'return ')+f'{name}(']
                 for field, rule in definition['properties'].items():
                     subtype = rule['$ref'].split('/')[-1]
                     expr = f'read{subtype}(source.get("{field}"))'
                     if field not in definition['required']:expr = f'if (source.isNull("{field}")) {{ null }} else {{ {expr} }}'
                     lines += [f'            {field} = {expr},']
                 lines += ['        )']
+                if stale_preview:
+                    lines += ['        check(result.code != WireErrorCode.CONFIRMATION_STALE || result.replacementPreview != null)', '        return result']
         elif definition['type'] == 'array':
             subtype = definition['items']['$ref'].split('/')[-1]
             lines += ['        val source = value as? JSONArray ?: invalid()', f'        check(source.length() in {definition.get("minItems", 0)}..{definition["maxItems"]})', f'        val result = (0 until source.length()).map {{ read{subtype}(source.get(it)) }}']
@@ -283,6 +307,8 @@ def kotlin(schema):
             lines += ['        }']
         elif 'enum' in definition:lines += ['        return value.wire']
         elif definition['type'] == 'object':
+            if definition.get('x-validation') == 'confirmation_stale_preview':
+                lines += ['        check(value.code != WireErrorCode.CONFIRMATION_STALE || value.replacementPreview != null)']
             lines += ['        val result = '+('value.run { JSONObject() }' if not definition['properties'] else 'JSONObject()')]
             for field, rule in definition['properties'].items():
                 subtype = rule['$ref'].split('/')[-1]

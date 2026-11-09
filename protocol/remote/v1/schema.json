@@ -4347,12 +4347,35 @@
     "OperationsCancelParams": {
       "type": "object",
       "properties": {
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        },
         "operationId": {
           "$ref": "#/$defs/Id"
         }
       },
-      "required": [
-        "operationId"
+      "required": [],
+      "oneOf": [
+        {
+          "required": [
+            "requestId"
+          ],
+          "not": {
+            "required": [
+              "operationId"
+            ]
+          }
+        },
+        {
+          "required": [
+            "operationId"
+          ],
+          "not": {
+            "required": [
+              "requestId"
+            ]
+          }
+        }
       ]
     },
     "ConfirmationsGetParams": {
@@ -5515,6 +5538,9 @@
         },
         "refresh": {
           "$ref": "#/$defs/Topics"
+        },
+        "replacementPreview": {
+          "$ref": "#/$defs/ConfirmationPreview"
         }
       },
       "required": [
@@ -5522,7 +5548,27 @@
         "message",
         "retryable",
         "refresh"
-      ]
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "confirmation_stale"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "required": [
+              "replacementPreview"
+            ]
+          }
+        }
+      ],
+      "x-validation": "confirmation_stale_preview"
     },
     "Tracks": {
       "type": "array",
@@ -7713,7 +7759,8 @@
         "serverEpoch"
       ],
       "delivery": "durable",
-      "result": "CancellationAck"
+      "result": "CancellationAck",
+      "rule": "lookup"
     },
     {
       "name": "confirmations.get",

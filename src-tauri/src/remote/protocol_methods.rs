@@ -690,7 +690,10 @@ pub struct OperationsGetParams {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationsCancelParams {
-    pub operation_id: Id,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<Id>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<Id>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1486,13 +1489,59 @@ pub enum WireErrorCode {
     Internal,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(try_from = "ErrorPayloadWire")]
 pub struct ErrorPayload {
     pub code: WireErrorCode,
     pub message: DisplayText,
     pub retryable: Bool,
     pub refresh: Topics,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_preview: Option<Box<ConfirmationPreview>>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ErrorPayloadWire {
+    code: WireErrorCode,
+    message: DisplayText,
+    retryable: Bool,
+    refresh: Topics,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replacement_preview: Option<Box<ConfirmationPreview>>,
+}
+impl TryFrom<ErrorPayloadWire> for ErrorPayload {
+    type Error = &'static str;
+    fn try_from(value: ErrorPayloadWire) -> Result<Self, Self::Error> {
+        if value.code == WireErrorCode::ConfirmationStale && value.replacement_preview.is_none() {
+            return Err("confirmation_stale requires a replacement preview");
+        }
+        Ok(Self {
+            code: value.code,
+            message: value.message,
+            retryable: value.retryable,
+            refresh: value.refresh,
+            replacement_preview: value.replacement_preview,
+        })
+    }
+}
+impl Serialize for ErrorPayload {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if self.code == WireErrorCode::ConfirmationStale && self.replacement_preview.is_none() {
+            return Err(serde::ser::Error::custom(
+                "confirmation_stale requires a replacement preview",
+            ));
+        }
+        ErrorPayloadWire {
+            code: self.code.clone(),
+            message: self.message.clone(),
+            retryable: self.retryable,
+            refresh: self.refresh.clone(),
+            replacement_preview: self.replacement_preview.clone(),
+        }
+        .serialize(serializer)
+    }
 }
 
 pub type Tracks = BoundedList<Track, 0, 100, false>;
@@ -3122,12 +3171,15 @@ impl RemoteCommand {
                     return Err(RemoteError::invalid());
                 }
             }
-            Self::OperationsCancel(_) => {
+            Self::OperationsCancel(params) => {
                 let expected = expected.ok_or_else(RemoteError::invalid)?;
                 expected
                     .server_epoch
                     .as_ref()
                     .ok_or_else(RemoteError::invalid)?;
+                if params.request_id.is_some() == params.operation_id.is_some() {
+                    return Err(RemoteError::invalid());
+                }
             }
             Self::ConfirmationsGet(_) => {}
             Self::ConfirmationsCancel(_) => {

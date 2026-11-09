@@ -406,3 +406,38 @@ fn pairing_begin_delivers_candidate_once_and_redacts_it() {
         .remove("candidate");
     assert!(parse_reply(MethodName::PairingBegin, &missing.to_string()).is_err());
 }
+
+#[test]
+fn stale_confirmation_failure_preserves_required_replacement_preview() {
+    use super::protocol::*;
+    let fixtures: Value =
+        serde_json::from_str(include_str!("../../../protocol/remote/v1/fixtures.json")).unwrap();
+    let fixture = &fixtures["confirmationStale"];
+    let reply = parse_reply(MethodName::ConfirmationsGet, &fixture.to_string()).unwrap();
+    let encoded = serde_json::to_value(reply).unwrap();
+    assert_eq!(
+        encoded["error"]["replacementPreview"]["confirmationId"],
+        "confirmation-fresh-2"
+    );
+    assert_eq!(encoded, *fixture);
+    let invalid_outgoing =
+        RemoteError::new(ErrorCode::ConfirmationStale, "Review the changed items.");
+    assert!(serde_json::to_value(invalid_outgoing).is_err());
+    for invalid in fixtures["invalidReplies"].as_array().unwrap() {
+        assert!(parse_reply(MethodName::ConfirmationsGet, &invalid["reply"].to_string()).is_err());
+    }
+}
+
+#[test]
+fn operation_cancellation_accepts_exactly_one_request_or_operation_identity() {
+    let fixtures: Value =
+        serde_json::from_str(include_str!("../../../protocol/remote/v1/fixtures.json")).unwrap();
+    for fixture in fixtures["operationCancellationForms"].as_array().unwrap() {
+        let request = parse_request(&fixture.to_string()).unwrap();
+        assert_eq!(serde_json::to_value(request).unwrap(), *fixture);
+    }
+    for params in [json!({}), json!({"requestId":"r", "operationId":"o"})] {
+        let fixture = json!({"v":1,"id":"r","method":"operations.cancel","params":params,"expected":{"serverEpoch":"e"}});
+        assert!(parse_request(&fixture.to_string()).is_err());
+    }
+}

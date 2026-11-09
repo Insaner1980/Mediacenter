@@ -2974,6 +2974,27 @@
       "expected": {
         "serverEpoch": "opaque-1"
       }
+    },
+    {
+      "v": 1,
+      "id": "request-79",
+      "method": "operations.cancel",
+      "params": {},
+      "expected": {
+        "serverEpoch": "opaque-1"
+      }
+    },
+    {
+      "v": 1,
+      "id": "request-79",
+      "method": "operations.cancel",
+      "params": {
+        "requestId": "submitted-request-1",
+        "operationId": "operation-1"
+      },
+      "expected": {
+        "serverEpoch": "opaque-1"
+      }
     }
   ],
   "playlistEdits": [
@@ -3226,6 +3247,90 @@
       "result": {
         "status": "already_issued",
         "operationId": "operation-1"
+      }
+    }
+  ],
+  "confirmationStale": {
+    "v": 1,
+    "id": "request-1",
+    "ok": false,
+    "error": {
+      "code": "confirmation_stale",
+      "message": "The affected items changed. Review the new confirmation.",
+      "retryable": false,
+      "refresh": [
+        "activity"
+      ],
+      "replacementPreview": {
+        "confirmationId": "confirmation-fresh-2",
+        "ownerDeviceId": "opaque-1",
+        "action": "replace_activity",
+        "affectedLabels": [],
+        "expected": {
+          "serverEpoch": "epoch-1",
+          "queueRevision": "2"
+        },
+        "expiresInMs": 60000,
+        "confirmMethod": "activity.confirm"
+      }
+    }
+  },
+  "invalidReplies": [
+    {
+      "method": "confirmations.get",
+      "reply": {
+        "v": 1,
+        "id": "request-1",
+        "ok": false,
+        "error": {
+          "code": "confirmation_stale",
+          "message": "The affected items changed. Review the new confirmation.",
+          "retryable": false,
+          "refresh": [
+            "activity"
+          ]
+        }
+      }
+    },
+    {
+      "method": "confirmations.get",
+      "reply": {
+        "v": 1,
+        "id": "request-1",
+        "ok": false,
+        "error": {
+          "code": "confirmation_stale",
+          "message": "The affected items changed. Review the new confirmation.",
+          "retryable": false,
+          "refresh": [
+            "activity"
+          ],
+          "replacementPreview": null
+        }
+      }
+    }
+  ],
+  "operationCancellationForms": [
+    {
+      "v": 1,
+      "id": "request-79",
+      "method": "operations.cancel",
+      "params": {
+        "operationId": "opaque-1"
+      },
+      "expected": {
+        "serverEpoch": "opaque-1"
+      }
+    },
+    {
+      "v": 1,
+      "id": "request-79",
+      "method": "operations.cancel",
+      "params": {
+        "requestId": "submitted-request-1"
+      },
+      "expected": {
+        "serverEpoch": "opaque-1"
       }
     }
   ]
