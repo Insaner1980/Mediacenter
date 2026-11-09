@@ -4,9 +4,9 @@
   "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
   "androidSdkMajor": 37,
   "note": "These paired source commits passed contract validation. This is not a functioning remote-control or physically accepted application release; later metadata-only commits do not change the tested source.",
-  "desktopSourceCommit": "c193f7ea3f68a3ff64a3e19b3f496b4a2869e65d",
-  "androidSourceCommit": "de02c1fea486f1ef576e04add4b58ab4f3f430f2",
-  "schemaSha256": "0e974d4ad8558fe93195cafcbdfa9de981c4eb7e6d46c3fa08039a5adca8c79a",
+  "desktopSourceCommit": "34956f4e36ff888b03da1aa05b1295dcacfa40de",
+  "androidSourceCommit": "c36141116ac2f5c327d5ec76e919e2f8a5065573",
+  "schemaSha256": "cda193d4651bf0818479aacb37279f9971ba2e86ed259a3d09fc61af57917fac",
   "scope": "contract_only",
   "desktopVersion": "0.1.6",
   "androidVersion": "1.0.0"
