@@ -163,7 +163,7 @@ impl<'a> RemoteStore<'a> {
             return Err(error("busy"));
         }
         let pairing = matches!(request.command, RemoteCommand::PairingBegin(..));
-        tx.execute("INSERT INTO command_journal(server_identity,device_id,request_id,parameter_hash,server_epoch,operation_id,status,pairing_issuance,created_at_ms,updated_at_ms) VALUES(?1,?2,?3,?4,?5,?6,'accepted',?7,?8,?8)",params![self.identity.as_str(),device.as_str(),request.id.as_str(),hash.as_slice(),epoch.as_str(),operation.as_str(),pairing,now_ms])?;
+        tx.execute("INSERT INTO command_journal(server_identity,device_id,request_id,parameter_hash,server_epoch,operation_id,status,pairing_begin,created_at_ms,updated_at_ms) VALUES(?1,?2,?3,?4,?5,?6,'accepted',?7,?8,?8)",params![self.identity.as_str(),device.as_str(),request.id.as_str(),hash.as_slice(),epoch.as_str(),operation.as_str(),pairing,now_ms])?;
         let entry = read_command(&tx, &self.identity, device, &request.id)?
             .ok_or_else(|| error("database_error"))?
             .entry;
@@ -187,6 +187,25 @@ impl<'a> RemoteStore<'a> {
         let status = json(&outcome.status)?;
         let code = outcome.error_code.as_ref().map(json).transpose()?;
         if self.db.execute("UPDATE command_journal SET status=?1,error_code=?2,updated_at_ms=?3 WHERE server_identity=?4 AND device_id=?5 AND request_id=?6 AND operation_id=?7 AND status IN('accepted','running')",params![status.trim_matches('"'),code,now_ms,self.identity.as_str(),device.as_str(),request.as_str(),outcome.operation_id.as_str()])? == 0 { return Err(error("stale_state")); }
+        Ok(())
+    }
+    /// Use only when pairing.begin actually issues its ephemeral ready candidate.
+    /// Preparation/confirmation results and failures use ordinary finish_command.
+    /// This single statement atomically records success and the safe issuance bit;
+    /// it persists neither the candidate nor its secret.
+    pub fn finish_pairing_issuance(
+        &mut self,
+        device: &Id,
+        request: &Id,
+        operation: &Id,
+        now_ms: i64,
+    ) -> Result<()> {
+        if self.db.execute(
+            "UPDATE command_journal SET status='succeeded',error_code=NULL,pairing_issuance=1,updated_at_ms=?1 WHERE server_identity=?2 AND device_id=?3 AND request_id=?4 AND operation_id=?5 AND pairing_begin=1 AND status IN('accepted','running')",
+            params![now_ms,self.identity.as_str(),device.as_str(),request.as_str(),operation.as_str()],
+        )? == 0 {
+            return Err(error("stale_state"));
+        }
         Ok(())
     }
     /// Called once on startup by the native server for THIS identity, never by

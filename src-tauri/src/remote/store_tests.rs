@@ -352,7 +352,9 @@ fn pairing_completed_duplicate_is_already_issued_and_stores_only_safe_metadata()
     add(&mut store);
     let req = parse_request(r#"{"v":1,"id":"pair","method":"pairing.begin","params":{},"expected":{"serverEpoch":"epoch"}}"#).unwrap();
     accept(&mut store, &req, 0);
-    finish(&mut store, "pair", 1);
+    store
+        .finish_pairing_issuance(&id("phone"), &id("pair"), &id("operation"), 1)
+        .unwrap();
     assert_eq!(
         accept(&mut store, &req, 2),
         CommandAcceptance::AlreadyIssued {
@@ -470,6 +472,102 @@ fn journal_ids_hashes_results_and_pruning_are_isolated_between_server_identities
     let dev = RemoteStore::new(&mut db, &id("dev"));
     assert_eq!(
         dev.get_command(&id("phone"), &id("same-id"))
+            .unwrap()
+            .unwrap()
+            .outcome
+            .status,
+        OperationStatus::Succeeded
+    );
+}
+
+fn assert_pairing_without_issuance(status: OperationStatus) {
+    let mut db = db();
+    let mut store = RemoteStore::new(&mut db, &id("prod"));
+    add(&mut store);
+    let req = parse_request(r#"{"v":1,"id":"pair","method":"pairing.begin","params":{},"expected":{"serverEpoch":"epoch"}}"#).unwrap();
+    accept(&mut store, &req, 0);
+    let outcome = JournalOutcome {
+        operation_id: id("operation"),
+        status,
+        error_code: None,
+    };
+    store
+        .finish_command(&id("phone"), &id("pair"), &outcome, 1)
+        .unwrap();
+    let CommandAcceptance::Existing(entry) = accept(&mut store, &req, 2) else {
+        panic!("Pairing without issuance must retain its original safe result");
+    };
+    assert_eq!(entry.outcome, outcome);
+}
+#[test]
+fn pairing_preparation_success_is_not_secret_issuance() {
+    assert_pairing_without_issuance(OperationStatus::Succeeded);
+}
+#[test]
+fn failed_pairing_is_not_secret_issuance() {
+    assert_pairing_without_issuance(OperationStatus::Failed);
+}
+#[test]
+fn cancelled_pairing_is_not_secret_issuance() {
+    assert_pairing_without_issuance(OperationStatus::Cancelled);
+}
+#[test]
+fn unknown_pairing_is_not_secret_issuance() {
+    assert_pairing_without_issuance(OperationStatus::OutcomeUnknown);
+}
+
+#[test]
+fn successful_pairing_issuance_marker_is_atomic_and_rejects_non_pairing_work() {
+    let mut db = db();
+    let mut store = RemoteStore::new(&mut db, &id("prod"));
+    add(&mut store);
+    accept(&mut store, &request("volume", 25), 0);
+    assert_eq!(
+        store
+            .finish_pairing_issuance(&id("phone"), &id("volume"), &id("operation"), 1)
+            .unwrap_err()
+            .code,
+        "stale_state"
+    );
+    assert_eq!(
+        store
+            .get_command(&id("phone"), &id("volume"))
+            .unwrap()
+            .unwrap()
+            .outcome
+            .status,
+        OperationStatus::Accepted
+    );
+    let req = parse_request(r#"{"v":1,"id":"pair","method":"pairing.begin","params":{},"expected":{"serverEpoch":"epoch"}}"#).unwrap();
+    accept(&mut store, &req, 0);
+    assert_eq!(
+        store
+            .finish_pairing_issuance(&id("phone"), &id("pair"), &id("wrong"), 1)
+            .unwrap_err()
+            .code,
+        "stale_state"
+    );
+    assert_eq!(
+        store
+            .get_command(&id("phone"), &id("pair"))
+            .unwrap()
+            .unwrap()
+            .outcome
+            .status,
+        OperationStatus::Accepted
+    );
+    store
+        .finish_pairing_issuance(&id("phone"), &id("pair"), &id("operation"), 2)
+        .unwrap();
+    assert_eq!(
+        accept(&mut store, &req, 3),
+        CommandAcceptance::AlreadyIssued {
+            operation_id: id("operation")
+        }
+    );
+    assert_eq!(
+        store
+            .get_command(&id("phone"), &id("pair"))
             .unwrap()
             .unwrap()
             .outcome

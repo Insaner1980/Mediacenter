@@ -29,9 +29,11 @@ CREATE TABLE command_journal(
  operation_id TEXT NOT NULL,
  status TEXT NOT NULL CHECK(status IN('accepted','running','succeeded','failed','cancelled','outcome_unknown')),
  error_code TEXT,
+ pairing_begin INTEGER NOT NULL DEFAULT 0 CHECK(pairing_begin IN(0,1)),
  pairing_issuance INTEGER NOT NULL DEFAULT 0 CHECK(pairing_issuance IN(0,1)),
  created_at_ms INTEGER NOT NULL,
  updated_at_ms INTEGER NOT NULL,
+ CHECK(pairing_issuance=0 OR (pairing_begin=1 AND status='succeeded')),
  PRIMARY KEY(server_identity,device_id,request_id),
  FOREIGN KEY(server_identity,device_id) REFERENCES paired_devices(server_identity,device_id)
 );
