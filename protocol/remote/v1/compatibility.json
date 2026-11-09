@@ -3,5 +3,11 @@
   "desktopBaseCommit": "89dd3589c3750edb9e1461d07811758f4631a750",
   "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
   "androidSdkMajor": 37,
-  "note": "Task commit SHAs are recorded as a pair in the task-1 execution report; this file records the source compatibility baseline without self-referential commit IDs."
+  "note": "These paired source commits passed contract validation. This is not a functioning remote-control or physically accepted application release; later metadata-only commits do not change the tested source.",
+  "desktopSourceCommit": "c193f7ea3f68a3ff64a3e19b3f496b4a2869e65d",
+  "androidSourceCommit": "de02c1fea486f1ef576e04add4b58ab4f3f430f2",
+  "schemaSha256": "0e974d4ad8558fe93195cafcbdfa9de981c4eb7e6d46c3fa08039a5adca8c79a",
+  "scope": "contract_only",
+  "desktopVersion": "0.1.6",
+  "androidVersion": "1.0.0"
 }
