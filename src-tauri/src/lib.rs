@@ -13,6 +13,7 @@ pub mod outputs;
 pub mod photos;
 pub mod player;
 pub mod process;
+pub mod remote;
 pub mod storage;
 pub mod streaming;
 pub mod vpn;

@@ -17,7 +17,8 @@
     "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "rust:lint": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
-    "rust:format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check"
+    "rust:format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
+    "verify:remote-contract": "node scripts/verify-remote-contract.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4",

@@ -1,0 +1,7 @@
+{
+  "protocolMajor": 1,
+  "desktopBaseCommit": "89dd3589c3750edb9e1461d07811758f4631a750",
+  "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
+  "androidSdkMajor": 37,
+  "note": "Task commit SHAs are recorded as a pair in the task-1 execution report; this file records the source compatibility baseline without self-referential commit IDs."
+}
