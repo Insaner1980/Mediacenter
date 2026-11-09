@@ -126,12 +126,16 @@ fn wire(entry: super::store::JournalEntry, cancellation_requested: bool) -> Oper
     }
 }
 impl OperationRegistry {
-    pub fn new(state: AppState, identity: Id) -> Self {
-        Self {
+    pub fn new(state: AppState, identity: Id) -> Result<Self, AppError> {
+        state
+            .event_hub
+            .bind_identity(&identity)
+            .map_err(|_| failure("identity_changed"))?;
+        Ok(Self {
             state,
             identity,
             app: None,
-        }
+        })
     }
     pub fn with_app(mut self, app: Option<tauri::AppHandle>) -> Self {
         self.app = app;
@@ -543,7 +547,7 @@ mod tests {
                 &super::super::store::CredentialHash::from_credential(&credential),
             )
             .unwrap();
-        let registry = OperationRegistry::new(state.clone(), identity);
+        let registry = OperationRegistry::new(state.clone(), identity).unwrap();
         let ctx = CommandContext {
             principal: principal.clone(),
             request_id: checked("request").unwrap(),
@@ -620,7 +624,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::open(dir.path().into()).unwrap();
         let identity: Id = checked("server").unwrap();
-        let registry = OperationRegistry::new(state.clone(), identity.clone());
+        let registry = OperationRegistry::new(state.clone(), identity.clone()).unwrap();
         let a: Id = checked("a").unwrap();
         let b: Id = checked("b").unwrap();
         let suba = state.event_hub.subscribe_owner(Some(a.clone()));
@@ -786,12 +790,9 @@ mod tests {
             .lookup(&other_principal, &accepted.operation_id)
             .unwrap()
             .is_none());
-        let other_identity =
-            OperationRegistry::new(state.clone(), checked("other-server").unwrap());
-        assert!(other_identity
-            .lookup(&principal, &accepted.operation_id)
-            .unwrap()
-            .is_none());
+        assert!(
+            matches!(OperationRegistry::new(state.clone(),checked("other-server").unwrap()),Err(error) if error.code=="identity_changed")
+        );
         let events = own.drain().unwrap();
         assert!(
             matches!(events.last(),Some(RemoteEvent::Operations{data,..}) if data.items.as_slice()[0].status==OperationStatus::OutcomeUnknown)
@@ -804,5 +805,83 @@ mod tests {
             .query_row("SELECT status FROM command_journal", [], |row| row.get(0))
             .unwrap();
         assert_eq!(status, "running");
+    }
+    #[tokio::test]
+    async fn same_phone_in_another_identity_cannot_publish_or_clear_the_subscription() {
+        use crate::control::ControlServices;
+        let (_dir, state, registry, ctx, request) = fixture();
+        let principal = ctx.principal.clone();
+        // Both identity namespaces may exist in SQLite after a configuration
+        // replacement, even when the same device ID is used in each namespace.
+        let other_identity = checked("other-server").unwrap();
+        {
+            let mut db = state.db.lock().unwrap();
+            RemoteStore::new(&mut db, &checked("server").unwrap())
+                .accept_command(
+                    &principal.device_id,
+                    &request,
+                    &ctx.server_epoch,
+                    &checked("own-operation").unwrap(),
+                    now_ms() as i64,
+                )
+                .unwrap();
+        }
+        {
+            let mut db = state.db.lock().unwrap();
+            let mut store = RemoteStore::new(&mut db, &other_identity);
+            let device=checked(serde_json::json!({"deviceId":"phone","label":"Other identity","scopes":["browse","playback"],"createdAtMs":1,"revoked":false})).unwrap();
+            let credential = checked("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
+            store
+                .add_device(
+                    &device,
+                    &super::super::store::CredentialHash::from_credential(&credential),
+                )
+                .unwrap();
+        }
+        {
+            let mut db = state.db.lock().unwrap();
+            RemoteStore::new(&mut db, &other_identity)
+                .accept_command(
+                    &principal.device_id,
+                    &request,
+                    &ctx.server_epoch,
+                    &checked("foreign-operation").unwrap(),
+                    now_ms() as i64,
+                )
+                .unwrap();
+        }
+        let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
+        let mut subscription = super::super::state::subscribe_with_snapshot(&principal, &services)
+            .await
+            .unwrap();
+        assert!(ControlServices::native(state.clone(), other_identity.clone()).is_err());
+        assert!(
+            matches!(OperationRegistry::new(state.clone(),other_identity),Err(error) if error.code=="identity_changed")
+        );
+        assert_eq!(
+            subscription.initial.snapshot.operations.items.as_slice()[0]
+                .operation_id
+                .as_str(),
+            "own-operation"
+        );
+        assert!(subscription.events.drain().unwrap().is_empty());
+        registry.publish(&principal);
+        registry.publish(&principal);
+        let events = subscription.events.drain().unwrap();
+        assert_eq!(events.len(), 2);
+        let mut cursor =
+            super::super::event_hub::RevisionCursor::new(&subscription.initial.snapshot);
+        for event in events {
+            assert!(cursor.accept(&event).unwrap());
+            if let RemoteEvent::Operations { data, .. } = event {
+                assert_eq!(data.items.as_slice().len(), 1);
+                assert_eq!(
+                    data.items.as_slice()[0].operation_id.as_str(),
+                    "own-operation"
+                );
+            } else {
+                panic!()
+            }
+        }
     }
 }

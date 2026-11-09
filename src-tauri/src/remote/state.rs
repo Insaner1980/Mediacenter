@@ -81,9 +81,7 @@ async fn capture(
     after_player();
     let queue_summary = {
         let queue = state.music.lock().await;
-        let mut topic = QueueSummary::try_from(&queue.snapshot())?;
-        topic.revision = state.event_hub.revision(Topic::QueueSummary).into();
-        topic
+        QueueSummary::try_from(&queue.snapshot())?
     };
     let slideshow = {
         let photos = state.photos.lock().await;
@@ -264,8 +262,9 @@ pub(crate) fn queue_changed(
     snapshot: &crate::music::queue::MusicQueue,
     stamp: Stamp,
 ) {
-    if let Ok(mut data) = QueueSummary::try_from(snapshot) {
-        data.revision = stamp.revision.into();
+    // The wire revision is the native CAS token used by queue pages/mutations.
+    // The independent stamp only rejects out-of-order publication internally.
+    if let Ok(data) = QueueSummary::try_from(snapshot) {
         state
             .event_hub
             .publish(stamp, |server_epoch, sequence| RemoteEvent::QueueSummary {
@@ -379,7 +378,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::open(dir.path().into()).unwrap();
         state.music.lock().await.shuffle = true;
-        let services = ControlServices::native(state, checked("server").unwrap());
+        let services = ControlServices::native(state, checked("server").unwrap()).unwrap();
         let snapshot = snapshot(&principal(), &services).await.unwrap();
         assert!(snapshot.queue_summary.shuffle);
         assert!(!snapshot.ui.available);
@@ -389,7 +388,7 @@ mod tests {
     async fn player_change_during_capture_is_delivered_after_old_snapshot() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::open(dir.path().into()).unwrap();
-        let services = ControlServices::native(state.clone(), checked("server").unwrap());
+        let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
         let mut events = state.event_hub.subscribe_owner(Some(principal().device_id));
         let snapshot = capture(&principal(), &services, events.boundary, || {
             // The native publisher commits a new player observation after capture has
@@ -417,7 +416,7 @@ mod tests {
     async fn superseded_buffered_topic_consumes_sequence_and_gap_requires_resync() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::open(dir.path().into()).unwrap();
-        let services = ControlServices::native(state.clone(), checked("server").unwrap());
+        let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
         let mut events = state.event_hub.subscribe();
         let snapshot = capture(&principal(), &services, events.boundary, || {
             let mut queue = state.music.try_lock().unwrap();
@@ -448,7 +447,7 @@ mod tests {
     async fn unknown_outputs_are_not_fabricated_and_discovery_is_projected() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::open(dir.path().into()).unwrap();
-        let services = ControlServices::native(state.clone(), checked("server").unwrap());
+        let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
         let before = snapshot(&principal(), &services).await.unwrap();
         assert!(before.outputs.unavailable);
         assert!(before.outputs.outputs.as_slice().is_empty());
@@ -469,7 +468,7 @@ mod tests {
     async fn snapshot_and_subscription_require_browse_scope() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::open(dir.path().into()).unwrap();
-        let services = ControlServices::native(state, checked("server").unwrap());
+        let services = ControlServices::native(state, checked("server").unwrap()).unwrap();
         let principal = RemotePrincipal {
             device_id: checked("phone").unwrap(),
             scopes: checked(Vec::<Scope>::new()).unwrap(),
@@ -481,5 +480,98 @@ mod tests {
         assert!(
             matches!(subscribe_with_snapshot(&principal,&services).await,Err(error) if error.code==ErrorCode::Forbidden)
         );
+    }
+    #[tokio::test]
+    async fn loaded_queue_summary_and_events_keep_native_cas_through_reads_and_edit() {
+        use crate::music::queue::{MusicAction, RepeatMode as NativeRepeat};
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let saved = AppState::open(dir.path().into()).unwrap();
+            let mut queue = saved.music.lock().await;
+            let revision = queue.snapshot().revision;
+            queue
+                .edit(
+                    revision,
+                    MusicAction::SetShuffle { enabled: true },
+                    vec![],
+                    1,
+                )
+                .unwrap();
+            queue.save(&saved.db.lock().unwrap()).unwrap();
+        }
+        let state = AppState::open(dir.path().into()).unwrap();
+        let loaded = state.music.lock().await.snapshot();
+        assert!(loaded.revision > 0);
+        let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
+        let mut subscription = subscribe_with_snapshot(&principal(), &services)
+            .await
+            .unwrap();
+        assert_eq!(
+            subscription.initial.snapshot.queue_summary.revision.value(),
+            u64::from(loaded.revision)
+        );
+        let mut cursor =
+            super::super::event_hub::RevisionCursor::new(&subscription.initial.snapshot);
+        for _ in 0..3 {
+            let native = crate::music::service::get(&state).await.unwrap();
+            assert_eq!(native.revision, loaded.revision);
+            let wire = snapshot(&principal(), &services)
+                .await
+                .unwrap()
+                .queue_summary;
+            assert_eq!(wire.revision.value(), u64::from(native.revision));
+            state
+                .music
+                .lock()
+                .await
+                .validate(adapters::native_queue_revision(&wire.revision).unwrap())
+                .unwrap();
+            let events = subscription.events.drain().unwrap();
+            assert_eq!(events.len(), 1);
+            assert!(
+                matches!(&events[0],RemoteEvent::QueueSummary{data,..} if data.revision==wire.revision)
+            );
+            assert!(!cursor.accept(&events[0]).unwrap());
+        }
+        let (copy, stamp) = {
+            let mut queue = state.music.lock().await;
+            queue
+                .edit(
+                    adapters::native_queue_revision(
+                        &subscription.initial.snapshot.queue_summary.revision,
+                    )
+                    .unwrap(),
+                    MusicAction::SetRepeat {
+                        mode: NativeRepeat::All,
+                    },
+                    vec![],
+                    2,
+                )
+                .unwrap();
+            (
+                queue.snapshot(),
+                state.event_hub.reserve(Topic::QueueSummary),
+            )
+        };
+        queue_changed(&state, &copy, stamp);
+        let after = snapshot(&principal(), &services)
+            .await
+            .unwrap()
+            .queue_summary;
+        assert_eq!(after.revision.value(), u64::from(copy.revision));
+        assert_ne!(copy.revision, loaded.revision);
+        assert!(state.music.lock().await.validate(loaded.revision).is_err());
+        state
+            .music
+            .lock()
+            .await
+            .validate(adapters::native_queue_revision(&after.revision).unwrap())
+            .unwrap();
+        let events = subscription.events.drain().unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(
+            matches!(&events[0],RemoteEvent::QueueSummary{data,..} if data.revision==after.revision)
+        );
+        assert!(cursor.accept(&events[0]).unwrap());
     }
 }

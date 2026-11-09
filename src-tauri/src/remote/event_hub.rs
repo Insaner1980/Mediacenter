@@ -33,6 +33,7 @@ struct Client {
 }
 #[derive(Default)]
 struct Inner {
+    identity: Option<Id>,
     sequence: u64,
     published: [u64; 10],
     clients: Vec<Weak<Mutex<Client>>>,
@@ -66,6 +67,23 @@ pub struct Subscription {
     pub boundary: u64,
 }
 impl EventHub {
+    /// A hub/epoch serves one configured identity for its entire lifetime. SQL
+    /// may retain other identity namespaces, but their registries cannot join
+    /// this native state or its subscriptions. No recovery occurs here.
+    pub(crate) fn bind_identity(&self, identity: &Id) -> Result<(), RemoteError> {
+        let mut inner = self.inner.lock().unwrap();
+        match &inner.identity {
+            Some(bound) if bound != identity => Err(RemoteError::new(
+                ErrorCode::IdentityChanged,
+                "Remote state is bound to another configured identity.",
+            )),
+            Some(_) => Ok(()),
+            None => {
+                inner.identity = Some(identity.clone());
+                Ok(())
+            }
+        }
+    }
     pub fn epoch(&self) -> Id {
         self.epoch.clone()
     }
@@ -395,5 +413,17 @@ mod tests {
         assert_eq!(event_position(&sub.drain().unwrap()[0]).3, seek.revision);
         tokio::time::sleep(std::time::Duration::from_millis(550)).await;
         assert!(sub.drain().unwrap().is_empty());
+    }
+    #[test]
+    fn native_hub_identity_binding_is_immutable() {
+        let hub = EventHub::default();
+        let a = super::super::adapters::checked("server-a").unwrap();
+        let b = super::super::adapters::checked("server-b").unwrap();
+        assert!(hub.bind_identity(&a).is_ok());
+        assert!(hub.bind_identity(&a).is_ok());
+        assert_eq!(
+            hub.bind_identity(&b).unwrap_err().code,
+            ErrorCode::IdentityChanged
+        );
     }
 }
