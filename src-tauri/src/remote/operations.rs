@@ -310,7 +310,7 @@ impl OperationRegistry {
         self.publish(principal);
         self.lookup(principal, operation)
     }
-    fn publish(&self, _principal: &RemotePrincipal) {
+    pub(crate) fn publish(&self, _principal: &RemotePrincipal) {
         // Capture ALL owner projections at the same DB boundary. A later B update
         // includes A's latest state, so rejecting delayed A cannot lose A's outcome.
         let captured = (|| -> Result<_, AppError> {

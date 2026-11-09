@@ -83,6 +83,8 @@ pub fn run() {
                 .map_err(|error| std::io::Error::other(error.message))?;
             state.cache_dir = app.path().app_cache_dir()?;
             app.manage(state);
+            // Native setup owns explicit identity/network selection and enablement.
+            app.manage(remote::server::RemoteServer::default());
             tauri::async_runtime::spawn(outputs::audio::subscribe(
                 app.handle().clone(),
                 app.state::<app_state::AppState>().inner().clone(),

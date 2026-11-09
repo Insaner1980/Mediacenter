@@ -29,12 +29,15 @@ struct Client {
     queue: VecDeque<RemoteEvent>,
     resync: bool,
     closed: bool,
+    revoked: tokio_util::sync::CancellationToken,
     owner: Option<Id>,
     changed: Arc<tokio::sync::Notify>,
 }
 #[derive(Default)]
 struct Inner {
     identity: Option<Id>,
+    transport_recovered: bool,
+    transport_registration: Weak<()>,
     sequence: u64,
     published: [u64; 10],
     clients: Vec<Weak<Mutex<Client>>>,
@@ -87,6 +90,30 @@ impl EventHub {
             }
         }
     }
+    pub(crate) fn register_transport(&self) -> Result<Arc<()>, RemoteError> {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.transport_registration.upgrade().is_some() {
+            return Err(RemoteError::new(
+                ErrorCode::Busy,
+                "A native remote runtime already owns this identity.",
+            ));
+        }
+        let registration = Arc::new(());
+        inner.transport_registration = Arc::downgrade(&registration);
+        Ok(registration)
+    }
+    pub(crate) fn recover_transport_once(
+        &self,
+        recover: impl FnOnce() -> Result<(), RemoteError>,
+    ) -> Result<(), RemoteError> {
+        let _gate = self.admission.lock().unwrap();
+        let recovered = self.inner.lock().unwrap().transport_recovered;
+        if !recovered {
+            recover()?;
+            self.inner.lock().unwrap().transport_recovered = true;
+        }
+        Ok(())
+    }
     pub fn epoch(&self) -> Id {
         self.epoch.clone()
     }
@@ -123,6 +150,7 @@ impl EventHub {
             let mut client = client.lock().unwrap();
             if client.owner.as_ref() == Some(owner) {
                 client.closed = true;
+                client.revoked.cancel();
                 client.queue.clear();
                 client.changed.notify_one();
             }
@@ -229,6 +257,30 @@ impl EventHub {
     }
 }
 impl Subscription {
+    /// Advance only after successful network delivery. Refresh snapshots retain
+    /// this boundary so queued, superseded events still consume their sequence.
+    pub(crate) fn mark_delivered(&mut self, event: &RemoteEvent) {
+        self.boundary = event_position(event).1;
+    }
+    pub(crate) fn check_live(&self) -> Result<(), RemoteError> {
+        let client = self.client.lock().unwrap();
+        if client.closed {
+            return Err(RemoteError::new(
+                ErrorCode::Unauthorized,
+                "Pair this device again.",
+            ));
+        }
+        if client.resync {
+            return Err(RemoteError::new(
+                ErrorCode::ResyncRequired,
+                "Fetch a new snapshot.",
+            ));
+        }
+        Ok(())
+    }
+    pub fn revocation(&self) -> tokio_util::sync::CancellationToken {
+        self.client.lock().unwrap().revoked.clone()
+    }
     /// Await without holding the hub or native state mutexes. A stored Notify
     /// permit closes the race between draining and awaiting publication.
     pub async fn recv(&mut self) -> Result<Vec<RemoteEvent>, RemoteError> {
@@ -360,6 +412,15 @@ fn event_position(event: &RemoteEvent) -> (&Id, u64, usize, u64) {
 }
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn revocation_signal_interrupts_a_writer_without_consuming_events() {
+        let hub = super::EventHub::default();
+        let owner: super::Id = serde_json::from_str("\"phone\"").unwrap();
+        let subscription = hub.subscribe_owner(Some(owner.clone()));
+        let cancellation = subscription.revocation();
+        hub.close_device(&owner);
+        assert!(cancellation.is_cancelled());
+    }
     use super::*;
     fn send(hub: &EventHub, stamp: Stamp) {
         hub.publish(stamp, |server_epoch, sequence| {

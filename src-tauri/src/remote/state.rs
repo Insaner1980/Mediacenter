@@ -60,6 +60,19 @@ pub async fn snapshot_from_admitted_subscription(
         events,
     })
 }
+/// Refresh using the already authenticated stream; never lose its revocation
+/// boundary. Queued events remain for the stream and snapshot revisions discard
+/// superseded deltas. The boundary is the last successfully delivered event.
+pub async fn snapshot_on_admitted_subscription(
+    principal: &RemotePrincipal,
+    services: &ControlServices,
+    events: &Subscription,
+) -> Result<RemoteSnapshot, RemoteError> {
+    events.check_live()?;
+    let snapshot = capture(principal, services, events.boundary, || {}).await?;
+    events.check_live()?;
+    Ok(snapshot)
+}
 async fn capture(
     principal: &RemotePrincipal,
     services: &ControlServices,
@@ -626,5 +639,43 @@ mod tests {
             matches!(&events[0],RemoteEvent::QueueSummary{data,..} if data.revision==after.revision)
         );
         assert!(cursor.accept(&events[0]).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod refresh_tests {
+    use super::*;
+    #[tokio::test]
+    async fn refresh_snapshot_preserves_sequence_for_events_not_yet_delivered() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
+        let principal =
+            checked(serde_json::json!({"deviceId":"phone","scopes":["browse"]})).unwrap();
+        let mut subscription = subscribe_with_snapshot(&principal, &services)
+            .await
+            .unwrap();
+        let stamp = state.event_hub.reserve(Topic::Connection);
+        state
+            .event_hub
+            .publish(stamp, |server_epoch, sequence| RemoteEvent::Connection {
+                server_epoch,
+                sequence,
+                data: ConnectionTopic {
+                    revision: stamp.revision.into(),
+                    server_device_id: checked("server").unwrap(),
+                    display_name: checked("Mediacenter").unwrap(),
+                },
+            });
+        let refreshed =
+            snapshot_on_admitted_subscription(&principal, &services, &subscription.events)
+                .await
+                .unwrap();
+        let mut cursor = super::super::event_hub::RevisionCursor::new(&refreshed);
+        for event in subscription.events.drain().unwrap() {
+            cursor
+                .accept(&event)
+                .expect("pending event must remain contiguous after refresh");
+        }
     }
 }

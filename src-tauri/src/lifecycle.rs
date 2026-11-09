@@ -181,6 +181,9 @@ pub async fn exit(
             "Background work has not finished stopping. Mediacenter remains open.",
         )
     })?;
+    if let Some(remote) = app.try_state::<crate::remote::server::RemoteServer>() {
+        remote.stop().await;
+    }
     app.exit(0);
     Ok(())
 }

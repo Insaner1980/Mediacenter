@@ -9,11 +9,41 @@ use sha2::{Digest, Sha256};
 use std::{ffi::OsString, time::Duration};
 use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
+#[derive(Clone, Copy)]
+struct PreviewProfile {
+    tag: &'static str,
+    edge: u32,
+    bytes: usize,
+    scale: &'static str,
+    publish_id: bool,
+}
+const DESKTOP: PreviewProfile = PreviewProfile {
+    tag: "png640-v1",
+    edge: 640,
+    bytes: 2 * 1024 * 1024,
+    scale: "scale=640:640:force_original_aspect_ratio=decrease",
+    publish_id: true,
+};
+const REMOTE: PreviewProfile = PreviewProfile {
+    tag: "png512-v1",
+    edge: 512,
+    bytes: 512 * 1024,
+    scale: "scale=512:512:force_original_aspect_ratio=decrease",
+    publish_id: false,
+};
 pub async fn get(
     state: &AppState,
     id: &str,
     cancel: CancellationToken,
 ) -> Result<EncodedImage, AppError> {
+    get_profile(state, id, cancel, DESKTOP).await.map(encoded)
+}
+async fn get_profile(
+    state: &AppState,
+    id: &str,
+    cancel: CancellationToken,
+    profile: PreviewProfile,
+) -> Result<Vec<u8>, AppError> {
     let _permit = tokio::select! {_=cancel.cancelled()=>return Err(AppError::new("cancelled","Image loading cancelled.")),permit=state.thumbnail_gate.acquire()=>permit.map_err(|_|AppError::new("thumbnail_unavailable","Image decoding is unavailable."))?};
     let media = super::query::open(state, id).await?;
     if media.kind == MediaKind::Audio {
@@ -23,22 +53,29 @@ pub async fn get(
         ));
     }
     let fingerprint = format!(
-        "{}:{id}:{}:{}:png640-v1",
-        media.source_id, media.size, media.mtime
+        "{}:{id}:{}:{}:{}",
+        media.source_id, media.size, media.mtime, profile.tag
     );
     let key = format!("{:x}", Sha256::digest(fingerprint.as_bytes()));
     let directory = state.cache_dir.join("thumbnails");
     tokio::fs::create_dir_all(&directory).await?;
     let path = directory.join(format!("{key}.png"));
-    if let Some(bytes) = read_cached(&path).await {
-        if valid_png(&bytes) {
+    if let Some(bytes) = read_cached(&path, profile.bytes).await {
+        if valid_preview(&bytes, profile) {
             if cancel.is_cancelled() || media.lease.cancelled() {
                 return Err(AppError::new("cancelled", "Image loading cancelled."));
             }
-            if record(state, &key, id, &fingerprint, bytes.len())? {
+            if record(
+                state,
+                &key,
+                id,
+                &fingerprint,
+                bytes.len(),
+                profile.publish_id,
+            )? {
                 evict(state).await?;
             }
-            return Ok(encoded(bytes));
+            return Ok(bytes);
         }
     }
     let mut args = super::probe::local_args();
@@ -47,7 +84,7 @@ pub async fn get(
     args.extend(
         [
             "-vf",
-            "scale=640:640:force_original_aspect_ratio=decrease",
+            profile.scale,
             "-frames:v",
             "1",
             "-threads",
@@ -67,7 +104,7 @@ pub async fn get(
             executable: Executable::Ffmpeg,
             args,
             timeout: Duration::from_secs(15),
-            output_limit: 2 * 1024 * 1024,
+            output_limit: profile.bytes,
         },
         lease_cancel.clone(),
     );
@@ -82,7 +119,7 @@ pub async fn get(
     if !output.success
         || cancel.is_cancelled()
         || media.lease.cancelled()
-        || !valid_png(&output.stdout)
+        || !valid_preview(&output.stdout, profile)
     {
         return Err(AppError::new(
             "thumbnail_failed",
@@ -90,9 +127,16 @@ pub async fn get(
         ));
     }
     tokio::fs::write(&path, &output.stdout).await?;
-    record(state, &key, id, &fingerprint, output.stdout.len())?;
+    record(
+        state,
+        &key,
+        id,
+        &fingerprint,
+        output.stdout.len(),
+        profile.publish_id,
+    )?;
     evict(state).await?;
-    Ok(encoded(output.stdout))
+    Ok(output.stdout)
 }
 fn encoded(bytes: Vec<u8>) -> EncodedImage {
     EncodedImage {
@@ -149,10 +193,10 @@ fn crc32(bytes: &[u8]) -> u32 {
     }
     !crc
 }
-async fn read_cached(path: &std::path::Path) -> Option<Vec<u8>> {
+async fn read_cached(path: &std::path::Path, maximum: usize) -> Option<Vec<u8>> {
     let file = tokio::fs::File::open(path).await.ok()?;
     let mut bytes = Vec::new();
-    file.take(2 * 1024 * 1024 + 1)
+    file.take(maximum as u64 + 1)
         .read_to_end(&mut bytes)
         .await
         .ok()?;
@@ -164,6 +208,7 @@ fn record(
     id: &str,
     fingerprint: &str,
     bytes: usize,
+    publish_id: bool,
 ) -> Result<bool, AppError> {
     let db = state
         .db
@@ -177,10 +222,12 @@ fn record(
         )
         .optional()?;
     db.execute("INSERT INTO thumbnail_entries(cache_key,media_id,fingerprint,filename,bytes,last_access_ms) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(cache_key) DO UPDATE SET media_id=excluded.media_id,fingerprint=excluded.fingerprint,filename=excluded.filename,bytes=excluded.bytes,last_access_ms=excluded.last_access_ms",rusqlite::params![key,id,fingerprint,format!("{key}.png"),bytes as i64,crate::app_state::now_ms() as i64])?;
-    db.execute(
-        "UPDATE media_items SET thumbnail_id=?1 WHERE id=?2",
-        rusqlite::params![key, id],
-    )?;
+    if publish_id {
+        db.execute(
+            "UPDATE media_items SET thumbnail_id=?1 WHERE id=?2",
+            rusqlite::params![key, id],
+        )?;
+    }
     Ok(previous_bytes != Some(bytes as i64))
 }
 async fn evict(state: &AppState) -> Result<(), AppError> {
@@ -243,4 +290,37 @@ async fn evict(state: &AppState) -> Result<(), AppError> {
         )?;
     }
     Ok(())
+}
+
+fn valid_preview(bytes: &[u8], profile: PreviewProfile) -> bool {
+    valid_png(bytes)
+        && bytes.len() <= profile.bytes
+        && u32::from_be_bytes(bytes[16..20].try_into().unwrap()) <= profile.edge
+        && u32::from_be_bytes(bytes[20..24].try_into().unwrap()) <= profile.edge
+}
+/// Bounded remote preview selected only by trusted opaque cache metadata. Open
+/// and source-lease revalidation are shared with desktop previews, even on hits.
+pub async fn get_remote(
+    state: &AppState,
+    opaque: &str,
+    cancel: CancellationToken,
+) -> Result<Vec<u8>, AppError> {
+    if opaque.len() != 64 || !opaque.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(AppError::new(
+            "thumbnail_unavailable",
+            "Preview unavailable.",
+        ));
+    }
+    let id: String = {
+        let db = state
+            .db
+            .lock()
+            .map_err(|_| AppError::new("database_error", "Preview unavailable."))?;
+        db.query_row(
+            "SELECT media_id FROM thumbnail_entries WHERE cache_key=?",
+            [opaque],
+            |r| r.get(0),
+        )?
+    };
+    get_profile(state, &id, cancel, REMOTE).await
 }

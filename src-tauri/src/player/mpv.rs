@@ -658,12 +658,30 @@ async fn observe(
         }
     }
 }
+/// Shared pause action for local controls and authenticated remote dispatch.
+/// The managed player/session registry remains the only IPC authority.
+pub async fn pause(state: &AppState, id: &str, paused: bool) -> Result<(), AppError> {
+    let mut registry = state.player.lock().await;
+    let player = registry
+        .as_mut()
+        .filter(|p| p.session.id == id)
+        .ok_or_else(|| AppError::new("player_missing", "This player session is unavailable."))?;
+    player
+        .ipc
+        .command(json!(["set_property", "pause", paused]))
+        .await?;
+    save(state, player)?;
+    Ok(())
+}
 pub async fn control(
     app: &tauri::AppHandle,
     state: &AppState,
     id: &str,
     action: PlayerAction,
 ) -> Result<(), AppError> {
+    if let PlayerAction::Pause { paused } = action {
+        return pause(state, id, paused).await;
+    }
     let mut registry = state.player.lock().await;
     let player = registry
         .as_mut()

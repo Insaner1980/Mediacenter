@@ -215,3 +215,38 @@ async fn thumbnails_lru_budget_evicts_oldest_files_and_keeps_recent_images() {
     assert!(directory.join(format!("{:064x}.png", 257)).exists());
     assert!(library.cache_path("photo.jpg").exists());
 }
+
+#[tokio::test]
+async fn remote_thumbnail_uses_512_profile_without_changing_desktop_cache() {
+    let library = Library::new();
+    library.fixture("photo.jpg", "mjpeg", "red");
+    let desktop = library.get("photo.jpg").await.unwrap();
+    let opaque: String = library
+        .state
+        .db
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT thumbnail_id FROM media_items WHERE id='photo.jpg'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let remote = thumbnails::get_remote(&library.state, &opaque, CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(u32::from_be_bytes(remote[16..20].try_into().unwrap()), 512);
+    assert!(remote.len() <= 512 * 1024);
+    assert_eq!(library.get("photo.jpg").await.unwrap(), desktop);
+    assert_eq!(
+        thumbnails::get_remote(&library.state, &opaque, CancellationToken::new())
+            .await
+            .unwrap(),
+        remote
+    );
+    assert!(
+        thumbnails::get_remote(&library.state, "../../etc/passwd", CancellationToken::new())
+            .await
+            .is_err()
+    );
+}
