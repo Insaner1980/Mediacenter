@@ -22,10 +22,7 @@ async fn command(
     )
     .await
 }
-pub async fn refresh_locked(
-    app: &tauri::AppHandle,
-    state: &AppState,
-) -> Result<VpnSnapshot, AppError> {
+async fn observe_locked(state: &AppState) -> Result<VpnSnapshot, AppError> {
     let status = command(&["status"], 5, CancellationToken::new()).await;
     let settings = command(&["settings"], 5, CancellationToken::new()).await;
     let now = now_ms();
@@ -65,7 +62,23 @@ pub async fn refresh_locked(
         }
     }
     snapshot.revision = state.snapshot()?.vpn.revision + 1;
+    Ok(snapshot)
+}
+pub async fn refresh_locked(
+    app: &tauri::AppHandle,
+    state: &AppState,
+) -> Result<VpnSnapshot, AppError> {
+    let snapshot = observe_locked(state).await?;
     events::publish(app, state, |home| home.vpn = snapshot.clone())?;
+    Ok(snapshot)
+}
+pub(crate) async fn refresh_deferred(
+    state: &AppState,
+    publications: &events::DeferredPublications<'_>,
+) -> Result<VpnSnapshot, AppError> {
+    let _guard = state.vpn_gate.lock().await;
+    let snapshot = observe_locked(state).await?;
+    publications.publish(|home| home.vpn = snapshot.clone())?;
     Ok(snapshot)
 }
 pub async fn refresh(app: &tauri::AppHandle, state: &AppState) -> Result<VpnSnapshot, AppError> {

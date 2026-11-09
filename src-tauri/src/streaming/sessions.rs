@@ -9,7 +9,7 @@ pub async fn open(
     service: ServiceId,
     cancel: tokio_util::sync::CancellationToken,
 ) -> Result<(), crate::contracts::AppError> {
-    use crate::{app_state::now_ms, contracts::AppError, events, vpn};
+    use crate::{app_state::now_ms, contracts::AppError, vpn};
     let _session = state
         .session_gate
         .try_lock()
@@ -24,6 +24,7 @@ pub async fn open(
             "Stop the slideshow before opening a streaming service.",
         ));
     }
+    let publications = crate::events::DeferredPublications::new(&app, &state);
     let mut browser = state
         .browser
         .try_lock()
@@ -33,7 +34,7 @@ pub async fn open(
         .is_some_and(|current| matches!(current.child.try_wait(), Ok(Some(_))))
     {
         let ended = browser.take().unwrap().session.id;
-        events::publish(&app, &state, |home| {
+        publications.publish(|home| {
             home.sessions.retain(|session| session.id != ended);
         })?;
     }
@@ -57,7 +58,7 @@ pub async fn open(
                 .iter()
                 .find(|entry| entry.id == service)
                 .is_none_or(|entry| entry.vpn_required);
-            let observation = vpn::nordvpn::refresh(&app, &state).await?;
+            let observation = vpn::nordvpn::refresh_deferred(&state, &publications).await?;
             vpn::policy::evaluate_launch(required, &observation, now_ms())?;
             if service == ServiceId::HboMax {
                 super::browser::check_chrome_available()?;
@@ -70,7 +71,7 @@ pub async fn open(
             Ok(Destination::Managed(monitor))
         },
         |ended| {
-            events::publish(&app, &state, |home| {
+            publications.publish(|home| {
                 home.sessions.retain(|session| session.id != ended);
                 home.outputs.effective = crate::contracts::PlaybackTarget::default();
                 home.outputs.state = "idle".into();
@@ -93,7 +94,7 @@ pub async fn open(
     let placement = super::placement::initialize_browser(&mut started, &monitor).await;
     let session = started.session.clone();
     *browser = Some(started);
-    events::publish(&app, &state, |home| {
+    publications.publish(|home| {
         home.sessions.retain(|session| session.kind != "streaming");
         home.outputs.effective = session.target.clone();
         home.outputs.state = if placement.is_ok() {
@@ -145,6 +146,7 @@ pub async fn close(
         current.close().await?;
     }
     *browser = None;
+    drop(browser);
     crate::events::publish(app, state, |home| {
         home.sessions.retain(|session| session.id != id)
     })
@@ -159,6 +161,7 @@ pub async fn reconcile(app: &tauri::AppHandle, state: &crate::app_state::AppStat
     if matches!(browser.child.try_wait(), Ok(Some(_))) && browser.session.phase != "unavailable" {
         browser.session.phase = "unavailable".into();
         let session = browser.session.clone();
+        drop(registry);
         let _ = crate::events::publish(app, state, |home| {
             if let Some(current) = home.sessions.iter_mut().find(|s| s.id == session.id) {
                 *current = session;

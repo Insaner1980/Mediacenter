@@ -3,7 +3,9 @@ use super::protocol::*;
 use crate::contracts as native;
 use serde::de::DeserializeOwned;
 
-fn checked<T: DeserializeOwned, S: serde::Serialize>(value: S) -> Result<T, RemoteError> {
+pub(crate) fn checked<T: DeserializeOwned, S: serde::Serialize>(
+    value: S,
+) -> Result<T, RemoteError> {
     serde_json::from_value(serde_json::to_value(value).map_err(|_| RemoteError::invalid())?)
         .map_err(|_| RemoteError::invalid())
 }
@@ -88,7 +90,13 @@ impl TryFrom<&native::PlayerSnapshot> for PlayerTopic {
             phase: checked(if player.paused && player.phase == "playing" {
                 "paused"
             } else {
-                &player.phase
+                match player.phase.as_str() {
+                    "ready" if player.paused => "paused",
+                    "ready" => "opening",
+                    "ended" => "stopped",
+                    "error" => "failed",
+                    phase => phase,
+                }
             })?,
             position_seconds: checked(player.position_seconds)?,
             duration_seconds: player.duration_seconds.map(checked).transpose()?,

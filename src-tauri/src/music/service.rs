@@ -17,8 +17,14 @@ fn persist(state: &AppState, queue: &Queue) -> Result<(), AppError> {
     let db = state.db.lock().map_err(|_| database_error())?;
     queue.save(&db)
 }
-fn publish(app: &tauri::AppHandle, queue: &Queue) {
-    let _ = app.emit_to("main", "music_queue_changed", queue.snapshot());
+fn publish(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    snapshot: MusicQueue,
+    stamp: crate::remote::event_hub::Stamp,
+) {
+    crate::remote::state::queue_changed(state, &snapshot, stamp);
+    let _ = app.emit_to("main", "music_queue_changed", snapshot);
 }
 fn refresh(state: &AppState, queue: &mut Queue) -> Result<(), AppError> {
     let db = state.db.lock().map_err(|_| database_error())?;
@@ -60,14 +66,25 @@ pub async fn get(state: &AppState) -> Result<MusicQueue, AppError> {
         queue.session_id = None;
         queue.revision = queue.revision.wrapping_add(1);
     }
-    Ok(queue.snapshot())
+    let snapshot = queue.snapshot();
+    let stamp = state
+        .event_hub
+        .reserve(crate::remote::protocol::Topic::QueueSummary);
+    drop(queue);
+    crate::remote::state::queue_changed(state, &snapshot, stamp);
+    Ok(snapshot)
 }
 pub(crate) async fn clear_session(app: &tauri::AppHandle, state: &AppState, id: &str) {
     let mut queue = state.music.lock().await;
     if queue.session_id.as_deref() == Some(id) {
         queue.session_id = None;
         queue.revision = queue.revision.wrapping_add(1);
-        publish(app, &queue);
+        let snapshot = queue.snapshot();
+        let stamp = state
+            .event_hub
+            .reserve(crate::remote::protocol::Topic::QueueSummary);
+        drop(queue);
+        publish(app, state, snapshot, stamp);
     }
 }
 async fn stop_owned(
@@ -187,7 +204,7 @@ pub async fn play(
     stop_owned(&app, &state, &mut current).await?;
     let result = start_current(&app, &state, &mut replacement, cancel).await;
     let saved = store(&state, &mut replacement).await;
-    publish(&app, &replacement);
+    let _ = app.emit_to("main", "music_queue_changed", replacement.snapshot());
     result.and(saved)
 }
 pub async fn play_playlist(
@@ -246,7 +263,7 @@ pub async fn control(
         Ok(())
     };
     let saved = store(&state, &mut next).await;
-    publish(&app, &next);
+    let _ = app.emit_to("main", "music_queue_changed", next.snapshot());
     result?;
     saved?;
     Ok(next.snapshot())
@@ -273,7 +290,7 @@ pub fn on_end(
             queue.session_id = None;
             queue.revision = queue.revision.wrapping_add(1);
             let _ = store(&state, &mut queue).await;
-            publish(&app, &queue);
+            let _ = app.emit_to("main", "music_queue_changed", queue.snapshot());
             return;
         }
         let result = async {
@@ -290,7 +307,7 @@ pub fn on_end(
             queue.message = Some(error.message);
         }
         let _ = store(&state, &mut queue).await;
-        publish(&app, &queue);
+        let _ = app.emit_to("main", "music_queue_changed", queue.snapshot());
     })
 }
 
@@ -312,6 +329,12 @@ async fn store(state: &AppState, queue: &mut Queue) -> Result<(), AppError> {
         queue.message = Some(error.message.clone());
     }
     *stored = queue.clone();
+    let snapshot = stored.snapshot();
+    let stamp = state
+        .event_hub
+        .reserve(crate::remote::protocol::Topic::QueueSummary);
+    drop(stored);
+    crate::remote::state::queue_changed(state, &snapshot, stamp);
     saved
 }
 #[cfg(test)]

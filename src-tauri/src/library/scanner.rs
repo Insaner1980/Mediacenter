@@ -57,6 +57,7 @@ impl Drop for ScanLease {
         if let Ok(mut scans) = self.state.scans.lock() {
             scans.remove(&self.id);
         }
+        crate::remote::state::sources_changed(&self.state);
     }
 }
 fn enumerate(
@@ -238,6 +239,7 @@ pub async fn scan(
         }
         scans.insert(source.clone(), cancel.clone());
     }
+    crate::remote::state::sources_changed(&state);
     let _lease = ScanLease {
         state: state.clone(),
         id: source.clone(),
@@ -359,6 +361,7 @@ pub async fn scan(
     Ok(())
 }
 pub fn publish_summaries(app: &tauri::AppHandle, state: &AppState) -> Result<(), AppError> {
+    crate::remote::state::sources_changed(state);
     let counts = {
         let db = state
             .db

@@ -117,6 +117,36 @@ impl<'a> RemoteStore<'a> {
     pub fn get_command(&self, device: &Id, request: &Id) -> Result<Option<JournalEntry>> {
         Ok(read_command(self.db, &self.identity, device, request)?.map(|stored| stored.entry))
     }
+    pub fn active_device_ids(&self) -> Result<Vec<Id>> {
+        let mut statement=self.db.prepare("SELECT device_id FROM paired_devices WHERE server_identity=? AND revoked_at_ms IS NULL ORDER BY device_id LIMIT 8")?;
+        let values = statement
+            .query_map([self.identity.as_str()], |r| r.get::<_, String>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        values.into_iter().map(opaque).collect()
+    }
+    /// Bounded recent operation projection; individual lookup remains available
+    /// for all retained records. Ownership and server identity are SQL predicates.
+    pub fn recent_commands(&self, device: &Id) -> Result<Vec<JournalEntry>> {
+        let mut statement=self.db.prepare("SELECT request_id FROM command_journal WHERE server_identity=?1 AND device_id=?2 ORDER BY updated_at_ms DESC,rowid DESC LIMIT 100")?;
+        let ids = statement
+            .query_map(params![self.identity.as_str(), device.as_str()], |r| {
+                r.get::<_, String>(0)
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        ids.into_iter()
+            .map(|id| {
+                self.get_command(device, &opaque(id)?)?
+                    .ok_or_else(|| error("database_error"))
+            })
+            .collect()
+    }
+    pub fn get_operation(&self, device: &Id, operation: &Id) -> Result<Option<JournalEntry>> {
+        let request=self.db.query_row("SELECT request_id FROM command_journal WHERE server_identity=?1 AND device_id=?2 AND operation_id=?3",params![self.identity.as_str(),device.as_str(),operation.as_str()],|r|r.get::<_,String>(0)).optional()?;
+        request
+            .map(|id| self.get_command(device, &opaque(id)?))
+            .transpose()
+            .map(Option::flatten)
+    }
     pub fn accept_command(
         &mut self,
         device: &Id,

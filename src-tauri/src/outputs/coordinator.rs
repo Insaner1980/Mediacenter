@@ -6,12 +6,16 @@ pub fn combined_state(picture: bool, audio: bool) -> &'static str {
     }
 }
 use crate::{app_state::AppState, contracts::*, events};
+use tauri::Manager;
 pub async fn list(app: &tauri::AppHandle) -> Result<OutputList, AppError> {
     let (monitors, computer_monitor_id) = super::monitors::discover(app)?;
     let (audio_sinks, audio_error) = match super::audio::discover().await {
         Ok(sinks) => (sinks, None),
         Err(e) => (vec![], Some(e.message)),
     };
+    if let Some(state) = app.try_state::<AppState>() {
+        crate::remote::state::outputs_discovered(&state, audio_sinks.clone());
+    }
     Ok(OutputList {
         monitors,
         audio_sinks,
@@ -186,7 +190,7 @@ pub async fn move_browser(
         (Err(_), Ok(_)) => "Audio moved; picture unconfirmed".into(),
         _ => "Playback output unconfirmed".into(),
     };
-    events::publish(app, state, |home| {
+    let publication = events::commit(state, |home| {
         home.outputs.effective = effective;
         home.outputs.state = status.into();
         home.outputs.label = label;
@@ -195,6 +199,8 @@ pub async fn move_browser(
             *entry = session;
         }
     })?;
+    drop(registry);
+    publication.emit(app, state);
     picture?;
     audio?;
     Ok(())
@@ -301,7 +307,7 @@ async fn reconcile_browser_audio(app: &tauri::AppHandle, state: &AppState) {
         Ok(_) => "Playback audio confirmed",
         Err(_) => "Playback audio unavailable or unconfirmed",
     };
-    let _ = events::publish(app, state, |home| {
+    let publication = events::commit(state, |home| {
         home.outputs.effective.audio_sink_id = actual.clone();
         home.outputs.state = state_name.into();
         home.outputs.label = label.into();
@@ -310,6 +316,10 @@ async fn reconcile_browser_audio(app: &tauri::AppHandle, state: &AppState) {
             session.target.audio_sink_id = actual;
         }
     });
+    drop(registry);
+    if let Ok(publication) = publication {
+        publication.emit(app, state);
+    }
 }
 
 pub async fn move_player(
@@ -377,7 +387,7 @@ pub async fn move_player(
     };
     let session = player.session.clone();
     let status = combined_state(picture.is_ok(), audio.is_ok());
-    events::publish(app, state, |home| {
+    let publication = events::commit(state, |home| {
         home.outputs.effective = session.target.clone();
         home.outputs.state = status.into();
         home.outputs.label = if status == "ready" {
@@ -390,6 +400,8 @@ pub async fn move_player(
             *current = session;
         }
     })?;
+    drop(registry);
+    publication.emit(app, state);
     picture?;
     audio?;
     Ok(())
@@ -446,7 +458,7 @@ pub async fn reconcile_audio(app: &tauri::AppHandle, state: &AppState) {
     }
     player.session.target.audio_sink_id = actual.clone();
     let id = player.session.id.clone();
-    let _ = events::publish(app, state, |home| {
+    let publication = events::commit(state, |home| {
         home.outputs.effective.audio_sink_id = actual.clone();
         home.outputs.state = status.into();
         home.outputs.label = if actual.is_some() {
@@ -459,6 +471,10 @@ pub async fn reconcile_audio(app: &tauri::AppHandle, state: &AppState) {
             session.target.audio_sink_id = actual;
         }
     });
+    drop(registry);
+    if let Ok(publication) = publication {
+        publication.emit(app, state);
+    }
 }
 #[cfg(test)]
 mod tests {

@@ -25,12 +25,18 @@ where
         }
         operations.insert(id.clone(), token.clone());
     }
+    if let Ok(mut retained) = state.retained_operations.lock() {
+        retained.record(&id, crate::remote::protocol::OperationStatus::Accepted);
+    }
     crate::diagnostics::record(&state, "operation", "started", Some(&id), 0, None);
     let started = std::time::Instant::now();
     let result = OperationRef {
         operation_id: id.clone(),
     };
     tauri::async_runtime::spawn(async move {
+        if let Ok(mut retained) = state.retained_operations.lock() {
+            retained.record(&id, crate::remote::protocol::OperationStatus::Running);
+        }
         let task = tauri::async_runtime::spawn(work(token));
         let mut error = match task.await {
             Ok(result) => result.err(),
@@ -49,6 +55,18 @@ where
         );
         if let Some(error) = &mut error {
             error.operation_id = Some(id.clone());
+        }
+        if let Ok(mut retained) = state.retained_operations.lock() {
+            retained.record(
+                &id,
+                match &error {
+                    None => crate::remote::protocol::OperationStatus::Succeeded,
+                    Some(error) if error.code == "cancelled" => {
+                        crate::remote::protocol::OperationStatus::Cancelled
+                    }
+                    Some(_) => crate::remote::protocol::OperationStatus::Failed,
+                },
+            );
         }
         if let Ok(mut operations) = state.operations.lock() {
             operations.remove(&id);

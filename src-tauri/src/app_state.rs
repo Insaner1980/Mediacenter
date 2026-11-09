@@ -8,6 +8,9 @@ use std::{
 use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub struct AppState {
+    pub audio_outputs: Arc<Mutex<Vec<AudioSinkDescriptor>>>,
+    pub event_hub: Arc<crate::remote::event_hub::EventHub>,
+    pub retained_operations: Arc<Mutex<crate::remote::operations::RetainedOperations>>,
     pub geometry_saved_at: Arc<Mutex<std::time::Instant>>,
     pub log_gate: Arc<Mutex<()>>,
     pub diagnostic_preview: Arc<Mutex<Option<crate::diagnostics::DiagnosticReport>>>,
@@ -110,6 +113,11 @@ impl AppState {
         let music = crate::music::queue::Queue::load(&db)?;
         let player_preferences = crate::player::mpv::preferences(&db);
         Ok(Self {
+            audio_outputs: Arc::new(Mutex::new(Vec::new())),
+            event_hub: Arc::new(crate::remote::event_hub::EventHub::default()),
+            retained_operations: Arc::new(Mutex::new(
+                crate::remote::operations::RetainedOperations::default(),
+            )),
             geometry_saved_at: Arc::new(Mutex::new(std::time::Instant::now())),
             log_gate: Arc::new(Mutex::new(())),
             diagnostic_preview: Arc::new(Mutex::new(None)),

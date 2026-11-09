@@ -2,6 +2,7 @@ use tauri::Manager;
 pub mod app_state;
 pub mod commands;
 pub mod contracts;
+pub mod control;
 pub mod devices;
 pub mod diagnostics;
 pub mod events;

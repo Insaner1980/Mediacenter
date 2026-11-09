@@ -85,8 +85,13 @@ pub struct State {
     last: SlideshowSnapshot,
     published: Option<SlideshowSnapshot>,
 }
+struct Publication {
+    snapshot: SlideshowSnapshot,
+    stamp: crate::remote::event_hub::Stamp,
+    home: Option<crate::events::HomePublication>,
+}
 impl State {
-    fn snapshot(&self) -> SlideshowSnapshot {
+    pub(crate) fn snapshot(&self) -> SlideshowSnapshot {
         match &self.session {
             None => self.last.clone(),
             Some(s) => SlideshowSnapshot {
@@ -115,28 +120,39 @@ impl State {
             },
         }
     }
-    fn publish(&mut self, app: &tauri::AppHandle, state: &AppState) {
+    fn publication(&mut self, state: &AppState) -> Option<Publication> {
         let snapshot = self.snapshot();
         if self.published.as_ref() == Some(&snapshot) {
-            return;
+            return None;
         }
         self.published = Some(snapshot.clone());
-        let _ = crate::events::publish(app, state, |home| {
+        let stamp = state
+            .event_hub
+            .reserve(crate::remote::protocol::Topic::Slideshow);
+        // Commit native home projection under the photo guard too. Only delivery
+        // is deferred, so an old delayed publisher cannot resurrect an old slide.
+        let home = crate::events::commit(state, |home| {
             home.sessions.retain(|session| session.kind != "slideshow");
-            if let Some(id) = snapshot.session_id {
+            if let Some(id) = snapshot.session_id.clone() {
                 home.sessions.push(crate::contracts::ManagedSession {
                     id,
                     kind: "slideshow".into(),
                     service_id: None,
-                    media_id: snapshot.media_id,
-                    phase: snapshot.phase,
+                    media_id: snapshot.media_id.clone(),
+                    phase: snapshot.phase.clone(),
                     target: crate::contracts::PlaybackTarget {
-                        monitor_id: snapshot.monitor_id,
+                        monitor_id: snapshot.monitor_id.clone(),
                         audio_sink_id: None,
                     },
                 });
             }
-        });
+        })
+        .ok();
+        Some(Publication {
+            snapshot,
+            stamp,
+            home,
+        })
     }
     fn stop(&mut self, error: Option<String>) {
         if let Some(s) = self.session.take() {
@@ -146,6 +162,15 @@ impl State {
             error,
             ..Default::default()
         };
+    }
+}
+fn publish(app: &tauri::AppHandle, state: &AppState, publication: Option<Publication>) {
+    let Some(publication) = publication else {
+        return;
+    };
+    crate::remote::state::slideshow_changed(state, &publication.snapshot, publication.stamp);
+    if let Some(home) = publication.home {
+        home.emit(app, state);
     }
 }
 pub fn typescript(config: &ts_rs::Config) -> Vec<String> {
@@ -320,9 +345,10 @@ pub async fn start(
         display_missing: false,
         fit: true,
     });
-    photos.publish(app, state);
+    let publication = photos.publication(state);
     let value = photos.snapshot();
     drop(photos);
+    publish(app, state, publication);
     tauri::async_runtime::spawn(worker(app.clone(), state.clone(), id, cancel));
     Ok(value)
 }
@@ -341,8 +367,9 @@ pub async fn control(
     let mut photos = state.photos.lock().await;
     if matches!(action, SlideshowAction::Stop) {
         photos.stop(None);
-        photos.publish(app, state);
+        let publication = photos.publication(state);
         drop(photos);
+        publish(app, state, publication);
         if let Some(w) = app.get_webview_window(LABEL) {
             let _ = w.close();
         }
@@ -382,7 +409,11 @@ pub async fn control(
     }
     session.next_at = Instant::now() + Duration::from_secs(u64::from(session.queue.interval));
     retain(session);
-    Ok(photos.snapshot())
+    let value = photos.snapshot();
+    let publication = photos.publication(state);
+    drop(photos);
+    publish(app, state, publication);
+    Ok(value)
 }
 pub async fn stop_source(app: &tauri::AppHandle, state: &AppState, source_id: &str) {
     let mut photos = state.photos.lock().await;
@@ -394,8 +425,9 @@ pub async fn stop_source(app: &tauri::AppHandle, state: &AppState, source_id: &s
         photos.stop(Some(
             "The photo source was removed. Reconnect it before starting again.".into(),
         ));
-        photos.publish(app, state);
+        let publication = photos.publication(state);
         drop(photos);
+        publish(app, state, publication);
         if let Some(w) = app.get_webview_window(LABEL) {
             let _ = w.close();
         }
@@ -432,8 +464,9 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
                 photos.stop(Some(
                     "The photo source is unavailable. Reconnect it before starting again.".into(),
                 ));
-                photos.publish(&app, &state);
+                let publication = photos.publication(&state);
                 drop(photos);
+                publish(&app, &state, publication);
                 if let Some(w) = app.get_webview_window(LABEL) {
                     let _ = w.close();
                 }
@@ -441,7 +474,9 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
             }
             if app.get_webview_window(LABEL).is_none() {
                 photos.stop(None);
-                photos.publish(&app, &state);
+                let publication = photos.publication(&state);
+                drop(photos);
+                publish(&app, &state, publication);
                 return;
             }
             if monitors
@@ -466,7 +501,9 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
                 .chain(s.queue.preloads())
                 .find(|key| !s.cache.contains_key(*key))
                 .map(str::to_string);
-            photos.publish(&app, &state);
+            let publication = photos.publication(&state);
+            drop(photos);
+            publish(&app, &state, publication);
             wanted
         };
         if let Some(media_id) = wanted {
@@ -507,8 +544,9 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
                 }
             }
             if photos.session.is_none() {
-                photos.publish(&app, &state);
+                let publication = photos.publication(&state);
                 drop(photos);
+                publish(&app, &state, publication);
                 if let Some(w) = app.get_webview_window(LABEL) {
                     let _ = w.close();
                 }

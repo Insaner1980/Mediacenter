@@ -1,0 +1,485 @@
+//! Native snapshots and subscription coordination. No filesystem paths cross here.
+use super::{
+    adapters::{self, checked},
+    event_hub::{Stamp, Subscription},
+    protocol::*,
+};
+use crate::{app_state::AppState, contracts as native, control::ControlServices};
+/// Send the snapshot, then all buffered events in sequence, then recv() batches.
+/// Apply events through RevisionCursor (or equivalent revision logic): a
+/// superseded topic still consumes its sequence, so private projections cannot
+/// create apparent transport gaps. Send each event as its own control message.
+pub struct RemoteSubscription {
+    pub initial: super::protocol::RemoteSubscription,
+    pub events: Subscription,
+}
+pub async fn snapshot(
+    principal: &RemotePrincipal,
+    services: &ControlServices,
+) -> Result<RemoteSnapshot, RemoteError> {
+    Ok(subscribe_with_snapshot(principal, services)
+        .await?
+        .initial
+        .snapshot)
+}
+pub async fn subscribe_with_snapshot(
+    principal: &RemotePrincipal,
+    services: &ControlServices,
+) -> Result<RemoteSubscription, RemoteError> {
+    let mut events = services
+        .state
+        .event_hub
+        .subscribe_owner(Some(principal.device_id.clone()));
+    let snapshot = capture(principal, services, events.boundary, || {}).await?;
+    let buffered_events = checked(events.drain()?)?;
+    if serde_json::to_vec(&snapshot)
+        .map_err(|_| unavailable())?
+        .len()
+        > 256 * 1024
+    {
+        return Err(RemoteError::new(
+            ErrorCode::ResyncRequired,
+            "Snapshot exceeds the control message limit.",
+        ));
+    }
+    Ok(RemoteSubscription {
+        initial: super::protocol::RemoteSubscription {
+            snapshot,
+            buffered_events,
+        },
+        events,
+    })
+}
+async fn capture(
+    principal: &RemotePrincipal,
+    services: &ControlServices,
+    boundary: u64,
+    after_player: impl FnOnce(),
+) -> Result<RemoteSnapshot, RemoteError> {
+    if !principal.scopes.as_slice().contains(&Scope::Browse) {
+        return Err(RemoteError::new(
+            ErrorCode::Forbidden,
+            "Browse permission is required.",
+        ));
+    }
+    let state = &services.state;
+    let player = {
+        let player = state.player.lock().await;
+        let revision = state.event_hub.revision(Topic::Player);
+        match player.as_ref() {
+            Some(player) => {
+                let mut topic = PlayerTopic::try_from(&player.snapshot)?;
+                topic.revision = revision.into();
+                topic
+            }
+            None => {
+                let preferences = state.player_preferences.lock().map_err(|_| unavailable())?;
+                idle_player(revision, preferences.volume, preferences.muted)?
+            }
+        }
+    };
+    after_player();
+    let queue_summary = {
+        let queue = state.music.lock().await;
+        let mut topic = QueueSummary::try_from(&queue.snapshot())?;
+        topic.revision = state.event_hub.revision(Topic::QueueSummary).into();
+        topic
+    };
+    let slideshow = {
+        let photos = state.photos.lock().await;
+        adapters::slideshow_topic(
+            &photos.snapshot(),
+            state.event_hub.revision(Topic::Slideshow).into(),
+        )?
+    };
+    let (activity, outputs, vpn) = {
+        let home = state.home.lock().map_err(|_| unavailable())?;
+        (
+            activity_topic(&home, state.event_hub.revision(Topic::Activity))?,
+            outputs_topic(state, &home, state.event_hub.revision(Topic::Outputs))?,
+            vpn_topic(&home, state.event_hub.revision(Topic::Vpn))?,
+        )
+    };
+    let sources_summary = sources(state, false)?.1;
+    let operations = services
+        .operations()
+        .recent(principal)
+        .map_err(|_| unavailable())?;
+    Ok(RemoteSnapshot {
+        v: checked(1)?,
+        r#type: SnapshotType::Snapshot,
+        server_epoch: state.event_hub.epoch(),
+        sequence: boundary.into(),
+        connection: ConnectionTopic {
+            revision: 0.into(),
+            server_device_id: services.server_identity.clone(),
+            display_name: checked("Mediacenter")?,
+        },
+        activity,
+        player,
+        queue_summary,
+        slideshow,
+        outputs,
+        sources_summary,
+        vpn,
+        ui: UiTopic {
+            revision: 0.into(),
+            available: false,
+            renderer_generation: None,
+            route: None,
+            modal_id: None,
+            focus_id: None,
+            focus_revision: None,
+        },
+        operations,
+    })
+}
+
+fn idle_player(revision: u64, volume: f64, muted: bool) -> Result<PlayerTopic, RemoteError> {
+    Ok(PlayerTopic {
+        revision: revision.into(),
+        session_id: None,
+        item_id: None,
+        phase: PlayerPhase::Idle,
+        position_seconds: checked(0.)?,
+        duration_seconds: None,
+        volume: checked(volume)?,
+        muted,
+        audio_tracks: checked(Vec::<Track>::new())?,
+        subtitle_tracks: checked(Vec::<Track>::new())?,
+    })
+}
+
+fn unavailable() -> RemoteError {
+    RemoteError::new(ErrorCode::Unavailable, "Native state is unavailable.")
+}
+pub(crate) fn activity_topic(
+    home: &native::HomeSnapshot,
+    revision: u64,
+) -> Result<ActivityTopic, RemoteError> {
+    let session = home.sessions.last();
+    Ok(ActivityTopic {
+        revision: revision.into(),
+        mode: match session.map(|s| s.kind.as_str()) {
+            Some("local-video") => ActivityMode::Video,
+            Some("local-audio") => ActivityMode::Music,
+            Some("slideshow") => ActivityMode::Photos,
+            Some("streaming") => ActivityMode::Browser,
+            _ => ActivityMode::Idle,
+        },
+        session_id: session.map(|s| checked(&s.id)).transpose()?,
+        title: None,
+    })
+}
+pub(crate) fn outputs_topic(
+    state: &AppState,
+    home: &native::HomeSnapshot,
+    revision: u64,
+) -> Result<OutputsTopic, RemoteError> {
+    let inventory = state.audio_outputs.lock().map_err(|_| unavailable())?;
+    let unavailable = home
+        .outputs
+        .effective
+        .audio_sink_id
+        .as_ref()
+        .is_none_or(|id| {
+            !inventory
+                .iter()
+                .any(|sink| &sink.id == id && sink.available)
+        });
+    let outputs = inventory
+        .iter()
+        .take(100)
+        .map(|sink| {
+            Ok(AudioOutput {
+                id: checked(&sink.id)?,
+                name: checked(sink.name.chars().take(200).collect::<String>())?,
+                available: sink.available,
+            })
+        })
+        .collect::<Result<Vec<_>, RemoteError>>()?;
+    Ok(OutputsTopic {
+        revision: revision.into(),
+        requested_output_id: home
+            .outputs
+            .desired
+            .audio_sink_id
+            .as_ref()
+            .map(checked)
+            .transpose()?,
+        effective_output_id: home
+            .outputs
+            .effective
+            .audio_sink_id
+            .as_ref()
+            .map(checked)
+            .transpose()?,
+        unavailable,
+        outputs: checked(outputs)?,
+    })
+}
+pub(crate) fn vpn_topic(
+    home: &native::HomeSnapshot,
+    revision: u64,
+) -> Result<VpnTopic, RemoteError> {
+    Ok(VpnTopic {
+        revision: revision.into(),
+        state: checked(&home.vpn.state).unwrap_or(VpnState::Unknown),
+        country: home.vpn.country.as_ref().map(checked).transpose()?,
+        kill_switch: checked(&home.vpn.kill_switch).unwrap_or(SwitchState::Unknown),
+        observed_at_ms: checked(home.vpn.observed_at_ms)?,
+    })
+}
+pub(crate) fn home_changed(state: &AppState, home: &native::HomeSnapshot, stamps: [Stamp; 3]) {
+    if let Ok(data) = activity_topic(home, stamps[0].revision) {
+        state
+            .event_hub
+            .publish(stamps[0], |server_epoch, sequence| RemoteEvent::Activity {
+                server_epoch,
+                sequence,
+                data,
+            });
+    }
+    if let Ok(data) = outputs_topic(state, home, stamps[1].revision) {
+        state
+            .event_hub
+            .publish(stamps[1], |server_epoch, sequence| RemoteEvent::Outputs {
+                server_epoch,
+                sequence,
+                data,
+            });
+    }
+    if let Ok(data) = vpn_topic(home, stamps[2].revision) {
+        state
+            .event_hub
+            .publish(stamps[2], |server_epoch, sequence| RemoteEvent::Vpn {
+                server_epoch,
+                sequence,
+                data,
+            });
+    }
+}
+pub(crate) fn queue_changed(
+    state: &AppState,
+    snapshot: &crate::music::queue::MusicQueue,
+    stamp: Stamp,
+) {
+    if let Ok(mut data) = QueueSummary::try_from(snapshot) {
+        data.revision = stamp.revision.into();
+        state
+            .event_hub
+            .publish(stamp, |server_epoch, sequence| RemoteEvent::QueueSummary {
+                server_epoch,
+                sequence,
+                data,
+            });
+    }
+}
+pub(crate) fn player_changed(
+    state: &AppState,
+    snapshot: Option<&native::PlayerSnapshot>,
+    stamp: Stamp,
+    immediate: bool,
+) {
+    let data = match snapshot {
+        Some(snapshot) => PlayerTopic::try_from(snapshot).map(|mut data| {
+            data.revision = stamp.revision.into();
+            data
+        }),
+        None => {
+            let preferences = state.player_preferences.lock().unwrap();
+            idle_player(stamp.revision, preferences.volume, preferences.muted)
+        }
+    };
+    if let Ok(data) = data {
+        state.event_hub.player(stamp, data, immediate);
+    }
+}
+pub(crate) fn slideshow_changed(
+    state: &AppState,
+    snapshot: &crate::photos::presenter::SlideshowSnapshot,
+    stamp: Stamp,
+) {
+    if let Ok(data) = adapters::slideshow_topic(snapshot, stamp.revision.into()) {
+        state
+            .event_hub
+            .publish(stamp, |server_epoch, sequence| RemoteEvent::Slideshow {
+                server_epoch,
+                sequence,
+                data,
+            });
+    }
+}
+fn sources(state: &AppState, reserve: bool) -> Result<(Stamp, SourcesSummary), RemoteError> {
+    let db = state.db.lock().map_err(|_| unavailable())?;
+    let count: i64 = db
+        .query_row("SELECT count(*) FROM media_sources", [], |row| row.get(0))
+        .map_err(|_| unavailable())?;
+    let scanning = !state.scans.lock().map_err(|_| unavailable())?.is_empty();
+    let stamp = if reserve {
+        state.event_hub.reserve(Topic::SourcesSummary)
+    } else {
+        Stamp {
+            topic: 6,
+            revision: state.event_hub.revision(Topic::SourcesSummary),
+        }
+    };
+    Ok((
+        stamp,
+        SourcesSummary {
+            revision: stamp.revision.into(),
+            count: (count as u64).into(),
+            scanning,
+        },
+    ))
+}
+pub(crate) fn sources_changed(state: &AppState) {
+    if let Ok((stamp, data)) = sources(state, true) {
+        state.event_hub.publish(stamp, |server_epoch, sequence| {
+            RemoteEvent::SourcesSummary {
+                server_epoch,
+                sequence,
+                data,
+            }
+        });
+    }
+}
+
+pub(crate) fn outputs_discovered(state: &AppState, outputs: Vec<native::AudioSinkDescriptor>) {
+    // Same home -> inventory lock order as snapshots and home publications.
+    let captured = (|| -> Result<_, RemoteError> {
+        let home = state.home.lock().map_err(|_| unavailable())?;
+        {
+            let mut inventory = state.audio_outputs.lock().map_err(|_| unavailable())?;
+            *inventory = outputs;
+        }
+        let stamp = state.event_hub.reserve(Topic::Outputs);
+        let topic = outputs_topic(state, &home, stamp.revision)?;
+        Ok((stamp, topic))
+    })();
+    if let Ok((stamp, data)) = captured {
+        state
+            .event_hub
+            .publish(stamp, |server_epoch, sequence| RemoteEvent::Outputs {
+                server_epoch,
+                sequence,
+                data,
+            });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn principal() -> RemotePrincipal {
+        checked(serde_json::json!({"deviceId":"phone","scopes":["browse"]})).unwrap()
+    }
+    #[tokio::test]
+    async fn native_snapshot_has_actual_queue_and_no_renderer_claim() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        state.music.lock().await.shuffle = true;
+        let services = ControlServices::native(state, checked("server").unwrap());
+        let snapshot = snapshot(&principal(), &services).await.unwrap();
+        assert!(snapshot.queue_summary.shuffle);
+        assert!(!snapshot.ui.available);
+        assert!(snapshot.operations.items.as_slice().is_empty());
+    }
+    #[tokio::test]
+    async fn player_change_during_capture_is_delivered_after_old_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let services = ControlServices::native(state.clone(), checked("server").unwrap());
+        let mut events = state.event_hub.subscribe_owner(Some(principal().device_id));
+        let snapshot = capture(&principal(), &services, events.boundary, || {
+            // The native publisher commits a new player observation after capture has
+            // read the player. Exercise the real coordinator subscription boundary.
+            let stamp = state.event_hub.reserve(Topic::Player);
+            let mut data = idle_player(0, 50., false).unwrap();
+            data.revision = stamp.revision.into();
+            data.phase = PlayerPhase::Playing;
+            state.event_hub.player(stamp, data, true);
+        })
+        .await
+        .unwrap();
+        let buffered = events.drain().unwrap();
+        assert_eq!(buffered.len(), 1);
+        if let RemoteEvent::Player { sequence, data, .. } = &buffered[0] {
+            assert!(sequence.value() > snapshot.sequence.value());
+            assert!(data.revision.value() > snapshot.player.revision.value());
+            assert_eq!(data.phase, PlayerPhase::Playing);
+        } else {
+            panic!()
+        }
+        assert!(events.drain().unwrap().is_empty());
+    }
+    #[tokio::test]
+    async fn superseded_buffered_topic_consumes_sequence_and_gap_requires_resync() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let services = ControlServices::native(state.clone(), checked("server").unwrap());
+        let mut events = state.event_hub.subscribe();
+        let snapshot = capture(&principal(), &services, events.boundary, || {
+            let mut queue = state.music.try_lock().unwrap();
+            queue.shuffle = true;
+            let stamp = state.event_hub.reserve(Topic::QueueSummary);
+            let copy = queue.snapshot();
+            drop(queue);
+            queue_changed(&state, &copy, stamp);
+        })
+        .await
+        .unwrap();
+        let buffered = events.drain().unwrap();
+        assert_eq!(buffered.len(), 1);
+        assert!(snapshot.queue_summary.shuffle);
+        let mut cursor = super::super::event_hub::RevisionCursor::new(&snapshot);
+        assert!(!cursor.accept(&buffered[0]).unwrap());
+        let stamp = state.event_hub.reserve(Topic::Player);
+        let data = idle_player(stamp.revision, 50., false).unwrap();
+        state.event_hub.player(stamp, data, true);
+        let next = events.drain().unwrap();
+        assert!(cursor.accept(&next[0]).unwrap());
+        assert_eq!(
+            cursor.accept(&next[0]).unwrap_err().code,
+            ErrorCode::ResyncRequired
+        );
+    }
+    #[tokio::test]
+    async fn unknown_outputs_are_not_fabricated_and_discovery_is_projected() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let services = ControlServices::native(state.clone(), checked("server").unwrap());
+        let before = snapshot(&principal(), &services).await.unwrap();
+        assert!(before.outputs.unavailable);
+        assert!(before.outputs.outputs.as_slice().is_empty());
+        outputs_discovered(
+            &state,
+            vec![native::AudioSinkDescriptor {
+                id: "hdmi".into(),
+                backend_name: "hdmi".into(),
+                name: "HDMI TV".into(),
+                available: true,
+            }],
+        );
+        let after = snapshot(&principal(), &services).await.unwrap();
+        assert_eq!(after.outputs.outputs.as_slice()[0].id.as_str(), "hdmi");
+        assert!(after.outputs.effective_output_id.is_none());
+    }
+    #[tokio::test]
+    async fn snapshot_and_subscription_require_browse_scope() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let services = ControlServices::native(state, checked("server").unwrap());
+        let principal = RemotePrincipal {
+            device_id: checked("phone").unwrap(),
+            scopes: checked(Vec::<Scope>::new()).unwrap(),
+        };
+        assert_eq!(
+            snapshot(&principal, &services).await.unwrap_err().code,
+            ErrorCode::Forbidden
+        );
+        assert!(
+            matches!(subscribe_with_snapshot(&principal,&services).await,Err(error) if error.code==ErrorCode::Forbidden)
+        );
+    }
+}

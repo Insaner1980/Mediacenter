@@ -360,7 +360,11 @@ pub(crate) async fn play_in_transition(
     if registry.is_none() {
         if let Some(id) = previous_id {
             // Queue reconciliation uses music -> player lock order.
+            let stamp = state
+                .event_hub
+                .reserve(crate::remote::protocol::Topic::Player);
             drop(registry);
+            publish_retired(&app, &state, &id, stamp);
             crate::music::service::clear_session(&app, &state, &id).await;
             registry = state.player.lock().await;
         }
@@ -373,8 +377,17 @@ pub(crate) async fn play_in_transition(
     }
     let session = player.session.clone();
     let session_id = session.id.clone();
+    let snapshot = player.snapshot.clone();
     *registry = Some(player);
+    let home_publication = crate::events::commit(&state, |home| {
+        home.sessions.retain(|s| !s.kind.starts_with("local-"));
+        home.sessions.push(session);
+    });
+    let stamp = state
+        .event_hub
+        .reserve(crate::remote::protocol::Topic::Player);
     drop(registry);
+    crate::remote::state::player_changed(&state, Some(&snapshot), stamp, true);
     // Monitor the registered process even if publishing, routing, or unpausing fails.
     tauri::async_runtime::spawn(observe(
         app.clone(),
@@ -383,10 +396,7 @@ pub(crate) async fn play_in_transition(
         events,
     ));
     let result = async {
-        crate::events::publish(&app, &state, |home| {
-            home.sessions.retain(|s| !s.kind.starts_with("local-"));
-            home.sessions.push(session);
-        })?;
+        home_publication?.emit(&app, &state);
         let target = state.snapshot()?.outputs.desired;
         let default_target = target.monitor_id.is_none() && target.audio_sink_id.is_none();
         let output =
@@ -416,7 +426,7 @@ pub(crate) async fn play_in_transition(
 }
 // A registered player is released only after its owned process has stopped.
 async fn retire(
-    app: &tauri::AppHandle,
+    _app: &tauri::AppHandle,
     state: &AppState,
     registry: &mut Option<Player>,
 ) -> Result<Option<String>, AppError> {
@@ -427,12 +437,21 @@ async fn retire(
     player.stop().await?;
     let id = player.session.id.clone();
     *registry = None;
-    crate::events::publish(app, state, |home| home.sessions.retain(|s| s.id != id))?;
-    let _ = app.emit_to("main", "player_changed", Option::<PlayerSnapshot>::None);
+
     saved?;
     Ok(Some(id))
 }
 
+fn publish_retired(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    id: &str,
+    stamp: crate::remote::event_hub::Stamp,
+) {
+    let _ = crate::events::publish(app, state, |home| home.sessions.retain(|s| s.id != id));
+    crate::remote::state::player_changed(state, None, stamp, true);
+    let _ = app.emit_to("main", "player_changed", Option::<PlayerSnapshot>::None);
+}
 fn apply(snapshot: &mut PlayerSnapshot, event: &Value) {
     if event["event"] != "property-change" {
         return;
@@ -524,6 +543,7 @@ async fn observe(
         let before = player.snapshot.phase.clone();
         let mut changed = false;
         let mut save_soon = false;
+        let mut immediate = false;
         let mut terminal = false;
         use std::os::unix::fs::MetadataExt;
         if player.media.lease.cancelled()
@@ -540,6 +560,9 @@ async fn observe(
         }
         while let Ok(event) = events.try_recv() {
             changed = true;
+            if event["event"] != "property-change" || event["name"] != "time-pos" {
+                immediate = true;
+            }
             if event["event"] == "ipc-disconnected" {
                 terminal = true;
                 break;
@@ -577,32 +600,61 @@ async fn observe(
                 player.snapshot.error = Some(error.message);
             }
         }
-        if changed {
+        let observation = if changed {
             player.snapshot.revision += 1;
-            let _ = app.emit_to("main", "player_changed", &player.snapshot);
-        }
-        if before != player.snapshot.phase {
+            Some((
+                player.snapshot.clone(),
+                state
+                    .event_hub
+                    .reserve(crate::remote::protocol::Topic::Player),
+            ))
+        } else {
+            None
+        };
+        let session = if before != player.snapshot.phase {
             player.session.phase = player.snapshot.phase.clone();
             let session = player.session.clone();
-            let _ = crate::events::publish(&app, &state, |home| {
+            crate::events::commit(&state, |home| {
                 if let Some(current) = home.sessions.iter_mut().find(|s| s.id == id) {
                     *current = session;
                 }
-            });
+            })
+            .ok()
+        } else {
+            None
+        };
+        let advance = !terminal && player.natural_end && player.media.kind == MediaKind::Audio;
+        let removed = if terminal {
+            let _ = retire(&app, &state, &mut registry).await;
+            registry.is_none().then(|| {
+                state
+                    .event_hub
+                    .reserve(crate::remote::protocol::Topic::Player)
+            })
+        } else {
+            None
+        };
+        drop(registry);
+        if let Some((snapshot, stamp)) = observation {
+            let _ = app.emit_to("main", "player_changed", &snapshot);
+            crate::remote::state::player_changed(
+                &state,
+                Some(&snapshot),
+                stamp,
+                immediate || save_soon || terminal,
+            );
         }
-        if !terminal && player.natural_end && player.media.kind == MediaKind::Audio {
-            drop(registry);
-            crate::music::on_end(app.clone(), state.clone(), id.clone()).await;
+        if let Some(publication) = session {
+            publication.emit(&app, &state);
+        }
+        if let Some(stamp) = removed {
+            publish_retired(&app, &state, &id, stamp);
+            crate::music::service::clear_session(&app, &state, &id).await;
             return;
         }
-        if terminal {
-            let _ = retire(&app, &state, &mut registry).await;
-            let removed = registry.is_none();
-            drop(registry);
-            if removed {
-                crate::music::service::clear_session(&app, &state, &id).await;
-                return;
-            }
+        if advance {
+            crate::music::on_end(app.clone(), state.clone(), id.clone()).await;
+            return;
         }
     }
 }
@@ -620,9 +672,14 @@ pub async fn control(
     let command = match action {
         PlayerAction::Stop => {
             let result = retire(app, state, &mut registry).await;
-            let removed = registry.is_none();
+            let removed = registry.is_none().then(|| {
+                state
+                    .event_hub
+                    .reserve(crate::remote::protocol::Topic::Player)
+            });
             drop(registry);
-            if removed {
+            if let Some(stamp) = removed {
+                publish_retired(app, state, id, stamp);
                 crate::music::service::clear_session(app, state, id).await;
             }
             return result.map(|_| ());
