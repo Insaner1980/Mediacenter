@@ -889,3 +889,286 @@ async fn refresh_on_same_socket_keeps_delivered_and_queued_event_sequences_conti
     }
     fixture.server.stop().await;
 }
+
+// Paused-time regressions use the actual WebSocket loop and native snapshot
+// capture. Observe only the transport boundary, without replacing dispatch.
+struct ObservedDuplex {
+    inner: tokio::io::DuplexStream,
+    blocked: Arc<std::sync::atomic::AtomicBool>,
+    read_bytes: Arc<std::sync::atomic::AtomicUsize>,
+}
+impl AsyncRead for ObservedDuplex {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let result = std::pin::Pin::new(&mut self.inner).poll_read(cx, buf);
+        self.read_bytes.fetch_add(
+            buf.filled().len() - before,
+            std::sync::atomic::Ordering::SeqCst,
+        );
+        result
+    }
+}
+impl AsyncWrite for ObservedDuplex {
+    fn poll_write(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        let result = std::pin::Pin::new(&mut self.inner).poll_write(cx, buf);
+        if result.is_pending() {
+            self.blocked
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        result
+    }
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let result = std::pin::Pin::new(&mut self.inner).poll_flush(cx);
+        if result.is_pending() {
+            self.blocked
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        result
+    }
+    fn poll_shutdown(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+struct TimedConnection {
+    _dir: tempfile::TempDir,
+    runtime: Arc<ServerRuntime>,
+    client: WebSocketStream<tokio::io::DuplexStream>,
+    server: tokio::task::JoinHandle<()>,
+    blocked: Arc<std::sync::atomic::AtomicBool>,
+    read_bytes: Arc<std::sync::atomic::AtomicUsize>,
+}
+impl Drop for TimedConnection {
+    fn drop(&mut self) {
+        self.server.abort();
+    }
+}
+async fn settle_timers() {
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+}
+impl TimedConnection {
+    async fn new() -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().join("app")).unwrap();
+        let identity = Arc::new(
+            ServerIdentity::load_or_create(
+                dir.path(),
+                IdentityNamespace::Development,
+                &mut state.db.lock().unwrap(),
+                1,
+            )
+            .unwrap(),
+        );
+        let runtime = ServerRuntime::new(
+            identity.clone(),
+            ControlServices::native(state.clone(), identity.id().clone()).unwrap(),
+        )
+        .unwrap();
+        let device:PairedDevice=checked(serde_json::json!({"deviceId":"phone","label":"Phone","scopes":["browse","playback"],"createdAtMs":1,"revoked":false})).unwrap();
+        let credential: BearerCredential = checked("a".repeat(43)).unwrap();
+        let (_, events) = {
+            let mut db = state.db.lock().unwrap();
+            RemoteStore::new(&mut db, identity.id())
+                .add_device(&device, &CredentialHash::from_credential(&credential))
+                .unwrap();
+            runtime
+                .auth
+                .authenticate_subscription(&mut db, &credential)
+                .unwrap()
+        };
+        let principal = RemotePrincipal {
+            device_id: device.device_id,
+            scopes: device.scopes,
+        };
+        let (server_io, client_io) = tokio::io::duplex(256);
+        let blocked = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let read_bytes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let server_socket = WebSocketStream::from_raw_socket(
+            ObservedDuplex {
+                inner: server_io,
+                blocked: blocked.clone(),
+                read_bytes: read_bytes.clone(),
+            },
+            Role::Server,
+            Some(websocket_config()),
+        )
+        .await;
+        let mut client = WebSocketStream::from_raw_socket(client_io, Role::Client, None).await;
+        let server = tokio::spawn(websocket(
+            server_socket,
+            runtime.clone(),
+            principal,
+            events,
+            CancellationToken::new(),
+        ));
+        for expected in ["hello", "snapshot"] {
+            let message = client.next().await.unwrap().unwrap();
+            let Message::Text(text) = message else {
+                panic!("initial control message required")
+            };
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&text).unwrap()["type"],
+                expected
+            );
+        }
+        settle_timers().await;
+        blocked.store(false, std::sync::atomic::Ordering::SeqCst);
+        Self {
+            _dir: dir,
+            runtime,
+            client,
+            server,
+            blocked,
+            read_bytes,
+        }
+    }
+    async fn pong_just_after_ping_tick(&mut self) -> tokio::time::Instant {
+        tokio::time::advance(std::time::Duration::from_secs(10)).await;
+        settle_timers().await;
+        assert!(matches!(
+            self.client.next().await.unwrap().unwrap(),
+            Message::Ping(_)
+        ));
+        tokio::time::advance(std::time::Duration::from_millis(1)).await;
+        let at = tokio::time::Instant::now();
+        self.client
+            .send(Message::Pong(Bytes::from_static(b"mc")))
+            .await
+            .unwrap();
+        settle_timers().await;
+        assert!(
+            self.read_bytes.load(std::sync::atomic::Ordering::SeqCst) > 0,
+            "server must actually receive the Pong"
+        );
+        at
+    }
+    async fn state_request(&mut self) {
+        self.read_bytes
+            .store(0, std::sync::atomic::Ordering::SeqCst);
+        self.client
+            .send(Message::Text(
+                r#"{"v":1,"id":"deadline","method":"state.get","params":{}}"#.into(),
+            ))
+            .await
+            .unwrap();
+        settle_timers().await;
+        assert!(
+            self.read_bytes.load(std::sync::atomic::Ordering::SeqCst) > 0,
+            "server must receive the request before advancing time"
+        );
+    }
+}
+#[tokio::test(start_paused = true)]
+async fn heartbeat_deadline_expires_thirty_seconds_after_pong_between_ping_ticks() {
+    let mut connection = TimedConnection::new().await;
+    let pong = connection.pong_just_after_ping_tick().await;
+    tokio::time::advance(std::time::Duration::from_millis(29999)).await;
+    settle_timers().await;
+    assert!(
+        !connection.server.is_finished(),
+        "must not expire before thirty seconds since valid Pong"
+    );
+    tokio::time::advance(std::time::Duration::from_millis(2)).await;
+    settle_timers().await;
+    assert_eq!(
+        tokio::time::Instant::now() - pong,
+        std::time::Duration::from_millis(30001)
+    );
+    assert!(
+        connection.server.is_finished(),
+        "heartbeat expiry must not wait for the next ten-second ping tick"
+    );
+}
+#[tokio::test(start_paused = true)]
+async fn heartbeat_deadline_interrupts_native_capture_and_blocked_event_write() {
+    for stalled_write in [false, true] {
+        let mut connection = TimedConnection::new().await;
+        connection.pong_just_after_ping_tick().await;
+        tokio::time::advance(std::time::Duration::from_secs(29)).await;
+        settle_timers().await;
+        let player_state = connection.runtime.state().player.clone();
+        let player = player_state.lock().await;
+        if stalled_write {
+            let hub = &connection.runtime.state().event_hub;
+            for _ in 0..16 {
+                let stamp = hub.reserve(Topic::Connection);
+                hub.publish(stamp, |server_epoch, sequence| RemoteEvent::Connection {
+                    server_epoch,
+                    sequence,
+                    data: ConnectionTopic {
+                        revision: stamp.revision.into(),
+                        server_device_id: connection.runtime.identity.id().clone(),
+                        display_name: checked("Mediacenter").unwrap(),
+                    },
+                });
+            }
+            settle_timers().await;
+            assert!(
+                connection.blocked.load(std::sync::atomic::Ordering::SeqCst),
+                "the event writer must actually stall"
+            );
+        } else {
+            connection.state_request().await;
+            assert!(
+                !connection.blocked.load(std::sync::atomic::Ordering::SeqCst),
+                "native capture, not a response write, must be pending"
+            );
+        }
+        tokio::time::advance(std::time::Duration::from_millis(1001)).await;
+        settle_timers().await;
+        assert!(
+            connection.server.is_finished(),
+            "heartbeat expiry must interrupt pending inner processing/writes"
+        );
+        drop(player);
+    }
+}
+#[tokio::test(start_paused = true)]
+async fn acknowledgement_deadline_combines_delayed_capture_and_blocked_reply() {
+    let mut connection = TimedConnection::new().await;
+    let player_state = connection.runtime.state().player.clone();
+    let player = player_state.lock().await;
+    let received_at = tokio::time::Instant::now();
+    connection.state_request().await;
+    tokio::time::advance(std::time::Duration::from_secs(4)).await;
+    settle_timers().await;
+    assert!(!connection.server.is_finished());
+    assert!(!connection.blocked.load(std::sync::atomic::Ordering::SeqCst));
+    drop(player);
+    settle_timers().await;
+    assert!(
+        connection.blocked.load(std::sync::atomic::Ordering::SeqCst),
+        "capture must finish and the real response writer must stall"
+    );
+    tokio::time::advance(std::time::Duration::from_millis(999)).await;
+    settle_timers().await;
+    assert!(
+        !connection.server.is_finished(),
+        "reply can use the remaining acknowledgement budget"
+    );
+    tokio::time::advance(std::time::Duration::from_millis(2)).await;
+    settle_timers().await;
+    assert_eq!(
+        tokio::time::Instant::now() - received_at,
+        std::time::Duration::from_millis(5001)
+    );
+    assert!(
+        connection.server.is_finished(),
+        "processing and reply delivery must share one five-second budget"
+    );
+}

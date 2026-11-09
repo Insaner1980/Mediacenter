@@ -471,7 +471,28 @@ async fn send<S: AsyncRead + AsyncWrite + Unpin>(
     cancel: &CancellationToken,
     revoked: &CancellationToken,
 ) -> Result<(), ()> {
-    tokio::select! { biased; _=cancel.cancelled()=>Err(()), _=revoked.cancelled()=>Err(()), sent=tokio::time::timeout(ACK_TIMEOUT,socket.send(message))=>sent.map_err(|_|()).and_then(|sent|sent.map_err(|_|())) }
+    send_until(
+        socket,
+        message,
+        cancel,
+        revoked,
+        tokio::time::Instant::now() + ACK_TIMEOUT,
+    )
+    .await
+}
+async fn send_until<S: AsyncRead + AsyncWrite + Unpin>(
+    socket: &mut WebSocketStream<S>,
+    message: Message,
+    cancel: &CancellationToken,
+    revoked: &CancellationToken,
+    deadline: tokio::time::Instant,
+) -> Result<(), ()> {
+    tokio::select! { biased;
+        _=cancel.cancelled()=>Err(()),
+        _=revoked.cancelled()=>Err(()),
+        _=tokio::time::sleep_until(deadline)=>Err(()),
+        sent=socket.send(message)=>sent.map_err(|_|()),
+    }
 }
 fn control_message(value: impl serde::Serialize) -> Result<Message, ()> {
     let text = serde_json::to_string(&value).map_err(|_| ())?;
@@ -486,7 +507,23 @@ async fn close<S: AsyncRead + AsyncWrite + Unpin>(
     cancel: &CancellationToken,
     revoked: &CancellationToken,
 ) {
-    let _ = send(
+    close_until(
+        socket,
+        reason,
+        cancel,
+        revoked,
+        tokio::time::Instant::now() + ACK_TIMEOUT,
+    )
+    .await;
+}
+async fn close_until<S: AsyncRead + AsyncWrite + Unpin>(
+    socket: &mut WebSocketStream<S>,
+    reason: &'static str,
+    cancel: &CancellationToken,
+    revoked: &CancellationToken,
+    deadline: tokio::time::Instant,
+) {
+    let _ = send_until(
         socket,
         Message::Close(Some(CloseFrame {
             code: CloseCode::Policy,
@@ -494,15 +531,43 @@ async fn close<S: AsyncRead + AsyncWrite + Unpin>(
         })),
         cancel,
         revoked,
+        deadline,
     )
     .await;
 }
 async fn websocket<S: AsyncRead + AsyncWrite + Unpin>(
+    socket: WebSocketStream<S>,
+    runtime: Arc<ServerRuntime>,
+    principal: RemotePrincipal,
+    events: Subscription,
+    cancel: CancellationToken,
+) {
+    let (pong_deadline, updates) =
+        tokio::sync::watch::channel(tokio::time::Instant::now() + PONG_TIMEOUT);
+    // This deadline surrounds the whole session, including snapshot capture,
+    // request handling and blocked writes. Ping cadence cannot postpone expiry.
+    tokio::select! { biased;
+        _=heartbeat_expired(updates)=>{},
+        _=websocket_session(socket,runtime,principal,events,cancel,pong_deadline)=>{},
+    }
+}
+async fn heartbeat_expired(mut updates: tokio::sync::watch::Receiver<tokio::time::Instant>) {
+    loop {
+        let deadline = *updates.borrow_and_update();
+        tokio::select! { biased;
+            // Consume an already published Pong reset before an old timer expiry.
+            changed=updates.changed()=>if changed.is_err() { return; },
+            _=tokio::time::sleep_until(deadline)=>return,
+        }
+    }
+}
+async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
     mut socket: WebSocketStream<S>,
     runtime: Arc<ServerRuntime>,
     principal: RemotePrincipal,
     events: Subscription,
     cancel: CancellationToken,
+    pong_deadline: tokio::sync::watch::Sender<tokio::time::Instant>,
 ) {
     let revoked = events.revocation();
     let initial = tokio::select! { biased;
@@ -553,7 +618,6 @@ async fn websocket<S: AsyncRead + AsyncWrite + Unpin>(
     let mut heartbeat =
         tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut last_pong = tokio::time::Instant::now();
     let mut transient = TransientRequests::default();
     loop {
         if let Err(error) = events.check_live() {
@@ -566,25 +630,27 @@ async fn websocket<S: AsyncRead + AsyncWrite + Unpin>(
             _=cancel.cancelled()=>return,
             _=revoked.cancelled()=>return,
             _=heartbeat.tick()=> {
-                if last_pong.elapsed()>=PONG_TIMEOUT { return; }
                 if send(&mut socket,Message::Ping(Bytes::from_static(b"mc")),&cancel,&revoked).await.is_err() { return; }
             }
             incoming=socket.next()=> {
                 let Some(Ok(incoming))=incoming else { return };
                 match incoming {
-                    Message::Pong(bytes)=> { if bytes.as_ref()==b"mc" { last_pong=tokio::time::Instant::now(); } },
+                    Message::Pong(bytes)=> { if bytes.as_ref()==b"mc" { pong_deadline.send_replace(tokio::time::Instant::now()+PONG_TIMEOUT); } },
                     Message::Ping(bytes)=> { if send(&mut socket,Message::Pong(bytes),&cancel,&revoked).await.is_err() { return; } },
                     Message::Close(_)=>return,
                     Message::Text(text)=> {
-                        if !rate.admit(Instant::now()) { close(&mut socket,"rate_limited",&cancel,&revoked).await; return; }
+                        // One elapsed-time budget includes parsing, native state
+                        // capture/dispatch, serialization and response delivery.
+                        let acknowledgement_deadline=tokio::time::Instant::now()+ACK_TIMEOUT;
+                        if !rate.admit(Instant::now()) { close_until(&mut socket,"rate_limited",&cancel,&revoked,acknowledgement_deadline).await; return; }
                         let request=match parse_request(&text) {
                             Ok(request)=>request,
                             Err(error)=> {
                                 let id=super::protocol::validate_document(&text,MAX_REQUEST_BYTES).ok().and_then(|v|v.get("id").cloned()).and_then(|v|checked::<Id,_>(v).ok());
-                                let Some(id)=id else { close(&mut socket,"invalid_request",&cancel,&revoked).await;return };
+                                let Some(id)=id else { close_until(&mut socket,"invalid_request",&cancel,&revoked,acknowledgement_deadline).await;return };
                                 let reply=RemoteReply::<serde_json::Value>::Failure{id,error};
                                 let Ok(message)=control_message(reply) else { return };
-                                if send(&mut socket,message,&cancel,&revoked).await.is_err() { return; } continue;
+                                if send_until(&mut socket,message,&cancel,&revoked,acknowledgement_deadline).await.is_err() { return; } continue;
                             }
                         };
                         let id=request.id.clone();
@@ -598,13 +664,18 @@ async fn websocket<S: AsyncRead + AsyncWrite + Unpin>(
                                         serde_json::to_value(snapshot).map_err(|_|RemoteError::invalid())
                                     } else { runtime.dispatcher.dispatch(&principal,request.clone()).await }
                                 };
-                                let result=tokio::select! { biased; _=cancel.cancelled()=>return, _=revoked.cancelled()=>return, result=tokio::time::timeout(ACK_TIMEOUT,work)=>result.unwrap_or_else(|_|Err(RemoteError::new(ErrorCode::Unavailable,"Request acknowledgement timed out."))) };
+                                let result=tokio::select! { biased;
+                                    _=cancel.cancelled()=>return,
+                                    _=revoked.cancelled()=>return,
+                                    _=tokio::time::sleep_until(acknowledgement_deadline)=>return,
+                                    result=work=>result,
+                                };
                                 transient.remember(&request,&result); result
                             }
                         };
                         let reply=match result { Ok(result)=>RemoteReply::Success{id,result},Err(error)=>RemoteReply::Failure{id,error} };
-                        let Ok(message)=control_message(reply) else { close(&mut socket,"resync_required",&cancel,&revoked).await;return };
-                        if send(&mut socket,message,&cancel,&revoked).await.is_err() { return; }
+                        let Ok(message)=control_message(reply) else { close_until(&mut socket,"resync_required",&cancel,&revoked,acknowledgement_deadline).await;return };
+                        if send_until(&mut socket,message,&cancel,&revoked,acknowledgement_deadline).await.is_err() { return; }
                     }
                     _=> { close(&mut socket,"invalid_request",&cancel,&revoked).await;return; }
                 }
