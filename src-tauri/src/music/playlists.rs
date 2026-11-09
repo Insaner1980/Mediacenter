@@ -131,7 +131,12 @@ pub fn revision(db: &Connection, id: &str) -> Result<PlaylistRevision, AppError>
         .query_row("SELECT revision FROM playlists WHERE id=?", [id], |r| {
             r.get(0)
         })
-        .map_err(|_| AppError::new("playlist_missing", "This playlist no longer exists."))?;
+        .map_err(|error| match error {
+            rusqlite::Error::QueryReturnedNoRows => {
+                AppError::new("playlist_missing", "This playlist no longer exists.")
+            }
+            error => AppError::from(error),
+        })?;
     Ok(PlaylistRevision {
         playlist_id: id.into(),
         revision: (value as u64).into(),
@@ -277,6 +282,20 @@ mod tests {
 #[cfg(test)]
 mod revision_tests {
     use super::*;
+    #[test]
+    fn revision_distinguishes_missing_playlist_from_database_query_failure() {
+        let db = Connection::open_in_memory().unwrap();
+        db.execute_batch(include_str!("../../migrations/0001_initial.sql"))
+            .unwrap();
+        db.execute_batch(include_str!("../../migrations/0002_remote_control.sql"))
+            .unwrap();
+        assert_eq!(
+            revision(&db, "missing").unwrap_err().code,
+            "playlist_missing"
+        );
+        db.execute("DROP TABLE playlists", []).unwrap();
+        assert_eq!(revision(&db, "missing").unwrap_err().code, "database_error");
+    }
     #[test]
     fn desktop_edits_advance_remote_revision_and_stale_edits_cannot_replace_content() {
         let dir = tempfile::tempdir().unwrap();
