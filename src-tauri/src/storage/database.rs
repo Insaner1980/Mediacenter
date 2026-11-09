@@ -13,19 +13,30 @@ pub fn migrate(connection: &mut Connection, backup_path: &Path, sql: &str) -> ru
 }
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let mut connection = Connection::open(path)?;
-    connection.pragma_update(None, "foreign_keys", "ON")?;
-    connection.pragma_update(None, "journal_mode", "WAL")?;
     connection.busy_timeout(std::time::Duration::from_secs(3))?;
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version == 0 {
-        migrate(
-            &mut connection,
-            &path.with_extension("pre-migration.db"),
-            include_str!("../../migrations/0001_initial.sql"),
-        )?;
-    }
-    if version > 1 {
+    // Inspect compatibility before journal_mode: enabling WAL rewrites the header.
+    if version > 2 {
         return Err(rusqlite::Error::InvalidQuery);
+    }
+    connection.pragma_update(None, "foreign_keys", "ON")?;
+    connection.pragma_update(None, "journal_mode", "WAL")?;
+    for (from, extension, sql) in [
+        (
+            0,
+            "pre-migration.db",
+            include_str!("../../migrations/0001_initial.sql"),
+        ),
+        (
+            1,
+            "pre-migration-v1.db",
+            include_str!("../../migrations/0002_remote_control.sql"),
+        ),
+    ] {
+        let current: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        if current == from {
+            migrate(&mut connection, &path.with_extension(extension), sql)?;
+        }
     }
     Ok(connection)
 }
@@ -33,6 +44,114 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn schema1(path: &Path) {
+        let db = Connection::open(path).unwrap();
+        db.execute_batch(include_str!("../../migrations/0001_initial.sql"))
+            .unwrap();
+        db.execute_batch(include_str!("../../tests/fixtures/schema1_content.sql"))
+            .unwrap();
+    }
+    fn preserved(db: &Connection) -> Vec<String> {
+        ["SELECT group_concat(id || ':' || hex(root) || ':' || availability) FROM media_sources",
+         "SELECT group_concat(id || ':' || source_id || ':' || hex(relative_path)) FROM media_items",
+         "SELECT group_concat(id || ':' || name || ':' || created_at_ms || ':' || updated_at_ms) FROM playlists",
+         "SELECT group_concat(playlist_id || ':' || ordinal || ':' || media_id) FROM playlist_items",
+         "SELECT group_concat(media_id || ':' || position_ms || ':' || duration_ms || ':' || updated_at_ms || ':' || completed) FROM resume_positions",
+         "SELECT group_concat(key || ':' || value_json || ':' || updated_at_ms) FROM settings"]
+         .iter().map(|sql| db.query_row(sql, [], |r| r.get(0)).unwrap()).collect()
+    }
+    #[test]
+    fn schema1_upgrade_preserves_all_content_and_reopens_idempotently() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("library.db");
+        schema1(&path);
+        let before = preserved(&Connection::open(&path).unwrap());
+        let db = open(&path).unwrap();
+        assert_eq!(
+            db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+        assert_eq!(preserved(&db), before);
+        assert_eq!(
+            db.query_row("SELECT revision FROM playlists", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT count(*) FROM remote_preferences WHERE enabled != 0",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            0
+        );
+        drop(db);
+        assert_eq!(preserved(&open(&path).unwrap()), before);
+        let backup = Connection::open(path.with_extension("pre-migration-v1.db")).unwrap();
+        assert_eq!(preserved(&backup), before);
+    }
+    #[test]
+    fn fresh_upgrade_retains_both_sequential_backups() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("library.db");
+        drop(open(&path).unwrap());
+        for (extension, version) in [("pre-migration.db", 0), ("pre-migration-v1.db", 1)] {
+            let backup = Connection::open(path.with_extension(extension)).unwrap();
+            assert_eq!(
+                backup
+                    .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                version
+            );
+        }
+    }
+    #[test]
+    fn future_schema_is_rejected_without_changing_journal_or_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("future.db");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch(
+            "CREATE TABLE future(value); INSERT INTO future VALUES('keep'); PRAGMA user_version=3;",
+        )
+        .unwrap();
+        drop(db);
+        let before = std::fs::read(&path).unwrap();
+        assert!(open(&path).is_err());
+        assert!(
+            std::fs::read(&path).unwrap() == before,
+            "future schema bytes changed"
+        );
+        assert!(!path.with_extension("db-wal").exists());
+    }
+    #[test]
+    fn interrupted_schema2_migration_rolls_back_fixture_and_keeps_usable_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("library.db");
+        schema1(&path);
+        let mut db = Connection::open(&path).unwrap();
+        let before = preserved(&db);
+        let backup = path.with_extension("pre-migration-v1.db");
+        assert!(migrate(
+            &mut db,
+            &backup,
+            &format!(
+                "{}\nDELETE FROM settings; INVALID SQL;",
+                include_str!("../../migrations/0002_remote_control.sql")
+            )
+        )
+        .is_err());
+        assert_eq!(preserved(&db), before);
+        assert_eq!(
+            db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(preserved(&Connection::open(&backup).unwrap()), before);
+        drop(db);
+        assert_eq!(preserved(&open(&path).unwrap()), before);
+    }
     #[test]
     fn migration_failure_preserves_previous_database() {
         let dir = tempfile::tempdir().unwrap();
