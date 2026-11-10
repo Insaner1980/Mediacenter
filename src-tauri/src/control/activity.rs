@@ -252,7 +252,34 @@ pub fn show_menu(app: &tauri::AppHandle) -> Result<(), AppError> {
         .ok_or_else(|| AppError::new("unavailable", "The menu window is unavailable."))?;
     focus_menu(&window)
 }
-pub async fn show_playback(state: &AppState, expected: &str) -> Result<(), AppError> {
+pub async fn show_playback(
+    app: Option<&tauri::AppHandle>,
+    state: &AppState,
+    expected: &str,
+) -> Result<(), AppError> {
+    show_playback_with(state, expected, |label| {
+        use tauri::Manager;
+        let window = app
+            .and_then(|app| app.get_webview_window(label))
+            .filter(|window| window.label() == label)
+            .ok_or_else(|| {
+                AppError::new(
+                    "presentation_unavailable",
+                    "The photo window is unavailable.",
+                )
+            })?;
+        focus_menu(&window)
+    })
+    .await
+}
+pub(crate) async fn show_playback_with<F>(
+    state: &AppState,
+    expected: &str,
+    photo: F,
+) -> Result<(), AppError>
+where
+    F: FnOnce(&str) -> Result<(), AppError>,
+{
     let player = state.player.lock().await;
     if let Some(player) = player.as_ref().filter(|p| p.session.id == expected) {
         if !player.identity.still_owned() {
@@ -279,6 +306,9 @@ pub async fn show_playback(state: &AppState, expected: &str) -> Result<(), AppEr
         return Ok(());
     }
     drop(player);
+    if crate::photos::presenter::foreground_session(state, expected, photo).await? {
+        return Ok(());
+    }
     let browser = state.browser.lock().await;
     let browser = browser
         .as_ref()
@@ -338,7 +368,10 @@ mod foreground_tests {
         let state = AppState::open(directory.path().into()).unwrap();
         let before = serde_json::to_value(state.snapshot().unwrap()).unwrap();
         assert_eq!(
-            show_playback(&state, "not-owned").await.unwrap_err().code,
+            show_playback(None, &state, "not-owned")
+                .await
+                .unwrap_err()
+                .code,
             "stale_state"
         );
         assert_eq!(

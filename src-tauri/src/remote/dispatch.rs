@@ -93,6 +93,7 @@ impl Dispatcher {
                     )
                     .map_err(native_error)?,
                     _ => crate::control::activity::show_playback(
+                        self.services.app(),
                         &self.services.state,
                         expected
                             .session_id

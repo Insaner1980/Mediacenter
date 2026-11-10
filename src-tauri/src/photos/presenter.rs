@@ -850,6 +850,27 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
     }
 }
 
+/// The photo guard protects both the exact session and its reusable presentation
+/// window against Stop/replacement until the synchronous native focus request is issued.
+pub(crate) async fn foreground_session<F>(
+    state: &AppState,
+    expected: &str,
+    foreground: F,
+) -> Result<bool, AppError>
+where
+    F: FnOnce(&str) -> Result<(), AppError>,
+{
+    let photos = state.photos.lock().await;
+    let Some(session) = photos.session.as_ref().filter(|s| s.id == expected) else {
+        return Ok(false);
+    };
+    if session.cancel.is_cancelled() {
+        return Err(AppError::new("stale_state", "The photo session ended."));
+    }
+    foreground(LABEL)?;
+    Ok(true)
+}
+
 #[cfg(test)]
 pub(crate) async fn seed_test_session(state: &AppState, id: &str) {
     state.photos.lock().await.session = Some(Session {
@@ -1360,5 +1381,97 @@ mod tests {
                 "unexpected presentation grant: {permission}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod foreground_tests {
+    use super::*;
+    #[tokio::test]
+    async fn task10_existing_photo_foregrounds_without_restart_image_or_output_change() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        seed_test_session(&state, "live-photo").await;
+        state
+            .photos
+            .lock()
+            .await
+            .session
+            .as_mut()
+            .unwrap()
+            .queue
+            .pause(true);
+        state.home.lock().unwrap().outputs.desired = crate::contracts::PlaybackTarget {
+            monitor_id: Some("existing-mirrored-desktop".into()),
+            audio_sink_id: Some("existing-hdmi".into()),
+        };
+        let before = snapshot(&state).await;
+        let home = serde_json::to_value(state.snapshot().unwrap()).unwrap();
+        let calls = std::sync::Mutex::new(Vec::new());
+        crate::control::activity::show_playback_with(&state, "live-photo", |label| {
+            assert!(
+                state.photos.try_lock().is_err(),
+                "photo ownership guard must outlive native focus"
+            );
+            calls.lock().unwrap().push(label.to_string());
+            Ok(())
+        })
+        .await
+        .unwrap();
+        assert_eq!(*calls.lock().unwrap(), ["presentation"]);
+        assert_eq!(snapshot(&state).await, before);
+        assert_eq!(
+            serde_json::to_value(state.snapshot().unwrap()).unwrap(),
+            home
+        );
+    }
+    #[tokio::test]
+    async fn task10_stale_photo_session_never_foregrounds_its_replacement_window() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        seed_test_session(&state, "replacement-photo").await;
+        let before = snapshot(&state).await;
+        let result = crate::control::activity::show_playback_with(&state, "stale-photo", |_| {
+            panic!("must not focus replacement")
+        })
+        .await;
+        assert_eq!(result.unwrap_err().code, "stale_state");
+        assert_eq!(snapshot(&state).await, before);
+    }
+    #[tokio::test]
+    async fn task10_cancelled_photo_or_missing_presentation_window_never_restarts_or_changes_image()
+    {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        seed_test_session(&state, "cancelled-photo").await;
+        state
+            .photos
+            .lock()
+            .await
+            .session
+            .as_ref()
+            .unwrap()
+            .cancel
+            .cancel();
+        let before = snapshot(&state).await;
+        let result =
+            crate::control::activity::show_playback_with(&state, "cancelled-photo", |_| {
+                panic!("cancelled session must not focus")
+            })
+            .await;
+        assert_eq!(result.unwrap_err().code, "stale_state");
+        assert_eq!(snapshot(&state).await, before);
+        seed_test_session(&state, "live-photo").await;
+        let before = snapshot(&state).await;
+        let result = crate::control::activity::show_playback_with(&state, "live-photo", |label| {
+            assert_eq!(label, "presentation");
+            Err(AppError::new(
+                "presentation_unavailable",
+                "Private missing-window fixture",
+            ))
+        })
+        .await;
+        assert_eq!(result.unwrap_err().code, "presentation_unavailable");
+        assert_eq!(snapshot(&state).await, before);
     }
 }
