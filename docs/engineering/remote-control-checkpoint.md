@@ -1,12 +1,12 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s request on 2026-11-10. Tasks 1–11 have completed source implementation and independent review. Task 17 has a partial Chrome experiment saved at `3e1588e`; manual test-profile installation is pending. Continue independent Task 12. Physical device acceptance remains outstanding.
+Resumed at the user’s request on 2026-11-10. Tasks 1–11 have completed source implementation and independent review. Task 17 has a partial Chrome experiment saved at `3e1588e`; manual test-profile installation is pending. Task 12 source implementation and final source gates are complete; its independent review is in progress. Physical device acceptance remains outstanding.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
 ## Resume
 
-Continue the plan `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` from **Task 12**, while retaining the pending **Task 17** browser installation step. Do not restart Tasks 1–11.
+Continue the plan `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` by finishing the active **Task 12 independent review**, then Task 13. Retain the pending **Task 17** browser installation step. Do not restart Tasks 1–11 or redispatch Task 12 implementation.
 
 Task 10's scoped re-review approved both fixes with zero open findings. Desktop source is `9cc72f1`, paired metadata `b3c2861`, and Android `fbca8d2`. Read its final report and `task-10-fix1-review.md` for APIs and evidence; do not redispatch its implementation.
 
@@ -79,4 +79,12 @@ Final native regression passed 324 tests, zero failures and four existing ignore
 
 The reviewed focus correction at `afc31cd` uses explicit list/row/grid sections, adjacent grid rows and prior stable-ID order for removal recovery. It passed 51 affected tests across ten files, build/typecheck, lint and generated DTO checks; actual RED/GREEN/check output is retained under `checkpoint-evidence/task11-fix1/`. Scoped re-review approved both findings without new issues. The earlier native 324 and Android 16 gates cover unchanged corresponding code. Real Tauri/phone/HDMI acceptance remains Task 21.
 
-Task 12 owns the composed phone Remote/Library/Settings pages, D-pad repeat/text entry, common phone confirmation sheet, complete playback/queue/photo flows and bounded thumbnail cache. The native thumbnail HTTP route already exists, but a fresh item currently receives no thumbnail ID until a desktop preview populates cache metadata. Task 12 must complete that minimal opaque-ID producer before claiming phone-only thumbnail browsing; preserve existing endpoint bounds, source-lease/fingerprint validation and desktop previews.
+Task 12 supplies the composed phone Remote/Library/Settings pages, D-pad repeat/text entry, common phone confirmation sheet, playback/queue/photo flows and bounded thumbnail cache. Its native opaque-ID producer completes fresh phone-only thumbnail browsing with source/version checks and unchanged desktop previews. Source gates are complete; independent review remains pending.
+
+## Task 12 source checkpoint — review pending
+
+Desktop source commits are `c00e5ca`, `f5070a6` and the final test fixture cleanup `30506a6`; paired metadata is `6877d9e`. Android source is `a1e775b`. Final Android verification passed **339 tests**, zero failures/errors/skips, Detekt, ktlint, fresh Android lint, APK assembly and instrumentation-test compilation. Actual shared Compose tests cover portrait, landscape and large font layout; physical phone testing has not run.
+
+The initial full native run passed 328 tests with four existing ignored cases. A later inode-identity correction passed its regression, eight real thumbnail tests, authenticated bounded/revocable HTTP fetch, Clippy and formatting; the broad run is not claimed for that later source. Protocol parity passes 88 methods with optional playlist query and schema hash `bfd145ef3eac74d3ca23e1ca26234ef4384a4f466d5759c2efef3f68eec7e2ae`. SDK/dependencies and desktop display/audio defaults are unchanged.
+
+Active reviewer `/root/task12_review` reads immutable `review-task12.diff` plus `review-task12-final-fixtures.diff`; write/read its verdict at `task-12-review.md` in the durable workspace. The supplement contains an already-tested fixture cleanup omitted from the first package, with production bytes unchanged. Final native eight-file and Android 38-file hash manifests identify tested source. Do not start Task 13 until the review gate is clear. Its brief/spec/context/dispatch are already prepared in the workspace.
