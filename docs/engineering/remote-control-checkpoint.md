@@ -1,12 +1,12 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s request on 2026-11-10. Tasks 1–12 have completed source implementation and independent review. Task 17 has a partial Chrome experiment saved at `3e1588e`; manual test-profile installation is pending. Continue independent Task 13; Task 12 has no open review findings. Physical device acceptance remains outstanding.
+Paused at the user’s explicit request on 2026-11-10 before computer shutdown. Tasks 1–12 have completed source implementation and independent review. Task 13 source gates passed, but independent review found one Important authorization issue. Resume its first fix round before Task 14. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding. Do not continue until the user resumes.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
 ## Resume
 
-Continue the plan `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` from **Task 13**. Retain the pending **Task 17** browser installation step. Do not restart Tasks 1–12.
+When the user resumes, continue `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` by reading **Task 13 review status** below and the latest ledger entries. Fix the single Important finding and obtain scoped re-review; then Task 14. Retain the pending **Task 17** browser installation step. Do not restart Tasks 1–12 or reimplement Task 13.
 
 Task 10's scoped re-review approved both fixes with zero open findings. Desktop source is `9cc72f1`, paired metadata `b3c2861`, and Android `fbca8d2`. Read its final report and `task-10-fix1-review.md` for APIs and evidence; do not redispatch its implementation.
 
@@ -90,3 +90,17 @@ The initial full native run passed 328 tests with four existing ignored cases. A
 The initial review found stale-confirmation handoff loss and live snapshots overwriting an active seek gesture. Fix `6906bae` preserves the validated workflow through explicit replacement confirmation and gives seek gestures session ownership. Its four observed RED cases then passed within 13 focused tests, Detekt, ktlint, fresh lint, APK and instrumentation compilation. Scoped `task-12-fix1-review.md` approved both findings with zero new/open issues. The earlier 339-test broad result is a separate snapshot and was not repeated after these localized fixes.
 
 Final native eight-file and Android 38-file hash manifests identify tested source. Continue Task 13 from its prepared brief/spec/context/dispatch; do not redo Task 12. The target page still needs Task 16 integration under the actual selector, and physical acceptance remains Task 21. Existing protobuf/Gradle warnings are nonblocking notes for the final branch review.
+
+## Task 13 shutdown checkpoint — one review fix remains
+
+Desktop source `7a4b8f6c21b1609b4ec58f5f69773da319838095`, Android `d40b9cda2dda7705e38817ebef7997d48028c274`, paired metadata `45b919a7d6150be3da6942cacaeb450d9907fc39`. All task source changes are committed. The native full run passed **343 tests**, zero failures and four existing ignored cases. Android passed **358 tests** across 71 suites, zero failures/errors/skips, Detekt, ktlint, fresh lint, APK assembly and instrumentation compilation. No physical acceptance has run.
+
+This adds opaque descriptor-bound folder selection, source addition/removal/UUID-less reattachment, scan progress/cancellation and cancellation recovery after phone process restart. Closed local scan-work metadata covers explicit scans and initial folder-add scans; it contains no action payload or path and retains the existing bounds/owner/epoch/no-replay rules. Native runtime capabilities are 62; canonical protocol stays at 88 methods and schema `bfd145ef3eac74d3ca23e1ca26234ef4384a4f466d5759c2efef3f68eec7e2ae`.
+
+Review input is the immutable `review-task13.diff` (179,631 bytes, SHA-256 `5ce3d26dd39dc389955395b474c07ecdb43024a630c92a2020d5ac7b7f81c5c2`) in the durable workspace. Independent `task-13-review.md` is complete: zero Critical, one Important, one Minor; spec issues and quality Needs fixes. The Important finding is that a prepared folder Add can survive removal of its only authorized root: stale-preview refresh and final grant checks validate descriptor/expiry but omit current root authorization. No fix was started before shutdown.
+
+On resume, read the fix-loop instructions and send this finding verbatim to original implementer `/root/task13_folders` for round 1/5, add the targeted root-revocation regression, then obtain scoped re-review. Review bases are desktop `45b919a` and Android `d40b9cd`; subsequent checkpoint commits change documentation only. The Minor finding is known baseline Android build/runtime warnings, tracked for final maintenance review. No Task 14 implementation has started. Do not mark Task 13 complete from its passing tests.
+
+Exact source manifests (`task-13-native-source-manifest.json`, 12 files; `task-13-android-source-manifest.json`, 24 files), `task-13-report.md`, actual gate logs and JUnit summaries remain in the durable workspace. Current helper scripts are copied under `resume-tools/` for reboot recovery. Task 14 brief/spec/context are prepared; supplement its context with the final Task 13 API handoff before dispatch.
+
+Pause status: all implementation/review agents are stopped. No test/build commands remain running. The next action is the Task 13 authorization fix, with Tasks 1–12 kept complete.
