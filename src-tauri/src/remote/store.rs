@@ -117,7 +117,17 @@ impl<'a> RemoteStore<'a> {
     /// Local setup projection only; hashes never leave the store.
     pub fn active_devices(&self) -> Result<Vec<PairedDevice>> {
         let mut statement=self.db.prepare("SELECT device_id,label,scopes_json,created_at_ms,last_seen_at_ms FROM paired_devices WHERE server_identity=? AND revoked_at_ms IS NULL ORDER BY created_at_ms,device_id LIMIT 8")?;
-        let rows=statement.query_map([self.identity.as_str()],|r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,i64>(3)?,r.get::<_,Option<i64>>(4)?)))?.collect::<std::result::Result<Vec<_>,_>>()?;
+        let rows = statement
+            .query_map([self.identity.as_str()], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, Option<i64>>(4)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
         rows.into_iter().map(|(id,label,scopes,created,seen)| {
             let scopes:ScopeSet=decode(&scopes)?;
             serde_json::from_value(serde_json::json!({"deviceId":id,"label":label,"scopes":scopes,"createdAtMs":created,"lastSeenAtMs":seen,"revoked":false})).map_err(|_|error("database_error"))

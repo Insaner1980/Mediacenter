@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-begin-remote-pairing"
+description = "Enables the begin_remote_pairing command without any pre-configured scope."
+commands.allow = ["begin_remote_pairing"]
+
+[[permission]]
+identifier = "deny-begin-remote-pairing"
+description = "Denies the begin_remote_pairing command without any pre-configured scope."
+commands.deny = ["begin_remote_pairing"]

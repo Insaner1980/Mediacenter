@@ -48,6 +48,10 @@ pub fn default_port(namespace: super::tls::IdentityNamespace) -> u16 {
     }
 }
 impl BindAddresses {
+    #[cfg(test)]
+    pub(super) fn loopback_fixture(port: u16) -> Self {
+        Self(vec![SocketAddr::from(([127, 0, 0, 1], port))])
+    }
     pub fn selected(
         addresses: Vec<SocketAddr>,
         local_addresses: &[IpAddr],
@@ -120,21 +124,41 @@ impl ServerRuntime {
             .map_err(|_| dispatch::unavailable())?
             .begin(addresses, port)
     }
-    pub(super) fn identity(&self) -> &Arc<ServerIdentity> { &self.identity }
+    pub(super) fn identity(&self) -> &Arc<ServerIdentity> {
+        &self.identity
+    }
     pub fn cancel_pairing(&self, attempt: &Id) -> Result<(), RemoteError> {
-        self.pairing.lock().map_err(|_| dispatch::unavailable())?.close_attempt(attempt);
+        self.pairing
+            .lock()
+            .map_err(|_| dispatch::unavailable())?
+            .close_attempt(attempt);
         Ok(())
     }
     pub fn pairing_status(&self) -> Result<Option<(Id, std::time::Duration)>, RemoteError> {
-        Ok(self.pairing.lock().map_err(|_| dispatch::unavailable())?.active_attempt())
+        Ok(self
+            .pairing
+            .lock()
+            .map_err(|_| dispatch::unavailable())?
+            .active_attempt())
     }
     pub fn list_devices(&self) -> Result<Vec<PairedDevice>, RemoteError> {
-        let mut db=self.state().db.lock().map_err(|_|dispatch::unavailable())?;
-        super::store::RemoteStore::new(&mut db,self.identity.id()).active_devices().map_err(dispatch::native_error)
+        let mut db = self
+            .state()
+            .db
+            .lock()
+            .map_err(|_| dispatch::unavailable())?;
+        super::store::RemoteStore::new(&mut db, self.identity.id())
+            .active_devices()
+            .map_err(dispatch::native_error)
     }
-    pub fn revoke_device(&self, device:&Id) -> Result<(), RemoteError> {
-        let mut db=self.state().db.lock().map_err(|_|dispatch::unavailable())?;
-        self.auth.revoke_device(&mut db,device,crate::app_state::now_ms() as i64)?;
+    pub fn revoke_device(&self, device: &Id) -> Result<(), RemoteError> {
+        let mut db = self
+            .state()
+            .db
+            .lock()
+            .map_err(|_| dispatch::unavailable())?;
+        self.auth
+            .revoke_device(&mut db, device, crate::app_state::now_ms() as i64)?;
         Ok(())
     }
     fn state(&self) -> &crate::app_state::AppState {

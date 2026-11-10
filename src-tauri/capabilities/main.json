@@ -53,6 +53,12 @@
     "allow-request-exit",
     "allow-get-diagnostics",
     "allow-export-diagnostics",
-    "allow-set-control-monitor"
+    "allow-set-control-monitor",
+    "allow-get-remote-settings",
+    "allow-set-remote-enabled",
+    "allow-begin-remote-pairing",
+    "allow-cancel-remote-pairing",
+    "allow-list-remote-devices",
+    "allow-revoke-remote-device"
   ]
 }

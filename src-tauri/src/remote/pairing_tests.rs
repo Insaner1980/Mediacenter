@@ -152,3 +152,24 @@ fn endpoint_rejects_ambiguous_or_unbounded_documents() {
         assert!(parse_pair_request(&input).is_err());
     }
 }
+
+#[test]
+fn desktop_status_hides_expired_consumed_and_canceled_attempts_without_canceling_a_newer_one() {
+    let (_dir, mut db, mut manager) = setup();
+    let old = begin(&mut manager);
+    let current = begin(&mut manager);
+    manager.close_attempt(&old.candidate.attempt_id);
+    let (id, remaining) = manager.active_attempt().unwrap();
+    assert_eq!(id, current.candidate.attempt_id);
+    assert!(remaining > Duration::from_secs(119));
+    manager
+        .pair_qr(peer(1), &request(&current), &mut db, 100)
+        .unwrap();
+    assert!(manager.active_attempt().is_none());
+    begin(&mut manager);
+    manager.advance_for_test(Duration::from_secs(120));
+    assert!(manager.active_attempt().is_none());
+    let cancel = begin(&mut manager);
+    manager.close_attempt(&cancel.candidate.attempt_id);
+    assert!(manager.active_attempt().is_none());
+}

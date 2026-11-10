@@ -183,10 +183,22 @@
           "markdownDescription": "Enables the add_media_source command without any pre-configured scope."
         },
         {
+          "description": "Enables the begin_remote_pairing command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-begin-remote-pairing",
+          "markdownDescription": "Enables the begin_remote_pairing command without any pre-configured scope."
+        },
+        {
           "description": "Enables the cancel_operation command without any pre-configured scope.",
           "type": "string",
           "const": "allow-cancel-operation",
           "markdownDescription": "Enables the cancel_operation command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the cancel_remote_pairing command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-cancel-remote-pairing",
+          "markdownDescription": "Enables the cancel_remote_pairing command without any pre-configured scope."
         },
         {
           "description": "Enables the cancel_source_scan command without any pre-configured scope.",
@@ -309,6 +321,12 @@
           "markdownDescription": "Enables the get_presentation_frame command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_remote_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-remote-settings",
+          "markdownDescription": "Enables the get_remote_settings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_slideshow command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-slideshow",
@@ -343,6 +361,12 @@
           "type": "string",
           "const": "allow-list-playlists",
           "markdownDescription": "Enables the list_playlists command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_remote_devices command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-remote-devices",
+          "markdownDescription": "Enables the list_remote_devices command without any pre-configured scope."
         },
         {
           "description": "Enables the list_vpn_countries command without any pre-configured scope.",
@@ -429,6 +453,12 @@
           "markdownDescription": "Enables the rescan_source command without any pre-configured scope."
         },
         {
+          "description": "Enables the revoke_remote_device command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-revoke-remote-device",
+          "markdownDescription": "Enables the revoke_remote_device command without any pre-configured scope."
+        },
+        {
           "description": "Enables the save_playlist command without any pre-configured scope.",
           "type": "string",
           "const": "allow-save-playlist",
@@ -445,6 +475,12 @@
           "type": "string",
           "const": "allow-set-control-monitor",
           "markdownDescription": "Enables the set_control_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_remote_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-remote-enabled",
+          "markdownDescription": "Enables the set_remote_enabled command without any pre-configured scope."
         },
         {
           "description": "Enables the set_theme command without any pre-configured scope.",
@@ -471,10 +507,22 @@
           "markdownDescription": "Denies the add_media_source command without any pre-configured scope."
         },
         {
+          "description": "Denies the begin_remote_pairing command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-begin-remote-pairing",
+          "markdownDescription": "Denies the begin_remote_pairing command without any pre-configured scope."
+        },
+        {
           "description": "Denies the cancel_operation command without any pre-configured scope.",
           "type": "string",
           "const": "deny-cancel-operation",
           "markdownDescription": "Denies the cancel_operation command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel_remote_pairing command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-cancel-remote-pairing",
+          "markdownDescription": "Denies the cancel_remote_pairing command without any pre-configured scope."
         },
         {
           "description": "Denies the cancel_source_scan command without any pre-configured scope.",
@@ -597,6 +645,12 @@
           "markdownDescription": "Denies the get_presentation_frame command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_remote_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-remote-settings",
+          "markdownDescription": "Denies the get_remote_settings command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_slideshow command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-slideshow",
@@ -631,6 +685,12 @@
           "type": "string",
           "const": "deny-list-playlists",
           "markdownDescription": "Denies the list_playlists command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_remote_devices command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-remote-devices",
+          "markdownDescription": "Denies the list_remote_devices command without any pre-configured scope."
         },
         {
           "description": "Denies the list_vpn_countries command without any pre-configured scope.",
@@ -717,6 +777,12 @@
           "markdownDescription": "Denies the rescan_source command without any pre-configured scope."
         },
         {
+          "description": "Denies the revoke_remote_device command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-revoke-remote-device",
+          "markdownDescription": "Denies the revoke_remote_device command without any pre-configured scope."
+        },
+        {
           "description": "Denies the save_playlist command without any pre-configured scope.",
           "type": "string",
           "const": "deny-save-playlist",
@@ -733,6 +799,12 @@
           "type": "string",
           "const": "deny-set-control-monitor",
           "markdownDescription": "Denies the set_control_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_remote_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-remote-enabled",
+          "markdownDescription": "Denies the set_remote_enabled command without any pre-configured scope."
         },
         {
           "description": "Denies the set_theme command without any pre-configured scope.",

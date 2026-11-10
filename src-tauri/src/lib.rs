@@ -29,6 +29,12 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            remote::setup::get_remote_settings,
+            remote::setup::set_remote_enabled,
+            remote::setup::begin_remote_pairing,
+            remote::setup::cancel_remote_pairing,
+            remote::setup::list_remote_devices,
+            remote::setup::revoke_remote_device,
             commands::list_outputs,
             commands::select_output,
             commands::move_session,
@@ -82,9 +88,27 @@ pub fn run() {
             let mut state = app_state::AppState::open(app.path().app_data_dir()?)
                 .map_err(|error| std::io::Error::other(error.message))?;
             state.cache_dir = app.path().app_cache_dir()?;
+            let server = std::sync::Arc::new(remote::server::RemoteServer::default());
+            let namespace = if cfg!(debug_assertions) {
+                remote::tls::IdentityNamespace::Development
+            } else {
+                remote::tls::IdentityNamespace::Production
+            };
+            let setup = remote::setup::RemoteSetup::new(
+                Some(app.handle().clone()),
+                state.clone(),
+                server,
+                namespace,
+            );
             app.manage(state);
-            // Native setup owns explicit identity/network selection and enablement.
-            app.manage(remote::server::RemoteServer::default());
+            app.manage(setup.clone());
+            // One runtime performs recovery once and survives network rebinds.
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    setup.reconcile().await;
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+            });
             tauri::async_runtime::spawn(outputs::audio::subscribe(
                 app.handle().clone(),
                 app.state::<app_state::AppState>().inner().clone(),

@@ -1,6 +1,12 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "get_remote_settings",
+            "set_remote_enabled",
+            "begin_remote_pairing",
+            "cancel_remote_pairing",
+            "list_remote_devices",
+            "revoke_remote_device",
             "list_outputs",
             "select_output",
             "move_session",
