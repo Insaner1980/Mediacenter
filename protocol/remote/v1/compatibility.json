@@ -4,7 +4,7 @@
   "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
   "androidSdkMajor": 37,
   "note": "These paired sources use the tested shared contract including typed transient foreground acknowledgements. Renderer navigation and shared confirmation gates are recorded separately; canonical contract bytes are unchanged. This is not a fully integrated or physically accepted remote-control release.",
-  "desktopSourceCommit": "0f4d040e867c33301ea51d9e49c5768d1fa28a64",
+  "desktopSourceCommit": "afc31cd4f3ad3a3e8c485446ffb0fcc0f63ae438",
   "androidSourceCommit": "b95505de2a58162c17a1cb6d8279323baad6d420",
   "schemaSha256": "d658222be2962dc3859c001c154d7f7626946bee14d47972c36bab2ed195266e",
   "scope": "contract_only",
