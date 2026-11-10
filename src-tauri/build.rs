@@ -1,6 +1,11 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "register_remote_renderer",
+            "update_remote_renderer",
+            "acknowledge_remote_renderer",
+            "get_renderer_confirmations",
+            "resolve_renderer_confirmation",
             "get_remote_settings",
             "set_remote_enabled",
             "begin_remote_pairing",

@@ -24,3 +24,5 @@ pub mod setup;
 pub mod browser_protocol;
 
 pub mod media;
+
+pub mod renderer;

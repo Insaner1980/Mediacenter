@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resolve-renderer-confirmation"
+description = "Enables the resolve_renderer_confirmation command without any pre-configured scope."
+commands.allow = ["resolve_renderer_confirmation"]
+
+[[permission]]
+identifier = "deny-resolve-renderer-confirmation"
+description = "Denies the resolve_renderer_confirmation command without any pre-configured scope."
+commands.deny = ["resolve_renderer_confirmation"]

@@ -1,6 +1,6 @@
 button,input,select,textarea {font:inherit;color:inherit;min-width:0}
 button {cursor:pointer}button:disabled{cursor:default;opacity:.5}
-:focus-visible {outline:3px solid var(--ink);outline-offset:3px}
+:focus-visible, [data-remote-focused="true"]:focus {outline:3px solid var(--ink);outline-offset:3px}
 .control,.icon-button {min-height:44px;border:1px solid var(--border);border-radius:8px;padding:8px 16px;background:transparent;font-size:20px;line-height:1.3;display:inline-flex;align-items:center;justify-content:center;gap:10px}
 .control:hover,.icon-button:hover{background:var(--hover)}.control.primary,.control[aria-pressed=true]{background:var(--ink);color:var(--surface)}
 .icon-button {min-width:44px;padding:8px;border:0}.text-button{border:0;background:transparent;display:inline-flex;gap:12px;align-items:center;min-height:44px;padding:4px 0;font-size:20px;font-weight:600}

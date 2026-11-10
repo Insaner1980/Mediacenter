@@ -143,15 +143,7 @@ async fn capture(
         outputs,
         sources_summary,
         vpn,
-        ui: UiTopic {
-            revision: 0.into(),
-            available: false,
-            renderer_generation: None,
-            route: None,
-            modal_id: None,
-            focus_id: None,
-            focus_revision: None,
-        },
+        ui: state.renderer.snapshot(state.event_hub.revision(Topic::Ui)),
         operations,
     })
 }

@@ -1,3 +1,5 @@
+import {RemoteNavigationOrigin} from './navigation';
+import {RemoteNavigationBridge} from '../features/remote/RemoteNavigationBridge';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {SlideshowProvider} from '../features/photos/SlideshowProvider';
 import {SlideshowStrip} from '../features/photos/SlideshowControls';
@@ -28,11 +30,14 @@ function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationS
   const {backend,subscribeHome,canUseMedia}=useAppServices();
   const [snapshot,setSnapshot] = useState(initial);
   const [screen,setScreen] = useState<Screen|'streaming'>(initialNavigation?.route??'home');
+  const [remoteNavigation,setRemoteNavigation]=useState(false);
+  const routeHistory=useRef<Array<Screen|'streaming'>>([]);
   const [settingsSection,setSettingsSection]=useState<SettingsSection|null>(initialNavigation?.settingsSection??null);
   const [musicTab,setMusicTab]=useState<MusicTab>(initialNavigation?.musicTab??'library');
   const guard=useRef<NavigationGuard|null>(null);
   const register=useCallback((value:NavigationGuard|null)=>{guard.current=value;},[]);
-  function navigate(route:Screen|'streaming'){const go=()=>setScreen(route);if(guard.current)guard.current(go);else go();}
+  function navigate(route:Screen|'streaming',remote=false){const go=()=>{if(route!==screen)routeHistory.current.push(screen);setRemoteNavigation(remote);setScreen(route);};if(guard.current)guard.current(go);else go();}
+  function remoteBack(){const go=()=>{setRemoteNavigation(true);setScreen(routeHistory.current.pop()??'home');};if(guard.current)guard.current(go);else go();}
   const [busy,setBusy]=useState(false);
   const [message,setMessage] = useState('');
   useEffect(()=>{
@@ -59,10 +64,10 @@ function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationS
     document.documentElement.dataset.theme=value;
     setSnapshot(s=>({...s,theme:value}));
   }
-  return <NavigationGuardProvider register={register}><AppShell snapshot={snapshot} route={screen} onNavigate={navigate} onOpenSettings={section=>{setSettingsSection(section??null);navigate('settings');}} player={<SlideshowStrip/>} >
+  return <RemoteNavigationOrigin.Provider value={remoteNavigation}><NavigationGuardProvider register={register}><RemoteNavigationBridge route={screen} navigate={route=>{if(route==='settings')setSettingsSection(null);navigate(route,true);}} back={remoteBack}/><AppShell snapshot={snapshot} route={screen} onNavigate={navigate} onOpenSettings={section=>{setSettingsSection(section??null);navigate('settings');}} player={<SlideshowStrip/>} >
     {screen==='home'?<HomeScreen snapshot={snapshot} onAction={action} message={message} onPlaybackControls={()=>{setScreen('streaming');setMessage('');}}/>:
     <section className="screen">{screen==='streaming'?<><StreamingSession session={snapshot.sessions.find(s=>s.kind==='streaming')} services={snapshot.services}/><OutputSettings output={snapshot.outputs} session={snapshot.sessions.find(s=>s.kind==='streaming')}/></>:<>{screen==='settings'?<SettingsScreen snapshot={snapshot} onThemeChange={theme} initialSection={settingsSection}/>:screen==='drives'?<DrivesScreen/>:screen==='audio'?<MusicScreen tab={musicTab} onTabChange={setMusicTab}/>:screen==='photo'?<PhotosScreen/>:<VideosScreen onPlay={play}/>}</>}{message&&<p role="alert" className="message">{message}</p>}</section>}
-  </AppShell></NavigationGuardProvider>;
+  </AppShell></NavigationGuardProvider></RemoteNavigationOrigin.Provider>;
 }
 
 export function MainApp(props:{initialNavigation?:Partial<NavigationState>}){return <SourceManagerProvider><PlaybackProvider><SlideshowProvider><MainContent {...props}/></SlideshowProvider></PlaybackProvider></SourceManagerProvider>;}

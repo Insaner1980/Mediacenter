@@ -1,10 +1,12 @@
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {RemoteNavigationOrigin} from '../../app/navigation';
+import {useCallback,useEffect,useRef,useState,useContext} from 'react';
 import {useAppServices} from '../../app/AppServices';
 import {backend,errorMessage} from '../../app/backend';
 import type {MediaKind,MediaPage,MediaSource} from '../../app/contracts';
 import {useOptionalSources} from './SourceManagerProvider';
 
 export function useMediaLibrary(kind:MediaKind,apiOverride?:typeof backend){
+ const remoteNavigation=useContext(RemoteNavigationOrigin);
  const services=useAppServices(),api=apiOverride??services.backend,shared=useOptionalSources();
  const [query,setQueryValue]=useState(''),[sourceId,setSource]=useState<string|null>(null),[cursor,setCursor]=useState<string|null>(null),[history,setHistory]=useState<(string|null)[]>([]),[page,setPage]=useState<MediaPage>({items:[],nextCursor:null}),[sources,setSources]=useState<MediaSource[]>([]),[loading,setLoading]=useState(true),[stale,setStale]=useState(true),[error,setError]=useState<string|null>(null),[actionError,setActionError]=useState<string|null>(null),[version,setVersion]=useState(0),[initializing,setInitializing]=useState(true),[opening,setOpening]=useState(false);
  const sharedRef=useRef(shared),selection=useRef(0),openLock=useRef(false),mounted=useRef(true);
@@ -20,13 +22,14 @@ export function useMediaLibrary(kind:MediaKind,apiOverride?:typeof backend){
  },[api]);
  useEffect(()=>{
   if(!services.canUseMedia&&!apiOverride){setInitializing(false);setLoading(false);return;}
+  if(remoteNavigation){setInitializing(false);return;}
   let active=true;const ticket=selection.current;setInitializing(true);
   void (api.ensureDefaultSource?.(kind)??Promise.resolve(null)).then(async id=>{
    if(!active||ticket!==selection.current)return;
    if(id){setSource(id);reset();setInitializing(false);await sharedRef.current?.refresh();if(active)void scan(id);}
   }).catch(e=>{if(active&&ticket===selection.current)setActionError(errorMessage(e));}).finally(()=>{if(active)setInitializing(false);});
   return()=>{active=false;};
- },[api,apiOverride,services.canUseMedia,kind,reset,scan]);
+ },[api,apiOverride,services.canUseMedia,kind,reset,scan,remoteNavigation]);
  useEffect(()=>{let active=true;if(shared){setSources(shared.sources);return;}if(!services.canUseMedia&&!apiOverride){setLoading(false);return;}void api.sources().then(value=>{if(active)setSources(value);}).catch(e=>{if(active)setError(errorMessage(e));});return()=>{active=false;};},[api,apiOverride,services.canUseMedia,shared,version]);
  useEffect(()=>{reset();},[revision,reset]);
  useEffect(()=>{

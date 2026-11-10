@@ -30,7 +30,7 @@ pub(crate) fn unavailable() -> RemoteError {
     )
 }
 pub fn capabilities() -> Capabilities {
-    checked(serde_json::json!({"methods":["state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback"],"services":[],"browserBridge":false})).expect("static capabilities")
+    checked(serde_json::json!({"methods":["state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback","ui.navigate","ui.moveFocus","ui.activate","ui.back","ui.search"],"services":[],"browserBridge":false})).expect("static capabilities")
 }
 fn value(value: impl serde::Serialize) -> Result<serde_json::Value, RemoteError> {
     serde_json::to_value(value).map_err(|_| RemoteError::invalid())
@@ -69,7 +69,34 @@ impl Dispatcher {
         request: RemoteRequest,
     ) -> Result<serde_json::Value, RemoteError> {
         Self::authorize(principal, &request)?;
+        let confirmations_changed = matches!(
+            request.command,
+            RemoteCommand::ActivityPrepare(_)
+                | RemoteCommand::ActivityConfirm(_)
+                | RemoteCommand::AudioPrepare(_)
+                | RemoteCommand::AudioConfirm(_)
+                | RemoteCommand::ConfirmationsCancel(_)
+        );
+        let result = self.dispatch_inner(principal, request).await;
+        if confirmations_changed {
+            self.present_confirmations();
+        }
+        result
+    }
+    async fn dispatch_inner(
+        &self,
+        principal: &RemotePrincipal,
+        request: RemoteRequest,
+    ) -> Result<serde_json::Value, RemoteError> {
         match &request.command {
+            RemoteCommand::UiNavigate(_)
+            | RemoteCommand::UiMoveFocus(_)
+            | RemoteCommand::UiActivate(_)
+            | RemoteCommand::UiBack(_)
+            | RemoteCommand::UiSearch(_) => {
+                self.renderer_input(principal, request, principal.device_id.as_str())
+                    .await
+            }
             RemoteCommand::CapabilitiesGet(_) => value(capabilities()),
             RemoteCommand::AudioOutputs(_)
             | RemoteCommand::AudioPrepare(_)
@@ -1277,5 +1304,32 @@ mod task10_tests {
             .unwrap();
         assert_eq!(operation.status, OperationStatus::Failed);
         assert_eq!(operation.error_code, Some(ErrorCode::Unavailable));
+    }
+}
+
+#[cfg(test)]
+mod task11_tests {
+    use super::*;
+    #[tokio::test]
+    async fn task11_ui_without_renderer_is_unavailable_and_never_journaled() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = crate::app_state::AppState::open(dir.path().into()).unwrap();
+        let dispatcher = Dispatcher::new(
+            ControlServices::native(state.clone(), checked("server").unwrap()).unwrap(),
+        );
+        let owner =
+            checked(serde_json::json!({"deviceId":"phone","scopes":["navigation"]})).unwrap();
+        let request = parse_request(&serde_json::json!({"v":1,"id":"move","method":"ui.moveFocus","params":{"rendererGeneration":"1","focusRevision":"1","direction":"down"},"expected":{"serverEpoch":state.event_hub.epoch()}}).to_string()).unwrap();
+        assert_eq!(
+            dispatcher.dispatch(&owner, request).await.unwrap_err().code,
+            ErrorCode::RendererUnavailable
+        );
+        let count: i64 = state
+            .db
+            .lock()
+            .unwrap()
+            .query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
     }
 }

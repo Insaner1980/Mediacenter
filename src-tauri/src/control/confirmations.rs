@@ -27,6 +27,21 @@ pub struct Confirmations {
     pub(crate) automatic: std::collections::HashMap<(String, String), u64>,
 }
 impl Confirmations {
+    pub fn previews(&self, now: u64) -> Vec<ConfirmationPreview> {
+        let mut previews = self
+            .pending
+            .values()
+            .filter(|p| p.operation.is_none() && p.expires_at > now)
+            .filter_map(|p| {
+                self.get(&p.preview.owner_device_id, &p.preview.confirmation_id, now)
+                    .ok()
+                    .map(|p| p.preview)
+            })
+            .collect::<Vec<_>>();
+        previews.sort_by(|a, b| a.confirmation_id.as_str().cmp(b.confirmation_id.as_str()));
+        previews
+    }
+
     pub fn get(&self, owner: &Id, id: &Id, now: u64) -> Result<Pending, RemoteError> {
         let pending = self
             .pending

@@ -73,7 +73,7 @@ fn private_address(ip: IpAddr) -> bool {
 /// Identity is loaded before ControlServices; recovery occurs once before admission.
 pub struct ServerRuntime {
     identity: Arc<ServerIdentity>,
-    dispatcher: Dispatcher,
+    pub(super) dispatcher: Dispatcher,
     auth: AuthManager,
     pairing: Mutex<PairingManager>,
     handshakes: Arc<Semaphore>,
@@ -660,6 +660,7 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
         tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut transient = TransientRequests::default();
+    let input_origin = uuid::Uuid::new_v4().to_string();
     loop {
         if let Err(error) = events.check_live() {
             if error.code == ErrorCode::ResyncRequired {
@@ -703,7 +704,8 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
                                     if matches!(request.command,RemoteCommand::StateGet(_)) {
                                         let snapshot=super::state::snapshot_on_admitted_subscription(&principal,&runtime.dispatcher.services,&events).await?;
                                         serde_json::to_value(snapshot).map_err(|_|RemoteError::invalid())
-                                    } else { runtime.dispatcher.dispatch(&principal,request.clone()).await }
+                                    } else if matches!(request.command,RemoteCommand::UiNavigate(_)|RemoteCommand::UiMoveFocus(_)|RemoteCommand::UiActivate(_)|RemoteCommand::UiBack(_)|RemoteCommand::UiSearch(_)) { runtime.dispatcher.renderer_input(&principal,request.clone(),&input_origin).await }
+                                    else { runtime.dispatcher.dispatch(&principal,request.clone()).await }
                                 };
                                 let result=tokio::select! { biased;
                                     _=cancel.cancelled()=>return,

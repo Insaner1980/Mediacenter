@@ -930,3 +930,87 @@ mod tests {
         }
     }
 }
+
+#[tauri::command]
+pub async fn get_renderer_confirmations(
+    window: tauri::WebviewWindow,
+    setup: tauri::State<'_, RemoteSetup>,
+) -> Result<Vec<super::protocol::ConfirmationPreview>, RemoteError> {
+    super::renderer::main_window(window.label())?;
+    let runtime = setup
+        .inner
+        .lock()
+        .await
+        .runtime
+        .clone()
+        .ok_or_else(unavailable)?;
+    let registry = runtime
+        .dispatcher
+        .services
+        .confirmations
+        .lock()
+        .map_err(|_| unavailable())?;
+    Ok(registry.previews(crate::app_state::now_ms()))
+}
+#[tauri::command]
+pub async fn resolve_renderer_confirmation(
+    window: tauri::WebviewWindow,
+    setup: tauri::State<'_, RemoteSetup>,
+    confirmation_id: super::protocol::Id,
+    confirm: bool,
+) -> Result<(), RemoteError> {
+    super::renderer::main_window(window.label())?;
+    let runtime = setup
+        .inner
+        .lock()
+        .await
+        .runtime
+        .clone()
+        .ok_or_else(unavailable)?;
+    let owner = {
+        let registry = runtime
+            .dispatcher
+            .services
+            .confirmations
+            .lock()
+            .map_err(|_| unavailable())?;
+        registry
+            .pending
+            .get(confirmation_id.as_str())
+            .ok_or_else(|| {
+                RemoteError::new(ErrorCode::NotFound, "The confirmation was not found.")
+            })?
+            .preview
+            .owner_device_id
+            .clone()
+    };
+    // Local approval can only resolve the saved action, and cannot select scopes or an actor.
+    let principal = {
+        let mut db = setup.state.db.lock().map_err(|_| unavailable())?;
+        let device = RemoteStore::new(&mut db, runtime.identity().id())
+            .active_devices()
+            .map_err(|_| unavailable())?
+            .into_iter()
+            .find(|d| d.device_id == owner)
+            .ok_or_else(|| {
+                RemoteError::new(
+                    ErrorCode::Forbidden,
+                    "The originating phone is no longer authorized.",
+                )
+            })?;
+        super::protocol::RemotePrincipal {
+            device_id: device.device_id,
+            scopes: device.scopes,
+        }
+    };
+    runtime
+        .dispatcher
+        .semantic_action(
+            &principal,
+            super::renderer::SemanticAction::Confirmation {
+                confirmation_id,
+                confirm,
+            },
+        )
+        .await
+}

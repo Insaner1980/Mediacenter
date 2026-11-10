@@ -59,6 +59,11 @@
     "allow-begin-remote-pairing",
     "allow-cancel-remote-pairing",
     "allow-list-remote-devices",
-    "allow-revoke-remote-device"
+    "allow-revoke-remote-device",
+    "allow-register-remote-renderer",
+    "allow-update-remote-renderer",
+    "allow-acknowledge-remote-renderer",
+    "allow-get-renderer-confirmations",
+    "allow-resolve-renderer-confirmation"
   ]
 }

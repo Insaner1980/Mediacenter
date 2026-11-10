@@ -144,7 +144,7 @@ async fn durable_cancellation_ack_replays_without_target_lookup_or_repeated_effe
 #[tokio::test]
 async fn transient_input_and_scope_failures_never_reach_the_persistent_journal() {
     let (_dir, dispatcher, mut principal) = fixture();
-    let request=parse_request(r#"{"v":1,"id":"search","method":"ui.search","params":{"rendererGeneration":"1","focusRevision":"1","route":"home","text":"private-password","editSequence":"1"},"expected":{"serverEpoch":"epoch"}}"#).unwrap();
+    let request=parse_request(&serde_json::json!({"v":1,"id":"search","method":"ui.search","params":{"rendererGeneration":"1","focusRevision":"1","route":"home","text":"private-password","editSequence":"1"},"expected":{"serverEpoch":dispatcher.services.state.event_hub.epoch()}}).to_string()).unwrap();
     principal.scopes = checked(vec!["browse", "navigation"]).unwrap();
     assert_eq!(
         dispatcher
@@ -152,7 +152,7 @@ async fn transient_input_and_scope_failures_never_reach_the_persistent_journal()
             .await
             .unwrap_err()
             .code,
-        ErrorCode::Unsupported
+        ErrorCode::RendererUnavailable
     );
     principal.scopes = checked(vec!["browse"]).unwrap();
     assert_eq!(

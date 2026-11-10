@@ -177,6 +177,12 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the acknowledge_remote_renderer command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-acknowledge-remote-renderer",
+          "markdownDescription": "Enables the acknowledge_remote_renderer command without any pre-configured scope."
+        },
+        {
           "description": "Enables the add_media_source command without any pre-configured scope.",
           "type": "string",
           "const": "allow-add-media-source",
@@ -327,6 +333,12 @@
           "markdownDescription": "Enables the get_remote_settings command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_renderer_confirmations command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-renderer-confirmations",
+          "markdownDescription": "Enables the get_renderer_confirmations command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_slideshow command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-slideshow",
@@ -429,6 +441,12 @@
           "markdownDescription": "Enables the refresh_vpn command without any pre-configured scope."
         },
         {
+          "description": "Enables the register_remote_renderer command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-register-remote-renderer",
+          "markdownDescription": "Enables the register_remote_renderer command without any pre-configured scope."
+        },
+        {
           "description": "Enables the remove_media_source command without any pre-configured scope.",
           "type": "string",
           "const": "allow-remove-media-source",
@@ -451,6 +469,12 @@
           "type": "string",
           "const": "allow-rescan-source",
           "markdownDescription": "Enables the rescan_source command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the resolve_renderer_confirmation command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-resolve-renderer-confirmation",
+          "markdownDescription": "Enables the resolve_renderer_confirmation command without any pre-configured scope."
         },
         {
           "description": "Enables the revoke_remote_device command without any pre-configured scope.",
@@ -499,6 +523,18 @@
           "type": "string",
           "const": "allow-start-slideshow",
           "markdownDescription": "Enables the start_slideshow command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_remote_renderer command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-remote-renderer",
+          "markdownDescription": "Enables the update_remote_renderer command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the acknowledge_remote_renderer command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-acknowledge-remote-renderer",
+          "markdownDescription": "Denies the acknowledge_remote_renderer command without any pre-configured scope."
         },
         {
           "description": "Denies the add_media_source command without any pre-configured scope.",
@@ -651,6 +687,12 @@
           "markdownDescription": "Denies the get_remote_settings command without any pre-configured scope."
         },
         {
+          "description": "Denies the get_renderer_confirmations command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-renderer-confirmations",
+          "markdownDescription": "Denies the get_renderer_confirmations command without any pre-configured scope."
+        },
+        {
           "description": "Denies the get_slideshow command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-slideshow",
@@ -753,6 +795,12 @@
           "markdownDescription": "Denies the refresh_vpn command without any pre-configured scope."
         },
         {
+          "description": "Denies the register_remote_renderer command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-register-remote-renderer",
+          "markdownDescription": "Denies the register_remote_renderer command without any pre-configured scope."
+        },
+        {
           "description": "Denies the remove_media_source command without any pre-configured scope.",
           "type": "string",
           "const": "deny-remove-media-source",
@@ -775,6 +823,12 @@
           "type": "string",
           "const": "deny-rescan-source",
           "markdownDescription": "Denies the rescan_source command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the resolve_renderer_confirmation command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-resolve-renderer-confirmation",
+          "markdownDescription": "Denies the resolve_renderer_confirmation command without any pre-configured scope."
         },
         {
           "description": "Denies the revoke_remote_device command without any pre-configured scope.",
@@ -823,6 +877,12 @@
           "type": "string",
           "const": "deny-start-slideshow",
           "markdownDescription": "Denies the start_slideshow command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_remote_renderer command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-remote-renderer",
+          "markdownDescription": "Denies the update_remote_renderer command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

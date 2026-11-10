@@ -1,0 +1,24 @@
+// Generated from protocol/remote/v1/schema.json by scripts/generate-remote-ui-types.mjs.
+export type UiRequest = { "method": "ui.navigate"; "params": UiNavigateParams } | { "method": "ui.moveFocus"; "params": UiMoveFocusParams } | { "method": "ui.activate"; "params": UiActivateParams } | { "method": "ui.back"; "params": UiBackParams } | { "method": "ui.search"; "params": UiSearchParams };
+export type UiAck = { "requestId": Id; "rendererGeneration": Decimal; "focusRevision": Decimal };
+export type UiTopic = { "revision": Decimal; "available": Bool; "rendererGeneration"?: Decimal; "route"?: Route; "modalId"?: Id; "focusId"?: Id; "focusRevision"?: Decimal };
+export type ConfirmationPreview = { "confirmationId": Id; "ownerDeviceId": Id; "action": ActionKind; "affectedLabels": DisplayTexts; "expected": Expected; "expiresInMs": ConfirmationTtlMs; "browserContext"?: BrowserApprovalContext; "confirmMethod": ConfirmMethod };
+export type Scope = "browse" | "playback" | "navigation" | "outputs" | "library_manage" | "settings" | "browser_control";
+export type UiNavigateParams = { "rendererGeneration": Decimal; "focusRevision": Decimal; "modalId"?: Id; "route": Route };
+export type UiMoveFocusParams = { "rendererGeneration": Decimal; "focusRevision": Decimal; "modalId"?: Id; "direction": Direction };
+export type UiActivateParams = { "rendererGeneration": Decimal; "focusRevision": Decimal; "modalId"?: Id; "focusId": Id };
+export type UiBackParams = { "rendererGeneration": Decimal; "focusRevision": Decimal; "modalId"?: Id };
+export type UiSearchParams = { "rendererGeneration": Decimal; "focusRevision": Decimal; "modalId"?: Id; "route": Route; "text": Query; "editSequence": Decimal };
+export type Id = string;
+export type Decimal = string;
+export type Bool = boolean;
+export type Route = "home" | "videos" | "music" | "photos" | "services" | "settings";
+export type ActionKind = "replace_activity" | "add_source" | "remove_source" | "reattach_source" | "eject_drive" | "change_vpn" | "change_audio" | "revoke_device" | "begin_pairing" | "enroll_browser" | "end_session" | "open_browser" | "approve_browser_origin";
+export type DisplayTexts = Array<DisplayText>;
+export type Expected = { "serverEpoch"?: Id; "sessionId"?: Id; "queueRevision"?: Decimal; "playlistRevision"?: Decimal; "sourcesRevision"?: Decimal; "settingsRevision"?: Decimal };
+export type ConfirmationTtlMs = number;
+export type BrowserApprovalContext = { "browserSessionId": Id; "targetGeneration": Decimal; "hostname": DisplayText };
+export type ConfirmMethod = "activity.confirm" | "audio.confirm" | "folders.confirmAdd" | "sources.confirmRemove" | "drives.confirmEject" | "vpn.confirmChange" | "browser.open" | "devices.revoke" | "pairing.begin" | "settings.endSession" | "sources.confirmReattachment";
+export type Direction = "up" | "down" | "left" | "right";
+export type Query = string;
+export type DisplayText = string;

@@ -29,6 +29,11 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            remote::renderer::register_remote_renderer,
+            remote::renderer::update_remote_renderer,
+            remote::renderer::acknowledge_remote_renderer,
+            remote::setup::get_renderer_confirmations,
+            remote::setup::resolve_renderer_confirmation,
             remote::setup::get_remote_settings,
             remote::setup::set_remote_enabled,
             remote::setup::begin_remote_pairing,

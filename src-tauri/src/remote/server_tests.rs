@@ -169,7 +169,12 @@ impl Fixture {
                 "audio.confirm",
                 "audio.test",
                 "activity.showMenu",
-                "activity.showPlayback"
+                "activity.showPlayback",
+                "ui.navigate",
+                "ui.moveFocus",
+                "ui.activate",
+                "ui.back",
+                "ui.search"
             ])
         );
         let snapshot = next_json(&mut socket).await;
