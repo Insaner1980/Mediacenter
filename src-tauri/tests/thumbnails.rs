@@ -56,6 +56,27 @@ impl Library {
         let metadata = std::fs::metadata(self.root.join(name)).unwrap();
         self.state.db.lock().unwrap().execute("INSERT INTO media_items(id,source_id,relative_path,display_name,kind,size,mtime_ns,availability) VALUES(?1,'source',?2,?1,'photo',?3,?4,'available') ON CONFLICT(id) DO UPDATE SET size=excluded.size,mtime_ns=excluded.mtime_ns",rusqlite::params![name,name.as_bytes(),metadata.len()as i64,format!("{}:{}",metadata.mtime(),metadata.mtime_nsec())]).unwrap();
     }
+    async fn remote_token(&self, name: &str) -> String {
+        use mediacenter_lib::{
+            control::ControlServices,
+            remote::{media, protocol::*},
+        };
+        let services = ControlServices::native(
+            self.state.clone(),
+            serde_json::from_value(serde_json::json!("server")).unwrap(),
+        )
+        .unwrap();
+        let principal: RemotePrincipal =
+            serde_json::from_value(serde_json::json!({"deviceId":"phone","scopes":["browse"]}))
+                .unwrap();
+        let request = parse_request(&serde_json::json!({"v":1,"id":"thumbnail","method":"library.item","params":{"itemId":name}}).to_string()).unwrap();
+        media::read(&services, &principal, &request.command)
+            .await
+            .unwrap()["thumbnailId"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
     async fn get(&self, name: &str) -> Result<Vec<u8>, mediacenter_lib::contracts::AppError> {
         let image = thumbnails::get(&self.state, name, CancellationToken::new()).await?;
         assert_eq!(image.mime, "image/png");
@@ -221,17 +242,7 @@ async fn remote_thumbnail_uses_512_profile_without_changing_desktop_cache() {
     let library = Library::new();
     library.fixture("photo.jpg", "mjpeg", "red");
     let desktop = library.get("photo.jpg").await.unwrap();
-    let opaque: String = library
-        .state
-        .db
-        .lock()
-        .unwrap()
-        .query_row(
-            "SELECT thumbnail_id FROM media_items WHERE id='photo.jpg'",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap();
+    let opaque = library.remote_token("photo.jpg").await;
     let remote = thumbnails::get_remote(&library.state, &opaque, CancellationToken::new())
         .await
         .unwrap();
@@ -246,6 +257,24 @@ async fn remote_thumbnail_uses_512_profile_without_changing_desktop_cache() {
     );
     assert!(
         thumbnails::get_remote(&library.state, "../../etc/passwd", CancellationToken::new())
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn task12_stale_remote_thumbnail_identity_never_serves_new_media_version() {
+    let library = Library::new();
+    library.fixture("photo.jpg", "mjpeg", "red");
+    library.get("photo.jpg").await.unwrap();
+    let token = library.remote_token("photo.jpg").await;
+    let bytes = thumbnails::get_remote(&library.state, &token, CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(thumbnails::valid_png(&bytes));
+    library.fixture("photo.jpg", "mjpeg", "blue");
+    assert!(
+        thumbnails::get_remote(&library.state, &token, CancellationToken::new())
             .await
             .is_err()
     );

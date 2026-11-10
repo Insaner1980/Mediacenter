@@ -27,6 +27,8 @@ pub(crate) fn item(db: &Connection, id: &str) -> Result<MediaItem, RemoteError> 
         let kind:String=r.get(2)?;
         Ok(crate::contracts::MediaItem { id:r.get(0)?,source_id:r.get(1)?,kind:match kind.as_str(){"audio"=>crate::contracts::MediaKind::Audio,"photo"=>crate::contracts::MediaKind::Photo,_=>crate::contracts::MediaKind::Video},display_name:r.get(3)?,availability:r.get(4)?,duration_ms:r.get::<_,Option<i64>>(5)?.and_then(|v|u64::try_from(v).ok()),thumbnail_id:r.get(6)?,resume_position_ms:r.get::<_,Option<i64>>(7)?.and_then(|v|u64::try_from(v).ok()),modified_at_ms:None })
     }).map_err(|e| if matches!(e,rusqlite::Error::QueryReturnedNoRows){error(ErrorCode::NotFound)}else{native_error(e.into())})?;
+    let mut native = native;
+    native.thumbnail_id = crate::library::thumbnails::issue_remote(db, id).map_err(native_error)?;
     MediaItem::try_from(&native)
 }
 fn bounds(
@@ -186,7 +188,7 @@ pub async fn read(
                     items: checked(
                         page.items
                             .iter()
-                            .map(MediaItem::try_from)
+                            .map(|native| item(&db, &native.id))
                             .collect::<Result<Vec<_>, _>>()?,
                     )?,
                     next_cursor: page.next_cursor.map(checked).transpose()?,
@@ -231,38 +233,52 @@ pub async fn read(
                 .db
                 .lock()
                 .map_err(|_| error(ErrorCode::Unavailable))?;
-            let list = playlists::list(&db).map_err(native_error)?;
-            // Bind the paging cursor to every row's revision and identity.
+            let query = p.query.as_ref().map_or("", |q| q.as_str());
+            // SQL scans identities for cursor validation without materializing the collection.
+            // Only the requested page of names/counts is allocated.
             use sha2::{Digest, Sha256};
             let mut digest = Sha256::new();
-            for row in &list {
-                digest.update(row.id.as_bytes());
-                digest.update(
-                    playlists::revision(&db, &row.id)
-                        .map_err(native_error)?
-                        .revision
-                        .value()
-                        .to_le_bytes(),
-                );
+            digest.update(query.as_bytes());
+            let mut scan = db.prepare("SELECT id,revision FROM playlists WHERE instr(lower(name),lower(?))>0 ORDER BY name COLLATE NOCASE,id").map_err(|e|native_error(e.into()))?;
+            let mut rows = scan.query([query]).map_err(|e| native_error(e.into()))?;
+            let mut count = 0;
+            while let Some(row) = rows.next().map_err(|e| native_error(e.into()))? {
+                let id: String = row.get(0).map_err(|e| native_error(e.into()))?;
+                let revision: i64 = row.get(1).map_err(|e| native_error(e.into()))?;
+                digest.update(id.as_bytes());
+                digest.update(revision.to_le_bytes());
+                count += 1;
             }
             let revision = u64::from_le_bytes(digest.finalize()[..8].try_into().expect("digest"));
             let (start, end, next) = bounds(
                 p.cursor.as_ref(),
                 "playlists",
                 revision,
-                list.len(),
+                count,
                 p.limit.as_ref(),
             )?;
-            let items = list[start..end]
-                .iter()
-                .map(|p| {
+            let mut page = db.prepare("SELECT p.id,p.name,p.revision,(SELECT count(*) FROM playlist_items i WHERE i.playlist_id=p.id) FROM playlists p WHERE instr(lower(p.name),lower(?1))>0 ORDER BY p.name COLLATE NOCASE,p.id LIMIT ?2 OFFSET ?3").map_err(|e|native_error(e.into()))?;
+            let rows = page
+                .query_map(
+                    rusqlite::params![query, (end - start) as i64, start as i64],
+                    |r| {
+                        Ok((
+                            r.get::<_, String>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, i64>(2)?,
+                            r.get::<_, i64>(3)?,
+                        ))
+                    },
+                )
+                .map_err(|e| native_error(e.into()))?;
+            let items = rows
+                .map(|row| {
+                    let (id, name, revision, count) = row.map_err(|e| native_error(e.into()))?;
                     Ok(Playlist {
-                        id: checked(&p.id)?,
-                        name: checked(&p.name)?,
-                        revision: playlists::revision(&db, &p.id)
-                            .map_err(native_error)?
-                            .revision,
-                        count: u64::from(p.item_count).into(),
+                        id: checked(id)?,
+                        name: checked(name)?,
+                        revision: (revision as u64).into(),
+                        count: (count as u64).into(),
                     })
                 })
                 .collect::<Result<Vec<_>, RemoteError>>()?;
@@ -813,6 +829,91 @@ mod tests {
             &serde_json::json!({"v":1,"id":"read","method":method,"params":params}).to_string(),
         )
         .unwrap()
+    }
+    #[tokio::test]
+    async fn task12_playlist_search_covers_collection_and_binds_cursor_to_query() {
+        let (_dir, svc, owner) = fixture(0, "audio");
+        {
+            let db = svc.state.db.lock().unwrap();
+            for (id, name) in [("a", "Other"), ("b", "Road one"), ("c", "Road two")] {
+                db.execute(
+                    "INSERT INTO playlists(id,name,created_at_ms,updated_at_ms) VALUES(?1,?2,0,0)",
+                    rusqlite::params![id, name],
+                )
+                .unwrap();
+            }
+        }
+        let page = read(
+            &svc,
+            &owner,
+            &request(
+                "playlists.list",
+                serde_json::json!({"query":"Road","limit":1}),
+            )
+            .command,
+        )
+        .await
+        .unwrap();
+        assert_eq!(page["items"][0]["name"], "Road one");
+        assert!(page["nextCursor"].is_string());
+        let changed = read(
+            &svc,
+            &owner,
+            &request(
+                "playlists.list",
+                serde_json::json!({"query":"Other","limit":1,"cursor":page["nextCursor"]}),
+            )
+            .command,
+        )
+        .await;
+        assert!(changed.is_err(), "a cursor must stay bound to its search");
+        let next = read(
+            &svc,
+            &owner,
+            &request(
+                "playlists.list",
+                serde_json::json!({"query":"Road","limit":1,"cursor":page["nextCursor"]}),
+            )
+            .command,
+        )
+        .await
+        .unwrap();
+        assert_eq!(next["items"][0]["name"], "Road two");
+    }
+    #[tokio::test]
+    async fn task12_phone_browse_issues_bounded_preview_ids_without_desktop_decode() {
+        let (_dir, svc, owner) = fixture(110, "photo");
+        svc.state
+            .db
+            .lock()
+            .unwrap()
+            .execute("UPDATE media_sources SET availability='available'", [])
+            .unwrap();
+        let page = read(
+            &svc,
+            &owner,
+            &request(
+                "library.query",
+                serde_json::json!({"kind":"photo","limit":100}),
+            )
+            .command,
+        )
+        .await
+        .unwrap();
+        assert_eq!(page["items"].as_array().unwrap().len(), 100);
+        let token = page["items"][0]["thumbnailId"]
+            .as_str()
+            .expect("phone-only browse needs a preview ID");
+        assert_eq!(token.len(), 64);
+        assert!(
+            !svc.state.cache_dir.join("thumbnails").exists(),
+            "browse must not decode photos"
+        );
+        let db = svc.state.db.lock().unwrap();
+        db.execute("UPDATE media_items SET mtime_ns='2' WHERE id='m00000'", [])
+            .unwrap();
+        let changed = item(&db, "m00000").unwrap();
+        assert_ne!(changed.thumbnail_id.unwrap().as_str(), token);
     }
     #[tokio::test]
     async fn task9_photo_handoff_rejects_foreign_owner_before_journal_or_native_effect() {

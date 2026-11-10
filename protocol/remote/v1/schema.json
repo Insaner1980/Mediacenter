@@ -3545,6 +3545,9 @@
         },
         "limit": {
           "$ref": "#/$defs/PageLimit"
+        },
+        "query": {
+          "$ref": "#/$defs/Query"
         }
       },
       "required": []
