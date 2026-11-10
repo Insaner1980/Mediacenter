@@ -70,6 +70,8 @@ struct Cached {
 }
 struct Session {
     selection: Option<String>,
+    generation: u64,
+    navigation: Option<CancellationToken>,
     id: String,
     queue: Queue,
     monitor: String,
@@ -150,6 +152,7 @@ impl State {
             session.queue = queue;
             session.selection = Some(selection.into());
         }
+        invalidate_navigation(session);
         session.failed_preloads.clear();
         session.message = None;
         session.queue.index = index;
@@ -350,30 +353,129 @@ async fn load(
     }
     Ok(cached)
 }
-// Validate and decode before changing the visible item. Unavailable entries stay
-// in the selection; manual navigation fails and automatic navigation pauses.
-async fn advance(state: &AppState, session: &mut Session, previous: bool) -> Result<(), AppError> {
-    let count = session.queue.ids.len();
-    let index = (session.queue.index + if previous { count - 1 } else { 1 }) % count;
-    let id = session.queue.ids[index].clone();
-    let source_ids = sources(state, std::slice::from_ref(&id))?;
-    let cached = load(state, &id, session.cancel.clone()).await?;
-    session.cache.insert(id.clone(), cached);
-    session.failed_preloads.remove(&id);
-    session.queue.index = index;
-    session.sources = source_ids;
-    session.message = None;
-    retain(session);
-    Ok(())
-}
-async fn advance_automatic(state: &AppState, session: &mut Session) {
-    if let Err(error) = advance(state, session, false).await {
-        session.queue.pause(true);
-        session.message = Some(format!(
-            "Slideshow paused: {} Choose another photo or reconnect its source.",
-            error.message
-        ));
+fn invalidate_navigation(session: &mut Session) {
+    if let Some(pending) = session.navigation.take() {
+        pending.cancel();
     }
+    session.generation = session.generation.wrapping_add(1);
+}
+struct Navigation {
+    session: String,
+    generation: u64,
+    current: String,
+    item: String,
+    index: usize,
+    automatic: bool,
+    cancel: CancellationToken,
+}
+fn finish_navigation(
+    photos: &mut State,
+    state: &AppState,
+    work: Navigation,
+    result: Result<Option<Cached>, AppError>,
+) -> Result<(SlideshowSnapshot, Option<Publication>), AppError> {
+    let session = photos
+        .session
+        .as_mut()
+        .filter(|session| {
+            session.id == work.session
+                && session.generation == work.generation
+                && session.queue.current() == work.current
+                && !work.cancel.is_cancelled()
+        })
+        .ok_or_else(|| AppError::new("stale_state", "The photo transition changed."))?;
+    session.navigation = None;
+    let result = result.and_then(|cached| {
+        let source_ids = sources(state, std::slice::from_ref(&work.item))?;
+        let valid = cached
+            .as_ref()
+            .or_else(|| session.cache.get(&work.item))
+            .is_some_and(live);
+        if !valid {
+            return Err(AppError::new(
+                "photo_unavailable",
+                "The photo source is unavailable.",
+            ));
+        }
+        Ok((cached, source_ids))
+    });
+    match result {
+        Ok((cached, source_ids)) => {
+            if let Some(cached) = cached {
+                session.cache.insert(work.item.clone(), cached);
+            }
+            session.failed_preloads.remove(&work.item);
+            session.queue.index = work.index;
+            session.sources = source_ids;
+            session.message = None;
+            retain(session);
+        }
+        Err(error) if work.automatic => {
+            session.queue.pause(true);
+            session.message = Some(format!(
+                "Slideshow paused: {} Choose another photo or reconnect its source.",
+                error.message
+            ));
+        }
+        Err(error) => return Err(error),
+    }
+    session.next_at = Instant::now() + Duration::from_secs(u64::from(session.queue.interval));
+    let value = photos.snapshot();
+    let publication = photos.publication(state);
+    Ok((value, publication))
+}
+// Reserve the intended transition under the domain guard; all permit waits,
+// probing and decoding happen after releasing it. Stop can cancel the child token.
+async fn navigate(
+    state: &AppState,
+    id: Option<&str>,
+    previous: bool,
+    automatic: bool,
+) -> Result<(SlideshowSnapshot, Option<Publication>), AppError> {
+    let work = {
+        let mut photos = state.photos.lock().await;
+        if id.is_some() && photos.session.as_ref().map(|session| session.id.as_str()) != id {
+            return Err(AppError::new("stale_state", "The photo session changed."));
+        }
+        let session = photos
+            .session
+            .as_mut()
+            .ok_or_else(|| AppError::new("slideshow_inactive", "Start a slideshow first."))?;
+        if automatic
+            && (session.queue.paused || session.display_missing || Instant::now() < session.next_at)
+        {
+            return Err(AppError::new(
+                "stale_state",
+                "The automatic photo transition changed.",
+            ));
+        }
+        invalidate_navigation(session);
+        let cancel = session.cancel.child_token();
+        session.navigation = Some(cancel.clone());
+        let count = session.queue.ids.len();
+        let index = (session.queue.index + if previous { count - 1 } else { 1 }) % count;
+        let work = Navigation {
+            session: session.id.clone(),
+            generation: session.generation,
+            current: session.queue.current().into(),
+            item: session.queue.ids[index].clone(),
+            index,
+            automatic,
+            cancel,
+        };
+        // Reuse an already decoded, live preload after the same availability check.
+        let available = sources(state, std::slice::from_ref(&work.item));
+        if let Err(error) = available {
+            return finish_navigation(&mut photos, state, work, Err(error));
+        }
+        if session.cache.get(&work.item).is_some_and(live) {
+            return finish_navigation(&mut photos, state, work, Ok(None));
+        }
+        work
+    };
+    let result = load(state, &work.item, work.cancel.clone()).await.map(Some);
+    let mut photos = state.photos.lock().await;
+    finish_navigation(&mut photos, state, work, result)
 }
 fn position(
     app: &tauri::AppHandle,
@@ -506,6 +608,8 @@ pub(crate) async fn start_in_session(
     let cancel = CancellationToken::new();
     photos.session = Some(Session {
         selection,
+        generation: 0,
+        navigation: None,
         id: id.clone(),
         queue,
         monitor: monitor.id.clone(),
@@ -546,6 +650,17 @@ pub async fn control_session(
     id: Option<&str>,
     action: SlideshowAction,
 ) -> Result<SlideshowSnapshot, AppError> {
+    if matches!(action, SlideshowAction::Next | SlideshowAction::Previous) {
+        let (value, publication) = navigate(
+            state,
+            id,
+            matches!(action, SlideshowAction::Previous),
+            false,
+        )
+        .await?;
+        publish(app, state, publication);
+        return Ok(value);
+    }
     let mut photos = state.photos.lock().await;
     if id.is_some() && photos.session.as_ref().map(|s| s.id.as_str()) != id {
         return Err(AppError::new("stale_state", "The photo session changed."));
@@ -567,8 +682,7 @@ pub async fn control_session(
         .as_mut()
         .ok_or_else(|| AppError::new("slideshow_inactive", "Start a slideshow first."))?;
     match action {
-        SlideshowAction::Next => advance(state, session, false).await?,
-        SlideshowAction::Previous => advance(state, session, true).await?,
+        SlideshowAction::Next | SlideshowAction::Previous => unreachable!("handled before locking"),
         SlideshowAction::Pause { paused } => {
             if !paused && session.display_missing {
                 return Err(AppError::new(
@@ -594,6 +708,7 @@ pub async fn control_session(
         }
         SlideshowAction::Stop => unreachable!(),
     }
+    invalidate_navigation(session);
     session.next_at = Instant::now() + Duration::from_secs(u64::from(session.queue.interval));
     retain(session);
     let value = photos.snapshot();
@@ -628,7 +743,7 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
             return;
         }
         let monitors = crate::outputs::monitors::discover(&app).ok().map(|v| v.0);
-        let wanted = {
+        let (advance_due, wanted) = {
             let mut photos = state.photos.lock().await;
             let Some(s) = photos.session.as_mut().filter(|s| s.id == id) else {
                 return;
@@ -661,31 +776,33 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
                 .as_ref()
                 .is_none_or(|m| !m.iter().any(|m| m.connected && m.id == s.monitor))
             {
+                if !s.display_missing {
+                    invalidate_navigation(s);
+                }
                 s.display_missing = true;
                 s.queue.pause(true);
                 if let Some(w) = app.get_webview_window(LABEL) {
                     let _ = w.hide();
                 }
             }
-            if !s.queue.paused
+            let advance_due = !s.queue.paused
                 && s.cache.contains_key(s.queue.current())
-                && Instant::now() >= s.next_at
-            {
-                advance_automatic(&state, s).await;
-                s.next_at = Instant::now() + Duration::from_secs(u64::from(s.queue.interval));
-                retain(s);
-            }
+                && Instant::now() >= s.next_at;
             s.cache.retain(|_, cached| live(cached));
             let wanted = std::iter::once(s.queue.current())
                 .chain(s.queue.preloads())
                 .find(|key| !s.cache.contains_key(*key) && !s.failed_preloads.contains(*key))
-                .map(str::to_string);
+                .map(|key| (key.to_string(), s.generation));
             let publication = photos.publication(&state);
             drop(photos);
             publish(&app, &state, publication);
-            wanted
+            (advance_due, wanted)
         };
-        if let Some(media_id) = wanted {
+        if advance_due {
+            if let Ok((_, publication)) = navigate(&state, Some(&id), false, true).await {
+                publish(&app, &state, publication);
+            }
+        } else if let Some((media_id, generation)) = wanted {
             let result = load(&state, &media_id, cancel.clone()).await;
             let mut photos = state.photos.lock().await;
             let Some(s) = photos.session.as_mut().filter(|s| s.id == id) else {
@@ -693,6 +810,9 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
             };
             if cancel.is_cancelled() {
                 return;
+            }
+            if s.generation != generation {
+                continue;
             }
             match result {
                 Ok(cached) if live(&cached) => {
@@ -734,6 +854,8 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
 pub(crate) async fn seed_test_session(state: &AppState, id: &str) {
     state.photos.lock().await.session = Some(Session {
         selection: None,
+        generation: 0,
+        navigation: None,
         id: id.into(),
         queue: Queue::new(SlideshowRequest {
             media_ids: vec!["existing-photo".into()],
@@ -849,13 +971,19 @@ mod tests {
             })
             .unwrap();
             let original = current.queue.ids.clone();
-            assert!(
-                advance(&state, &mut current, false).await.is_err(),
-                "manual navigation must reject unavailable target"
-            );
-            assert_eq!(current.queue.current(), "a");
-            assert!(advance(&state, &mut current, true).await.is_err());
-            advance_automatic(&state, &mut current).await;
+            state.photos.lock().await.session = Some(current);
+            assert!(navigate(&state, Some("test-session"), false, false)
+                .await
+                .is_err());
+            assert_eq!(snapshot(&state).await.media_id.as_deref(), Some("a"));
+            assert!(navigate(&state, Some("test-session"), true, false)
+                .await
+                .is_err());
+            navigate(&state, Some("test-session"), false, true)
+                .await
+                .unwrap();
+            let photos = state.photos.lock().await;
+            let current = photos.session.as_ref().unwrap();
             assert!(current.queue.paused, "automatic transition must pause");
             assert!(current
                 .message
@@ -864,6 +992,168 @@ mod tests {
             assert_eq!(current.queue.current(), "a");
             assert_eq!(current.queue.ids, original);
         }
+    }
+    #[tokio::test]
+    async fn task9_fix2_stop_does_not_wait_for_navigation_decoder_permits() {
+        let (_dir, state) = mixed_library();
+        state
+            .db
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE media_items SET availability='available' WHERE id='missing'",
+                [],
+            )
+            .unwrap();
+        for automatic in [false, true] {
+            let mut current = session();
+            current.queue = Queue::new(SlideshowRequest {
+                media_ids: vec!["a".into(), "missing".into()],
+                monitor_id: None,
+                interval_seconds: 5,
+                shuffle: false,
+            })
+            .unwrap();
+            let cancel = current.cancel.clone();
+            state.photos.lock().await.session = Some(current);
+            let permits = state
+                .thumbnail_gate
+                .acquire_many(state.thumbnail_gate.available_permits() as u32)
+                .await
+                .unwrap();
+            let mut pending = Box::pin(navigate(&state, Some("test-session"), false, automatic));
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), &mut pending)
+                    .await
+                    .is_err(),
+                "navigation must be waiting for the held decoder permits"
+            );
+            let stopped = tokio::time::timeout(Duration::from_millis(100), async {
+                let mut photos = state.photos.lock().await;
+                photos.stop(None);
+                photos.publication(&state);
+            })
+            .await;
+            let cancelled = if stopped.is_ok() {
+                tokio::time::timeout(Duration::from_millis(100), &mut pending)
+                    .await
+                    .ok()
+                    .is_some_and(|result| result.is_err())
+            } else {
+                false
+            };
+            // Release the pending future/permits even on RED before asserting.
+            drop(pending);
+            drop(permits);
+            assert!(
+                stopped.is_ok(),
+                "Stop must acquire the domain guard while navigation awaits decoding"
+            );
+            assert!(cancel.is_cancelled());
+            assert!(
+                cancelled,
+                "obsolete load must complete without acquiring decoder permits"
+            );
+            assert!(snapshot(&state).await.session_id.is_none());
+        }
+    }
+    #[tokio::test]
+    async fn task9_fix2_new_navigation_reuses_preload_and_supersedes_pending_step() {
+        let (dir, state) = mixed_library();
+        state
+            .db
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE media_items SET availability='available' WHERE id='missing'",
+                [],
+            )
+            .unwrap();
+        std::fs::write(dir.path().join("image.jpg"), [255, 216, 255]).unwrap();
+        let mut current = session();
+        current.queue = Queue::new(SlideshowRequest {
+            media_ids: vec!["a".into(), "missing".into()],
+            monitor_id: None,
+            interval_seconds: 5,
+            shuffle: false,
+        })
+        .unwrap();
+        state.photos.lock().await.session = Some(current);
+        let permits = state
+            .thumbnail_gate
+            .acquire_many(state.thumbnail_gate.available_permits() as u32)
+            .await
+            .unwrap();
+        let mut older = Box::pin(navigate(&state, Some("test-session"), false, false));
+        assert!(tokio::time::timeout(Duration::from_millis(20), &mut older)
+            .await
+            .is_err());
+        let visible = tokio::time::timeout(Duration::from_millis(100), snapshot(&state))
+            .await
+            .expect("state reads must remain responsive");
+        assert_eq!(visible.media_id.as_deref(), Some("a"));
+        state
+            .photos
+            .lock()
+            .await
+            .session
+            .as_mut()
+            .unwrap()
+            .cache
+            .insert("missing".into(), cached(dir.path(), &state.resources));
+        let (latest, publication) = tokio::time::timeout(
+            Duration::from_millis(100),
+            navigate(&state, Some("test-session"), false, false),
+        )
+        .await
+        .expect("valid preload must not acquire decoder permits")
+        .unwrap();
+        assert_eq!(latest.media_id.as_deref(), Some("missing"));
+        assert!(publication.is_some());
+        let superseded = tokio::time::timeout(Duration::from_millis(100), &mut older)
+            .await
+            .expect("superseded decode must cancel promptly");
+        assert_eq!(superseded.err().unwrap().code, "stale_state");
+        assert_eq!(snapshot(&state).await, latest);
+        drop(older);
+        drop(permits);
+    }
+    #[tokio::test]
+    async fn task9_fix2_completed_obsolete_decode_cannot_replace_new_session() {
+        let (dir, state) = mixed_library();
+        std::fs::write(dir.path().join("image.jpg"), [255, 216, 255]).unwrap();
+        let mut photos = state.photos.lock().await;
+        photos.session = Some(session());
+        let work = Navigation {
+            session: "test-session".into(),
+            generation: 0,
+            current: "a".into(),
+            item: "b".into(),
+            index: 1,
+            automatic: false,
+            cancel: CancellationToken::new(),
+        };
+        // Even an already completed decode whose cancellation raced completion
+        // must not touch a replacement session or reserve a publication.
+        photos.stop(None);
+        let mut replacement = session();
+        replacement.id = "replacement".into();
+        photos.session = Some(replacement);
+        let before = photos.snapshot();
+        assert_eq!(
+            finish_navigation(
+                &mut photos,
+                &state,
+                work,
+                Ok(Some(cached(dir.path(), &state.resources)))
+            )
+            .err()
+            .unwrap()
+            .code,
+            "stale_state"
+        );
+        assert_eq!(photos.snapshot(), before);
+        assert!(photos.published.is_none());
     }
     fn mixed_library() -> (tempfile::TempDir, AppState) {
         let dir = tempfile::tempdir().unwrap();
@@ -952,6 +1242,8 @@ mod tests {
     fn session() -> Session {
         Session {
             selection: Some("selected-order".into()),
+            generation: 0,
+            navigation: None,
             id: "test-session".into(),
             queue: Queue::new(SlideshowRequest {
                 media_ids: vec!["a".into(), "b".into(), "c".into(), "d".into()],
