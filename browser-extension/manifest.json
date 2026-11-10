@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Mediacenter Browser Feasibility",
+  "version": "0.0.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzdg+r5B0OOf/wMIs8VIj6uXNLB7LpFpYcx73isdcXF5i15iLn5OMSfBaQi/KTNlfaimyYKTlo8/nrCUHSxYflL7kGbrnmoUCC66TMtTQuXPbbGiABhbKDCCyRE9m6OZvXcKx47+GdZO27Xh+iOJb2R/kLL7URXeVWUhRD/9oxZd1inGNuMYtfv3ihxNLErNfz/BbUu1+8+jyRVspp44nFl4EWHPoGClvuR+MT5cF5ScR9rBF6AJ2gd8stw1oz3g5pdEtDxiSDz2FBlrUM8PUCW+HCYZMu3W7PXwdLna3HXLoTGrEHvuuAcvFfSpRNruKkOp6E+okjgeT3TrUCa/nPwIDAQAB",
+  "permissions": [
+    "debugger",
+    "nativeMessaging",
+    "storage",
+    "tabs"
+  ],
+  "background": {
+    "service_worker": "worker.mjs",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "enroll.html"
+  }
+}

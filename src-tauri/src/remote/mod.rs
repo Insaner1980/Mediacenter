@@ -20,3 +20,5 @@ pub mod tls;
 pub mod discovery;
 pub mod network;
 pub mod setup;
+
+pub mod browser_protocol;

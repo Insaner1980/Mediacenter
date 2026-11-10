@@ -1,0 +1,24 @@
+{
+  "chrome": "/opt/google/chrome/google-chrome",
+  "extensionId": "njhbcllpkbihpkioegopblabopnkhndk",
+  "admission": {
+    "version": "Chrome/157.0.8103.50",
+    "args": [
+      "--user-data-dir=/home/emma/Dev/Mediacenter/.tools/browser-feasibility/profile",
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--remote-debugging-pipe",
+      "--enable-unsafe-extension-debugging"
+    ],
+    "enrollment": {
+      "enrolled": true,
+      "profile": "[disposable enrollment ID redacted]"
+    },
+    "probe": {
+      "admitted": true,
+      "extensionId": "njhbcllpkbihpkioegopblabopnkhndk"
+    }
+  },
+  "passed": false,
+  "error": "extension page unavailable"
+}

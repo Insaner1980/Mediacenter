@@ -1,0 +1,12 @@
+{
+  "installation": "supported-ui-drag-drop",
+  "chrome": "/opt/google/chrome/google-chrome",
+  "extensionId": "njhbcllpkbihpkioegopblabopnkhndk",
+  "passed": false,
+  "error": "extension page unavailable",
+  "handoff": {
+    "command": "XDG_CONFIG_HOME=/home/emma/Dev/Mediacenter/.tools/browser-feasibility/config /opt/google/chrome/google-chrome --user-data-dir=/home/emma/Dev/Mediacenter/.tools/browser-feasibility/profile --no-first-run --no-default-browser-check chrome://extensions/",
+    "instruction": "Enable Developer mode, choose Load unpacked, and select the exact extension folder.",
+    "folder": "/home/emma/Dev/Mediacenter/browser-extension"
+  }
+}
