@@ -838,22 +838,12 @@ async fn authenticated_thumbnail_is_bounded_and_four_in_flight_requests_are_revo
         db.execute("INSERT INTO media_sources(id,source_type,root,label,kinds,availability) VALUES('source','local',?,'Photos','[\"photo\"]','available')",[root.as_os_str().as_bytes()]).unwrap();
         db.execute("INSERT INTO media_items(id,source_id,relative_path,display_name,kind,size,mtime_ns,availability) VALUES('image','source',?1,'Image','photo',?2,?3,'available')",rusqlite::params![b"image.png".as_slice(),metadata.len() as i64,format!("{}:{}",metadata.mtime(),metadata.mtime_nsec())]).unwrap();
     }
-    crate::library::thumbnails::get(fixture.runtime.state(), "image", CancellationToken::new())
-        .await
-        .unwrap();
-    let opaque: String = fixture
-        .runtime
-        .state()
-        .db
-        .lock()
+    // Fresh phone-only projection issues the ID; no desktop preview warm-up.
+    let opaque = crate::remote::media::item(&fixture.runtime.state().db.lock().unwrap(), "image")
         .unwrap()
-        .query_row(
-            "SELECT thumbnail_id FROM media_items WHERE id='image'",
-            [],
-            |r| r.get(0),
-        )
+        .thumbnail_id
         .unwrap();
-    let request=format!("GET /remote/v1/thumbnails/{opaque} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {}\r\n\r\n",fixture.credential.as_str());
+    let request=format!("GET /remote/v1/thumbnails/{} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {}\r\n\r\n",opaque.as_str(),fixture.credential.as_str());
     let mut connection = fixture.tls().await;
     connection.write_all(request.as_bytes()).await.unwrap();
     let mut response = Vec::new();
