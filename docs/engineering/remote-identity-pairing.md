@@ -167,3 +167,11 @@ Manual setup captures an immutable certificate observation before application da
 QR scanning uses bundled ML Kit 17.3.0 with Camera2 and a camera permission requested only for scanning. Camera denial retains manual pairing; LAN permission remains a separate prerequisite. Google's [privacy documentation](https://developers.google.com/ml-kit/terms) states that image processing and decoded outputs remain on-device, while the SDK can send performance/usage metrics. Do not describe this dependency as entirely network-silent.
 
 Automated tests and APK compilation do not establish camera, Android Keystore or sofa acceptance. Keystore instrumentation explicitly refuses the production application ID and requires an isolated test package; default skipped tests are not acceptance. Real process-restart verification requires separate write/read invocations with an OS force-stop between them. Consult the task report for commands and evidence.
+
+## Android reconnect and command recovery
+
+The process-lifetime repository owns the sole transport-frame consumer. Repository Connected means an identity-checked native snapshot has been applied; transport admission alone is Synchronizing. Foreground retries are bounded, mutations wait for current native state, and pairing/identity/version/permission stop reasons survive background cycles. Backgrounding marks published state stale immediately and retains a five-second socket grace.
+
+Durable intent is persisted before sending, in no-backup metadata scoped to server and paired phone identity. The file is bounded to 100 records and 64 KiB and contains no command parameters, text, parameter hashes, pins or credentials. Recovery queries individual request/operation IDs instead of replaying mutations. Reads are paced at four per second with four in flight and fair rotation. Cached operation topics cannot regress newer terminal outcomes. Forgetting coordinates recovery-metadata and credential deletion with explicit failure/retry state.
+
+See remote-control-checkpoint.md and the Task 8 report for exact source revisions, differentiated automated gates and mandatory physical acceptance still outstanding.
