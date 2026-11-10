@@ -32,3 +32,16 @@ it('opening a photo brings the full viewer into keyboard focus',async()=>{
  await userEvent.click(screen.getByRole('button',{name:'Close'}));
  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
+
+it('fullscreen presentation shows a pause reason only when reported and retains the photo',async()=>{
+ const image={image:{mime:'image/jpeg',base64:'/9j/'},width:100,height:50,modifiedAtMs:null};
+ const normal={...photosApi,frame:vi.fn().mockResolvedValue({snapshot:{...snapshot,error:null},image})};
+ const {rerender}=render(<PresentationScreen api={normal}/>);
+ expect(await screen.findByRole('img')).toBeVisible();
+ expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+ const reason='Slideshow paused: A selected photo is unavailable. Choose another photo or reconnect its source.';
+ rerender(<PresentationScreen api={{...photosApi,frame:vi.fn().mockResolvedValue({snapshot:{...snapshot,error:reason},image})}}/>);
+ expect(await screen.findByRole('alert')).toHaveTextContent(reason);
+ expect(screen.getByRole('img')).toHaveAttribute('src','data:image/jpeg;base64,/9j/');
+ expect(screen.queryByRole('button')).not.toBeInTheDocument();
+});

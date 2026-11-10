@@ -46,6 +46,7 @@ pub struct Player {
     pub snapshot: PlayerSnapshot,
     last_saved: Instant,
     natural_end: bool,
+    pub(crate) confirmed_music: Option<crate::control::activity::MediaIdentity>,
 }
 pub(crate) fn arguments(media: &OpenMedia) -> Vec<OsString> {
     let formats = format!("{},srt,ass,webvtt", crate::library::probe::FORMATS);
@@ -291,6 +292,7 @@ async fn launch(
             snapshot,
             last_saved: Instant::now(),
             natural_end: false,
+            confirmed_music: None,
         },
         events,
     ))

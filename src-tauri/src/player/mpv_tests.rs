@@ -5,6 +5,16 @@ use std::os::unix::{ffi::OsStrExt, fs::MetadataExt};
 #[test]
 #[ignore = "requires isolated Xvfb and real mpv; null audio/video outputs only"]
 fn task9_native_audio_eof_keeps_observing_owned_player_after_seek_and_pause() {
+    native_observer_fixture(false);
+}
+
+#[test]
+#[ignore = "requires isolated Xvfb and real mpv; null audio/video outputs only"]
+fn task9_native_eof_confirmed_music_adopts_queue_without_restart() {
+    native_observer_fixture(true);
+}
+
+fn native_observer_fixture(handoff: bool) {
     let temporary = tempfile::tempdir().unwrap();
     let state = AppState::open(temporary.path().join("data")).unwrap();
     // One second of silent mono PCM; no external media or physical audio devices.
@@ -125,6 +135,7 @@ fn task9_native_audio_eof_keeps_observing_owned_player_after_seek_and_pause() {
             },
             last_saved: Instant::now(),
             natural_end: false,
+            confirmed_music: None,
         });
         let observer = tokio::spawn(observe(
             app_handle.clone(),
@@ -178,12 +189,20 @@ fn task9_native_audio_eof_keeps_observing_owned_player_after_seek_and_pause() {
             Ok((finished_at_eof, revision, snapshot))
         }
         .await;
+        let handoff_result = if handoff && result.is_ok() {
+            Some(check_confirmed_handoff(&app_handle, &state, &id).await)
+        } else {
+            None
+        };
         // Always stop only this owned child and cancel the task before assertions.
         if let Some(mut player) = state.player.lock().await.take() {
             player.stop().await.unwrap();
         }
         observer.abort();
         let _ = observer.await;
+        if let Some(result) = handoff_result {
+            result.expect("confirmed native handoff and next must succeed");
+        }
         let (finished_at_eof, revision, snapshot) =
             result.expect("real native IPC actions must succeed");
         assert!(
@@ -201,4 +220,87 @@ fn task9_native_audio_eof_keeps_observing_owned_player_after_seek_and_pause() {
         );
     });
     drop(app);
+}
+
+async fn check_confirmed_handoff(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    id: &str,
+) -> Result<(), AppError> {
+    use crate::control::playback::QueueAction;
+    use crate::music::queue::MusicAction;
+    let items = {
+        let db = state.db.lock().unwrap();
+        crate::music::playlists::items(&db, &["observer-media".into(), "observer-media".into()])?
+    };
+    state.music.lock().await.replace(items, 0)?;
+    let revision = state.music.lock().await.revision;
+    let before = state.music.lock().await.snapshot().items;
+    let pid = state.player.lock().await.as_ref().unwrap().child.id();
+    // This is the exact post-success binding used by activity execution. A
+    // standalone player must not be adoptable before that binding exists.
+    let denied = crate::music::service::control_entry(
+        Some(app.clone()),
+        state.clone(),
+        Some(id.into()),
+        revision,
+        QueueAction::Play(1),
+        CancellationToken::new(),
+    )
+    .await;
+    if denied
+        .as_ref()
+        .err()
+        .is_none_or(|error| error.code != "stale_state")
+    {
+        return Err(AppError::new(
+            "test_failure",
+            "Unconfirmed native player was adoptable.",
+        ));
+    }
+    let identity = crate::control::activity::media_identity(
+        &state.player.lock().await.as_ref().unwrap().media,
+    )?;
+    crate::control::activity::bind_music_handoff(state, "observer-media", identity).await?;
+    let adopted = crate::music::service::control_entry(
+        Some(app.clone()),
+        state.clone(),
+        Some(id.into()),
+        revision,
+        QueueAction::Play(1),
+        CancellationToken::new(),
+    )
+    .await?;
+    if adopted.session_id.as_deref() != Some(id)
+        || adopted.current_index != Some(1)
+        || adopted.items != before
+        || state.player.lock().await.as_ref().unwrap().child.id() != pid
+    {
+        return Err(AppError::new(
+            "test_failure",
+            "Adoption changed native process or queue identity.",
+        ));
+    }
+    // The selected duplicate is last: Next reaches queue end without launching
+    // physical output, and must no longer reject the confirmed player session.
+    let ended = crate::music::service::control_entry(
+        Some(app.clone()),
+        state.clone(),
+        Some(id.into()),
+        adopted.revision,
+        QueueAction::Native(MusicAction::Next),
+        CancellationToken::new(),
+    )
+    .await?;
+    if ended.session_id.is_some()
+        || ended.current_index.is_some()
+        || ended.items != before
+        || state.player.lock().await.is_some()
+    {
+        return Err(AppError::new(
+            "test_failure",
+            "Next did not continue the adopted queue.",
+        ));
+    }
+    Ok(())
 }

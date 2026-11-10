@@ -75,6 +75,8 @@ struct Session {
     monitor: String,
     sources: Vec<String>,
     cache: HashMap<String, Cached>,
+    failed_preloads: std::collections::HashSet<String>,
+    message: Option<String>,
     cancel: CancellationToken,
     next_at: Instant,
     display_missing: bool,
@@ -148,6 +150,8 @@ impl State {
             session.queue = queue;
             session.selection = Some(selection.into());
         }
+        session.failed_preloads.clear();
+        session.message = None;
         session.queue.index = index;
         session.queue.pause(paused);
         session.queue.interval = interval;
@@ -180,7 +184,8 @@ impl State {
                 monitor_id: Some(s.monitor.clone()),
                 error: s
                     .display_missing
-                    .then(|| "Display disconnected. Continue on the computer when ready.".into()),
+                    .then(|| "Display disconnected. Continue on the computer when ready.".into())
+                    .or_else(|| s.message.clone()),
                 fit: if s.fit { "fit" } else { "actual" }.into(),
             },
         }
@@ -278,7 +283,7 @@ fn sources(state: &AppState, ids: &[String]) -> Result<Vec<String>, AppError> {
         .db
         .lock()
         .map_err(|_| AppError::new("database_error", "The library is unavailable."))?;
-    let mut query=db.prepare("SELECT source_id FROM media_items WHERE id=? AND kind='photo' AND availability='available'")?;
+    let mut query=db.prepare("SELECT m.source_id FROM media_items m JOIN media_sources s ON s.id=m.source_id WHERE m.id=? AND m.kind='photo' AND m.availability='available' AND s.availability='available'")?;
     let mut sources = std::collections::HashSet::new();
     for id in ids {
         sources.insert(
@@ -293,6 +298,82 @@ fn sources(state: &AppState, ids: &[String]) -> Result<Vec<String>, AppError> {
         );
     }
     Ok(sources.into_iter().collect())
+}
+// Shared preparation for a fresh presentation and confirmed-singleton adoption.
+fn prepare(
+    state: &AppState,
+    request: SlideshowRequest,
+    paused: bool,
+) -> Result<(Queue, Vec<String>), AppError> {
+    let mut queue = Queue::new(request)?;
+    queue.pause(paused);
+    let source_ids = sources(state, &[queue.current().into()])?;
+    Ok((queue, source_ids))
+}
+fn source_missing(state: &AppState, session: &Session) -> bool {
+    state
+        .db
+        .lock()
+        .map(|db| {
+            session.sources.iter().any(|source| {
+                db.query_row(
+                    "SELECT availability FROM media_sources WHERE id=?",
+                    [source],
+                    |r| r.get::<_, String>(0),
+                )
+                .map_or(true, |v| v != "available")
+            })
+        })
+        .unwrap_or(true)
+}
+async fn load(
+    state: &AppState,
+    media_id: &str,
+    cancel: CancellationToken,
+) -> Result<Cached, AppError> {
+    let _permit = tokio::select! {
+        _ = cancel.cancelled() => return Err(AppError::new("cancelled", "Photo loading stopped.")),
+        permit = state.thumbnail_gate.acquire() => permit.map_err(|_| AppError::new("decoder_unavailable", "Photo decoding is unavailable."))?,
+    };
+    let _probe = tokio::select! {
+        _ = cancel.cancelled() => return Err(AppError::new("cancelled", "Photo loading stopped.")),
+        permit = state.probes.acquire() => permit.map_err(|_| AppError::new("decoder_unavailable", "Photo decoding is unavailable."))?,
+    };
+    let media = crate::library::query::open(state, media_id).await?;
+    let image = decode::from_media(&media, cancel).await?;
+    let cached = Cached { media, image };
+    if !live(&cached) {
+        return Err(AppError::new(
+            "photo_unavailable",
+            "The photo source is unavailable.",
+        ));
+    }
+    Ok(cached)
+}
+// Validate and decode before changing the visible item. Unavailable entries stay
+// in the selection; manual navigation fails and automatic navigation pauses.
+async fn advance(state: &AppState, session: &mut Session, previous: bool) -> Result<(), AppError> {
+    let count = session.queue.ids.len();
+    let index = (session.queue.index + if previous { count - 1 } else { 1 }) % count;
+    let id = session.queue.ids[index].clone();
+    let source_ids = sources(state, std::slice::from_ref(&id))?;
+    let cached = load(state, &id, session.cancel.clone()).await?;
+    session.cache.insert(id.clone(), cached);
+    session.failed_preloads.remove(&id);
+    session.queue.index = index;
+    session.sources = source_ids;
+    session.message = None;
+    retain(session);
+    Ok(())
+}
+async fn advance_automatic(state: &AppState, session: &mut Session) {
+    if let Err(error) = advance(state, session, false).await {
+        session.queue.pause(true);
+        session.message = Some(format!(
+            "Slideshow paused: {} Choose another photo or reconnect its source.",
+            error.message
+        ));
+    }
 }
 fn position(
     app: &tauri::AppHandle,
@@ -358,28 +439,16 @@ pub(crate) async fn start_in_session(
     paused: bool,
     selection: Option<String>,
 ) -> Result<SlideshowSnapshot, AppError> {
-    let selection_sources = if selection.is_some() {
-        Some(sources(state, &request.media_ids)?)
-    } else {
-        None
-    };
+    let monitor_id = request.monitor_id.clone();
+    let (queue, source_ids) = prepare(state, request, paused)?;
     if let Some(selection) = &selection {
-        let item = request
-            .media_ids
+        let item = queue
+            .ids
             .first()
             .ok_or_else(|| AppError::new("invalid_slideshow", "Choose a photo."))?;
         let mut photos = state.photos.lock().await;
-        if photos.select(
-            selection,
-            item,
-            paused,
-            request.interval_seconds,
-            Some(&request.media_ids),
-        )? {
-            photos.session.as_mut().expect("selected session").sources = selection_sources
-                .as_ref()
-                .expect("selected sources")
-                .clone();
+        if photos.select(selection, item, paused, queue.interval, Some(&queue.ids))? {
+            photos.session.as_mut().expect("selected session").sources = source_ids;
             let value = photos.snapshot();
             let publication = photos.publication(state);
             drop(photos);
@@ -400,13 +469,6 @@ pub(crate) async fn start_in_session(
             "Stop the video or close the streaming session before starting a slideshow.",
         ));
     }
-    let monitor_id = request.monitor_id.clone();
-    let mut queue = Queue::new(request)?;
-    queue.pause(paused);
-    let source_ids = match selection_sources {
-        Some(ids) => ids,
-        None => sources(state, &queue.ids)?,
-    };
     let (monitors, computer) = crate::outputs::monitors::discover(app)?;
     let monitor =
         crate::outputs::monitors::resolve(&monitors, monitor_id.as_deref(), computer.as_deref())?;
@@ -449,6 +511,8 @@ pub(crate) async fn start_in_session(
         monitor: monitor.id.clone(),
         sources: source_ids,
         cache: HashMap::new(),
+        failed_preloads: Default::default(),
+        message: None,
         cancel: cancel.clone(),
         next_at: Instant::now() + Duration::from_secs(5),
         display_missing: false,
@@ -503,8 +567,8 @@ pub async fn control_session(
         .as_mut()
         .ok_or_else(|| AppError::new("slideshow_inactive", "Start a slideshow first."))?;
     match action {
-        SlideshowAction::Next => session.queue.next(),
-        SlideshowAction::Previous => session.queue.previous(),
+        SlideshowAction::Next => advance(state, session, false).await?,
+        SlideshowAction::Previous => advance(state, session, true).await?,
         SlideshowAction::Pause { paused } => {
             if !paused && session.display_missing {
                 return Err(AppError::new(
@@ -569,23 +633,12 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
             let Some(s) = photos.session.as_mut().filter(|s| s.id == id) else {
                 return;
             };
-            let source_missing = {
-                state
-                    .db
-                    .lock()
-                    .map(|db| {
-                        s.sources.iter().any(|source| {
-                            db.query_row(
-                                "SELECT availability FROM media_sources WHERE id=?",
-                                [source],
-                                |r| r.get::<_, String>(0),
-                            )
-                            .map_or(true, |v| v != "available")
-                        })
-                    })
-                    .unwrap_or(true)
-            };
-            if source_missing || s.cache.values().any(|cached| !live(cached)) {
+            let source_missing = source_missing(&state, s);
+            if source_missing
+                || s.cache
+                    .get(s.queue.current())
+                    .is_some_and(|cached| !live(cached))
+            {
                 photos.stop(Some(
                     "The photo source is unavailable. Reconnect it before starting again.".into(),
                 ));
@@ -618,13 +671,14 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
                 && s.cache.contains_key(s.queue.current())
                 && Instant::now() >= s.next_at
             {
-                s.queue.next();
+                advance_automatic(&state, s).await;
                 s.next_at = Instant::now() + Duration::from_secs(u64::from(s.queue.interval));
                 retain(s);
             }
+            s.cache.retain(|_, cached| live(cached));
             let wanted = std::iter::once(s.queue.current())
                 .chain(s.queue.preloads())
-                .find(|key| !s.cache.contains_key(*key))
+                .find(|key| !s.cache.contains_key(*key) && !s.failed_preloads.contains(*key))
                 .map(str::to_string);
             let publication = photos.publication(&state);
             drop(photos);
@@ -632,19 +686,7 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
             wanted
         };
         if let Some(media_id) = wanted {
-            let result = async {
-                let _permit = tokio::select! {
-                    _ = cancel.cancelled() => return Err(AppError::new("cancelled", "Photo loading stopped.")),
-                    permit = state.thumbnail_gate.acquire() => permit.map_err(|_| AppError::new("decoder_unavailable", "Photo decoding is unavailable."))?,
-                };
-                let _probe = tokio::select! {
-                    _ = cancel.cancelled() => return Err(AppError::new("cancelled", "Photo loading stopped.")),
-                    permit = state.probes.acquire() => permit.map_err(|_| AppError::new("decoder_unavailable", "Photo decoding is unavailable."))?,
-                };
-                let media = crate::library::query::open(&state, &media_id).await?;
-                let image = decode::from_media(&media, cancel.clone()).await?;
-                Ok::<_, AppError>(Cached { media, image })
-            }.await;
+            let result = load(&state, &media_id, cancel.clone()).await;
             let mut photos = state.photos.lock().await;
             let Some(s) = photos.session.as_mut().filter(|s| s.id == id) else {
                 return;
@@ -661,11 +703,17 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
                     s.cache.insert(media_id, cached);
                     retain(s);
                 }
-                Ok(_) => {
-                    photos.stop(Some("The photo source is unavailable.".into()));
-                }
-                Err(error) => {
-                    photos.stop(Some(error.message));
+                failure => {
+                    if s.queue.current() == media_id {
+                        let message = failure
+                            .err()
+                            .map(|error| error.message)
+                            .unwrap_or_else(|| "The photo source is unavailable.".into());
+                        photos.stop(Some(message));
+                    } else {
+                        // A speculative neighbor never owns the current presentation.
+                        s.failed_preloads.insert(media_id);
+                    }
                 }
             }
             if photos.session.is_none() {
@@ -697,6 +745,8 @@ pub(crate) async fn seed_test_session(state: &AppState, id: &str) {
         monitor: "test".into(),
         sources: vec![],
         cache: HashMap::new(),
+        failed_preloads: Default::default(),
+        message: None,
         cancel: CancellationToken::new(),
         next_at: Instant::now(),
         display_missing: false,
@@ -786,6 +836,119 @@ mod tests {
             assert!(state.session.as_ref().unwrap().selection.is_none());
         }
     }
+    #[tokio::test]
+    async fn task9_review_unavailable_navigation_preserves_current_and_automatic_pauses() {
+        let (_dir, state) = mixed_library();
+        for neighbor in ["missing", "offline"] {
+            let mut current = session();
+            current.queue = Queue::new(SlideshowRequest {
+                media_ids: vec!["a".into(), neighbor.into()],
+                monitor_id: None,
+                interval_seconds: 5,
+                shuffle: false,
+            })
+            .unwrap();
+            let original = current.queue.ids.clone();
+            assert!(
+                advance(&state, &mut current, false).await.is_err(),
+                "manual navigation must reject unavailable target"
+            );
+            assert_eq!(current.queue.current(), "a");
+            assert!(advance(&state, &mut current, true).await.is_err());
+            advance_automatic(&state, &mut current).await;
+            assert!(current.queue.paused, "automatic transition must pause");
+            assert!(current
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("Slideshow paused")));
+            assert_eq!(current.queue.current(), "a");
+            assert_eq!(current.queue.ids, original);
+        }
+    }
+    fn mixed_library() -> (tempfile::TempDir, AppState) {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        {
+            let db = state.db.lock().unwrap();
+            for (id, availability) in [("source", "available"), ("offline-source", "offline")] {
+                db.execute("INSERT INTO media_sources(id,source_type,root,label,kinds,availability) VALUES(?,'local',x'2f746d70','Photo tests','[]',?)",rusqlite::params![id,availability]).unwrap();
+            }
+            for (id, source, availability) in [
+                ("a", "source", "available"),
+                ("missing", "source", "missing"),
+                ("offline", "offline-source", "available"),
+            ] {
+                db.execute("INSERT INTO media_items(id,source_id,relative_path,display_name,kind,size,mtime_ns,availability) VALUES(?,?,?,?,'photo',1,'1',?)",rusqlite::params![id,source,id.as_bytes(),id,availability]).unwrap();
+            }
+        }
+        (dir, state)
+    }
+    #[test]
+    fn task9_review_still_start_and_adoption_retain_missing_neighbors() {
+        let (_dir, state) = mixed_library();
+        for neighbor in ["missing", "offline"] {
+            let ids = vec!["a".to_string(), neighbor.to_string()];
+            let request = SlideshowRequest {
+                media_ids: ids.clone(),
+                monitor_id: None,
+                interval_seconds: 5,
+                shuffle: false,
+            };
+            let (queue, source_ids) = prepare(&state, request, true)
+                .expect("available still must not depend on its neighbor");
+            assert_eq!(queue.ids, ids);
+            assert!(queue.paused);
+            let mut singleton = session();
+            singleton.selection = None;
+            singleton.queue = Queue::new(SlideshowRequest {
+                media_ids: vec!["a".into()],
+                monitor_id: None,
+                interval_seconds: 5,
+                shuffle: false,
+            })
+            .unwrap();
+            singleton.queue.pause(true);
+            let mut photos = State {
+                session: Some(singleton),
+                ..Default::default()
+            };
+            assert!(photos
+                .select("owned-selection", "a", true, 5, Some(&queue.ids))
+                .unwrap());
+            photos.session.as_mut().unwrap().sources = source_ids;
+            assert_eq!(
+                photos.snapshot().session_id.as_deref(),
+                Some("test-session")
+            );
+            assert_eq!(photos.session.as_ref().unwrap().queue.ids, ids);
+            assert!(
+                !source_missing(&state, photos.session.as_ref().unwrap()),
+                "offline neighbor must not expire current photo"
+            );
+        }
+    }
+    #[test]
+    fn task9_review_offline_neighbor_does_not_expire_current_still() {
+        let (_dir, state) = mixed_library();
+        let (queue, source_ids) = prepare(
+            &state,
+            SlideshowRequest {
+                media_ids: vec!["a".into(), "offline".into()],
+                monitor_id: None,
+                interval_seconds: 5,
+                shuffle: false,
+            },
+            true,
+        )
+        .unwrap();
+        let mut current = session();
+        current.queue = queue;
+        current.sources = source_ids;
+        assert!(
+            !source_missing(&state, &current),
+            "only the current source owns the presentation lifetime"
+        );
+    }
     fn session() -> Session {
         Session {
             selection: Some("selected-order".into()),
@@ -800,6 +963,8 @@ mod tests {
             monitor: "display".into(),
             sources: vec!["source".into()],
             cache: HashMap::new(),
+            failed_preloads: Default::default(),
+            message: None,
             cancel: CancellationToken::new(),
             next_at: Instant::now(),
             display_missing: false,

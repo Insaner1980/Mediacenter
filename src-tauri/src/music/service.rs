@@ -285,6 +285,90 @@ pub async fn control_entry(
 ) -> Result<MusicQueue, AppError> {
     control_inner(app, state, session_id, revision, (action, false), cancel).await
 }
+// The caller holds music_gate. Adoption does not stop or restart a process.
+async fn adopt_confirmed_player(
+    app: Option<&tauri::AppHandle>,
+    state: &AppState,
+    mut queue: Queue,
+    revision: u32,
+    entry: u32,
+    expected: &str,
+    cancel: &CancellationToken,
+) -> Result<MusicQueue, AppError> {
+    let _session = state
+        .session_gate
+        .try_lock()
+        .map_err(|_| AppError::new("session_busy", "Another playback session is starting."))?;
+    if crate::photos::presenter::snapshot(state)
+        .await
+        .session_id
+        .is_some()
+        || state.browser.lock().await.is_some()
+    {
+        return Err(AppError::new(
+            "session_switch_required",
+            "Prepare an activity replacement first.",
+        ));
+    }
+    let item = queue
+        .original
+        .iter()
+        .find(|item| item.entry_id == entry)
+        .ok_or_else(|| AppError::new("not_found", "The queue entry no longer exists."))?
+        .item
+        .media_id
+        .clone();
+    let media = crate::library::query::open(state, &item).await?;
+    let identity = crate::control::activity::media_identity(&media)?;
+    refresh(state, &mut queue)?;
+    let mut stored = state.music.lock().await;
+    let mut registry = state.player.lock().await;
+    let player = registry
+        .as_mut()
+        .filter(|p| p.session.id == expected && p.media.kind == crate::contracts::MediaKind::Audio)
+        .ok_or_else(|| {
+            AppError::new(
+                "queue_session_stale",
+                "The music session changed. Refresh the queue.",
+            )
+        })?;
+    if player.confirmed_music.as_ref() != Some(&identity)
+        || crate::control::activity::media_identity(&player.media)? != identity
+        || player.media.lease.cancelled()
+        || media.lease.cancelled()
+    {
+        return Err(AppError::new(
+            "stale_state",
+            "The confirmed music file changed. Review it again.",
+        ));
+    }
+    if cancel.is_cancelled() {
+        return Err(AppError::new("cancelled", "Music playback was cancelled."));
+    }
+    crate::control::playback::adopt_confirmed(
+        &mut queue,
+        revision,
+        entry,
+        expected,
+        &player.session.id,
+        &player.snapshot.media_id,
+    )?;
+    let saved = persist(state, &queue);
+    player.confirmed_music = None;
+    *stored = queue;
+    let snapshot = stored.snapshot();
+    let stamp = state
+        .event_hub
+        .reserve(crate::remote::protocol::Topic::QueueSummary);
+    drop(registry);
+    drop(stored);
+    crate::remote::state::queue_changed(state, &snapshot, stamp);
+    if let Some(app) = app {
+        let _ = app.emit_to("main", "music_queue_changed", &snapshot);
+    }
+    saved?;
+    Ok(snapshot)
+}
 async fn control_inner(
     app: Option<tauri::AppHandle>,
     state: AppState,
@@ -296,7 +380,25 @@ async fn control_inner(
     let (action, allow_replace) = command;
     let _gate = state.music_gate.lock().await;
     let mut queue = state.music.lock().await.clone();
+    let explicit_entry = match &action {
+        crate::control::playback::QueueAction::Play(entry) => Some(*entry),
+        _ => None,
+    };
     let action = crate::control::playback::resolve(&queue, revision, action)?;
+    if !allow_replace && !queue.matches_session(session_id.as_deref()) {
+        if let (Some(entry), Some(expected)) = (explicit_entry, session_id.as_deref()) {
+            return adopt_confirmed_player(
+                app.as_ref(),
+                &state,
+                queue,
+                revision,
+                entry,
+                expected,
+                &cancel,
+            )
+            .await;
+        }
+    }
     if !queue.matches_session(session_id.as_deref()) {
         return Err(AppError::new(
             "queue_session_stale",

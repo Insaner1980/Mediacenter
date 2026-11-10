@@ -72,6 +72,11 @@ pub async fn preflight(
             "Install mpv to play this media.",
         ));
     }
+    media_identity(&media)
+}
+pub(crate) fn media_identity(
+    media: &crate::library::query::OpenMedia,
+) -> Result<MediaIdentity, AppError> {
     use std::os::unix::fs::MetadataExt;
     let meta = media.file.metadata()?;
     Ok(MediaIdentity {
@@ -85,6 +90,26 @@ pub async fn preflight(
             meta.mtime_nsec(),
         ),
     })
+}
+// Only a successful native activity execution grants this one-time handoff.
+pub(crate) async fn bind_music_handoff(
+    state: &AppState,
+    item: &str,
+    identity: MediaIdentity,
+) -> Result<(), AppError> {
+    let mut player = state.player.lock().await;
+    let player = player
+        .as_mut()
+        .filter(|p| p.snapshot.media_id == item && p.media.kind == MediaKind::Audio)
+        .ok_or_else(|| AppError::new("stale_state", "The confirmed music session changed."))?;
+    if media_identity(&player.media)? != identity || player.media.lease.cancelled() {
+        return Err(AppError::new(
+            "stale_state",
+            "The confirmed music file changed.",
+        ));
+    }
+    player.confirmed_music = Some(identity);
+    Ok(())
 }
 pub fn validate_identity(before: &Identity, now: &Identity) -> Result<(), AppError> {
     if before != now {
@@ -159,6 +184,9 @@ pub async fn execute_locked(
             cancel,
         )
         .await?;
+        if target.kind == ActivityKind::Music {
+            bind_music_handoff(state, target.item_id.as_str(), media_identity).await?;
+        }
     }
     Ok(())
 }

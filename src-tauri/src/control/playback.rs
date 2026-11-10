@@ -76,6 +76,41 @@ pub(crate) fn resolve(
     })
 }
 
+/// Called under music/session gates after verifying the confirmed player's file identity.
+pub(crate) fn adopt_confirmed(
+    queue: &mut Queue,
+    revision: u32,
+    entry: u32,
+    expected: &str,
+    active: &str,
+    media: &str,
+) -> Result<(), AppError> {
+    queue.validate(revision)?;
+    if queue.session_id.is_some() || expected != active {
+        return Err(AppError::new(
+            "queue_session_stale",
+            "The music session changed. Refresh the queue.",
+        ));
+    }
+    let item = queue
+        .original
+        .iter()
+        .find(|item| item.entry_id == entry)
+        .filter(|_| queue.order.contains(&entry))
+        .ok_or_else(|| AppError::new("not_found", "The queue entry no longer exists."))?;
+    if item.item.media_id != media || item.item.availability != "available" {
+        return Err(AppError::new(
+            "stale_state",
+            "The confirmed music does not match this queue entry.",
+        ));
+    }
+    queue.current = Some(entry);
+    queue.session_id = Some(active.into());
+    queue.revision = queue.revision.wrapping_add(1);
+    queue.message = None;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,6 +145,66 @@ mod tests {
         let mut s = s;
         s.seekable = false;
         assert!(validate(&s, &PlayerAction::Seek { seconds: 0. }).is_err());
+    }
+    #[test]
+    fn task9_review_confirmed_music_adopts_explicit_duplicate_then_next() {
+        let mut queue = Queue::default();
+        queue
+            .replace(
+                ["same", "same", "next"]
+                    .into_iter()
+                    .map(|id| crate::music::queue::MusicItem {
+                        media_id: id.into(),
+                        title: id.into(),
+                        artist: None,
+                        album: None,
+                        availability: "available".into(),
+                    })
+                    .collect(),
+                0,
+            )
+            .unwrap();
+        let original = queue.snapshot().items;
+        let revision = queue.revision;
+        adopt_confirmed(&mut queue, revision, 1, "confirmed", "confirmed", "same")
+            .expect("confirmed music must attach the explicit queue occurrence");
+        assert_eq!(queue.snapshot().items, original);
+        assert_eq!(queue.current, Some(1));
+        assert_eq!(queue.session_id.as_deref(), Some("confirmed"));
+        assert_eq!(queue.revision, revision + 1);
+        let revision = queue.revision;
+        queue.edit(revision, MusicAction::Next, vec![], 0).unwrap();
+        assert_eq!(queue.current, Some(2));
+        assert_eq!(queue.current_media_id().as_deref(), Some("next"));
+    }
+    #[test]
+    fn task9_review_music_handoff_rejects_stale_revision_session_and_wrong_media() {
+        let mut queue = Queue::default();
+        queue
+            .replace(
+                vec![crate::music::queue::MusicItem {
+                    media_id: "same".into(),
+                    title: "Same".into(),
+                    artist: None,
+                    album: None,
+                    availability: "available".into(),
+                }],
+                0,
+            )
+            .unwrap();
+        let revision = queue.revision;
+        for (rev, entry, expected, active, media) in [
+            (revision - 1, 0, "confirmed", "confirmed", "same"),
+            (revision, 0, "old", "confirmed", "same"),
+            (revision, 0, "confirmed", "replacement", "same"),
+            (revision, 0, "confirmed", "confirmed", "other"),
+            (revision, 99, "confirmed", "confirmed", "same"),
+        ] {
+            assert!(adopt_confirmed(&mut queue, rev, entry, expected, active, media).is_err());
+            assert_eq!(queue.revision, revision);
+            assert_eq!(queue.current, Some(0));
+            assert!(queue.session_id.is_none());
+        }
     }
     #[tokio::test]
     async fn task9_entry_identity_is_resolved_after_serialized_desktop_reorder() {
