@@ -5,7 +5,7 @@
   "androidSdkMajor": 37,
   "note": "These paired sources use the tested shared contract including optional playlist search. Phone media controls, opaque thumbnail fetching and renderer navigation have source-level test evidence recorded separately. Target-shell integration and physical acceptance remain pending; this is not a fully integrated remote-control release.",
   "desktopSourceCommit": "30506a6f324b71843e42a600db770d0f0818f60a",
-  "androidSourceCommit": "a1e775b6673a252fa7f6321bf387b86eea396aa7",
+  "androidSourceCommit": "6906baedf190e8c1fff79113edfa6ed779658561",
   "schemaSha256": "bfd145ef3eac74d3ca23e1ca26234ef4384a4f466d5759c2efef3f68eec7e2ae",
   "scope": "contract_only",
   "desktopVersion": "0.1.6",
