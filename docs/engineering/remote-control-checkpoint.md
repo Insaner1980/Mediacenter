@@ -1,10 +1,12 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s request on 2026-11-10. Tasks 1–10 have completed source implementation and independent review. Task 17 has a partial Chrome experiment saved at `3e1588e`; manual test-profile installation is pending. Continue independent Task 11. Physical device acceptance remains outstanding.
+Resumed at the user’s request on 2026-11-10. Tasks 1–11 have completed source implementation and independent review. Task 17 has a partial Chrome experiment saved at `3e1588e`; manual test-profile installation is pending. Continue independent Task 12. Physical device acceptance remains outstanding.
+
+Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
 ## Resume
 
-Continue the plan `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` from **Task 11**, while retaining the pending **Task 17** browser installation step. Do not restart Tasks 1–10.
+Continue the plan `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` from **Task 12**, while retaining the pending **Task 17** browser installation step. Do not restart Tasks 1–11.
 
 Task 10's scoped re-review approved both fixes with zero open findings. Desktop source is `9cc72f1`, paired metadata `b3c2861`, and Android `fbca8d2`. Read its final report and `task-10-fix1-review.md` for APIs and evidence; do not redispatch its implementation.
 
@@ -13,11 +15,11 @@ Task 10's scoped re-review approved both fixes with zero open findings. Desktop 
 - Task 7 supplies independent connection, discovery, pinned TLS, encrypted credentials and QR/manual pairing. Its exact handoff and hardware-test procedure are in `task-7-report.md`.
 - Task 8 reconnect/resync/uncertain-command recovery is implemented at `3ddeaf8` with reviewed fixes at `44298c2`. No Critical or Important findings remain.
 - Task 9 desktop source is reviewed through `10e2b64`; its Android contract correction is `45e3175`. No Critical or Important findings remain.
-- Task 10 supplies optional audio-only routing and foregrounding of existing mpv, photo and managed-browser windows. The server now advertises 47 implemented methods; renderer navigation remains Task 11.
-- Continue Tasks 11–16, resume Task 17 after its manual installation gate, then Tasks 18–22. These 12 tasks remain unfinished.
+- Task 10 supplies optional audio-only routing and foregrounding of existing mpv, photo and managed-browser windows. Reviewed Task 11 adds five acknowledged renderer methods (52 implemented methods total) and shared confirmation resolution.
+- Continue Tasks 12–16, resume Task 17 after its manual installation gate, then Tasks 18–22. These 11 tasks remain unfinished.
 - Task 17 is incomplete: experimental loading did not survive restart; automated normal-UI drag/drop reported “No dragged path.” The disposable Chrome profile was opened for the user's explicit Load unpacked action. Once the user confirms installation and closure, run the reviewed harness with `--installed`. Never interpret the experimental failure as proof normal installation is impossible. Host/broker/input remain unimplemented. Consult `task-17-report.md`; its early source range is `e3e189b..3e1588e`.
 
-Read the durable workspace `.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control/` before resuming: the latest entries of `progress.md`, then `task-11-brief.md`, `task-11-spec-extract.md`, `task-11-context.md` and `task-11-dispatch.md`. Task 10's final API and evidence are in its report and scoped fix review. Task 17's pending browser handoff is in its brief, context and report. That gitignored workspace remains on disk; do not run `git clean -fdx`.
+Read the durable workspace `.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control/` before resuming: the latest entries of `progress.md`, then `task-12-brief.md`, `task-12-spec-extract.md`, `task-12-context.md` and `task-12-dispatch.md`. Tasks 9–11 reports supply the current native/repository/renderer interfaces. Task 17's pending browser handoff is in its brief, context and report. That gitignored workspace remains on disk; do not run `git clean -fdx`.
 
 The user resumed the remaining work with “jatka” after the scope/time explanation. Task 17 is now in progress. Keep the browser feasibility experiment bounded and continue without another scope confirmation. Do not describe the whole project as complete. The first actual Chrome 157 experiment admitted the extension through experimental CDP loading but did not retain it on restart; the supported installation route is being checked separately. Native host and tab-input acceptance are not yet established.
 
@@ -68,3 +70,13 @@ The desktop broad run passed 308 tests with four explicitly ignored native/hardw
 The reviewed fixes are desktop `9cc72f1` and Android `fbca8d2`, with metadata at `b3c2861`. Expired/not-found confirmations now dismiss and allow a new choice. Native idle/preference states are distinct from a real routing loss; a transient fault retained in home publication preserves loss after the effective sink ID is cleared. It does not change the serialized native/TypeScript/wire shape.
 
 Fix round 1 passed four native regressions plus state 9, audio-control 3, outputs 19 and presenter 15 tests, strict Clippy and formatting. Final Android verification passed 13 tests (10 controller and three rendered Compose), Detekt, ktlint, fresh Android lint, APK assembly and instrumentation-test compilation. The phone tests consume exact JSON emitted by the native projector. Scoped independent re-review approved both findings without new issues. These localized results are separate from the earlier broad run. Known build warnings remain nonblocking baseline notes; real phone/HDMI/audio/browser acceptance is still Task 21.
+
+## Task 11 verified checkpoint
+
+The AppState-owned renderer bridge waits for main-window acknowledgement, binds native dispatch IDs to the authenticated phone/connection, and rejects stale generations, contexts and unauthorized actions. Semantic media/navigation actions preserve native authority; remote entry suppresses automatic local folder setup. Shared server confirmations resolve across desktop and the existing phone Sound sheet. No wire/schema/SDK/dependency change was needed; schema hash remains `d658222be2962dc3859c001c154d7f7626946bee14d47972c36bab2ed195266e`.
+
+Final native regression passed 324 tests, zero failures and four existing ignored cases; Android passed 16 focused tests, quality, lint, APK and instrumentation compilation. Frontend counts are reported as 154 affected tests followed by 30 localized tests plus build/lint/type-generation checks, but their original stdout was not retained as files. Fix round 1 must retain its actual new output.
+
+The reviewed focus correction at `afc31cd` uses explicit list/row/grid sections, adjacent grid rows and prior stable-ID order for removal recovery. It passed 51 affected tests across ten files, build/typecheck, lint and generated DTO checks; actual RED/GREEN/check output is retained under `checkpoint-evidence/task11-fix1/`. Scoped re-review approved both findings without new issues. The earlier native 324 and Android 16 gates cover unchanged corresponding code. Real Tauri/phone/HDMI acceptance remains Task 21.
+
+Task 12 owns the composed phone Remote/Library/Settings pages, D-pad repeat/text entry, common phone confirmation sheet, complete playback/queue/photo flows and bounded thumbnail cache. The native thumbnail HTTP route already exists, but a fresh item currently receives no thumbnail ID until a desktop preview populates cache metadata. Task 12 must complete that minimal opaque-ID producer before claiming phone-only thumbnail browsing; preserve existing endpoint bounds, source-lease/fingerprint validation and desktop previews.
