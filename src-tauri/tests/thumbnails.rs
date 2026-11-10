@@ -54,7 +54,7 @@ impl Library {
     }
     fn index(&self, name: &str) {
         let metadata = std::fs::metadata(self.root.join(name)).unwrap();
-        self.state.db.lock().unwrap().execute("INSERT INTO media_items(id,source_id,relative_path,display_name,kind,size,mtime_ns,availability) VALUES(?1,'source',?2,?1,'photo',?3,?4,'available') ON CONFLICT(id) DO UPDATE SET size=excluded.size,mtime_ns=excluded.mtime_ns",rusqlite::params![name,name.as_bytes(),metadata.len()as i64,format!("{}:{}",metadata.mtime(),metadata.mtime_nsec())]).unwrap();
+        self.state.db.lock().unwrap().execute("INSERT INTO media_items(id,source_id,relative_path,display_name,kind,size,mtime_ns,availability) VALUES(?1,'source',?2,?1,'photo',?3,?4,'available') ON CONFLICT(id) DO UPDATE SET size=excluded.size,mtime_ns=excluded.mtime_ns",rusqlite::params![name.replace('.', "-"),name.as_bytes(),metadata.len()as i64,format!("{}:{}",metadata.mtime(),metadata.mtime_nsec())]).unwrap();
     }
     async fn remote_token(&self, name: &str) -> String {
         use mediacenter_lib::{
@@ -69,7 +69,7 @@ impl Library {
         let principal: RemotePrincipal =
             serde_json::from_value(serde_json::json!({"deviceId":"phone","scopes":["browse"]}))
                 .unwrap();
-        let request = parse_request(&serde_json::json!({"v":1,"id":"thumbnail","method":"library.item","params":{"itemId":name}}).to_string()).unwrap();
+        let request = parse_request(&serde_json::json!({"v":1,"id":"thumbnail","method":"library.item","params":{"itemId":name.replace('.', "-")}}).to_string()).unwrap();
         media::read(&services, &principal, &request.command)
             .await
             .unwrap()["thumbnailId"]
@@ -78,14 +78,19 @@ impl Library {
             .to_owned()
     }
     async fn get(&self, name: &str) -> Result<Vec<u8>, mediacenter_lib::contracts::AppError> {
-        let image = thumbnails::get(&self.state, name, CancellationToken::new()).await?;
+        let image = thumbnails::get(
+            &self.state,
+            &name.replace('.', "-"),
+            CancellationToken::new(),
+        )
+        .await?;
         assert_eq!(image.mime, "image/png");
         Ok(base64::engine::general_purpose::STANDARD
             .decode(image.base64)
             .unwrap())
     }
     fn cache_path(&self, name: &str) -> PathBuf {
-        let filename:String=self.state.db.lock().unwrap().query_row("SELECT filename FROM thumbnail_entries WHERE media_id=? ORDER BY last_access_ms DESC LIMIT 1",[name],|r|r.get(0)).unwrap();
+        let filename:String=self.state.db.lock().unwrap().query_row("SELECT filename FROM thumbnail_entries WHERE media_id=? ORDER BY last_access_ms DESC LIMIT 1",[name.replace('.', "-")],|r|r.get(0)).unwrap();
         self.state.cache_dir.join("thumbnails").join(filename)
     }
 }
@@ -219,7 +224,7 @@ async fn thumbnails_lru_budget_evicts_oldest_files_and_keeps_recent_images() {
             .unwrap()
             .set_len(2 * 1024 * 1024)
             .unwrap();
-        library.state.db.lock().unwrap().execute("INSERT INTO thumbnail_entries(cache_key,media_id,fingerprint,filename,bytes,last_access_ms) VALUES(?1,'photo.jpg',?1,?2,2097152,?3)",rusqlite::params![key,filename,index]).unwrap();
+        library.state.db.lock().unwrap().execute("INSERT INTO thumbnail_entries(cache_key,media_id,fingerprint,filename,bytes,last_access_ms) VALUES(?1,'photo-jpg',?1,?2,2097152,?3)",rusqlite::params![key,filename,index]).unwrap();
     }
     let image = library.get("photo.jpg").await.unwrap();
     assert!(thumbnails::valid_png(&image));
