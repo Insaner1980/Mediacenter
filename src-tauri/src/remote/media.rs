@@ -31,7 +31,7 @@ pub(crate) fn item(db: &Connection, id: &str) -> Result<MediaItem, RemoteError> 
     native.thumbnail_id = crate::library::thumbnails::issue_remote(db, id).map_err(native_error)?;
     MediaItem::try_from(&native)
 }
-fn bounds(
+pub(crate) fn bounds(
     cursor: Option<&Cursor>,
     resource: &str,
     revision: u64,

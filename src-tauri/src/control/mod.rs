@@ -3,6 +3,10 @@ use crate::{app_state::AppState, contracts::AppError, remote::protocol::Id};
 #[derive(Clone)]
 pub struct ControlServices {
     pub(crate) confirmations: std::sync::Arc<std::sync::Mutex<confirmations::Confirmations>>,
+    pub(crate) source_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
+    pub(crate) folders: std::sync::Arc<std::sync::Mutex<crate::remote::folders::Folders>>,
+    pub(crate) source_scans:
+        std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (Id, u64)>>>,
     pub(crate) media: std::sync::Arc<std::sync::Mutex<crate::remote::media::MediaState>>,
     pub(crate) state: AppState,
     pub(crate) server_identity: Id,
@@ -29,6 +33,9 @@ impl ControlServices {
         )?;
         Ok(Self {
             media: Default::default(),
+            folders: Default::default(),
+            source_gate: Default::default(),
+            source_scans: Default::default(),
             confirmations: Default::default(),
             state,
             server_identity,
@@ -49,3 +56,5 @@ pub mod confirmations;
 pub mod playback;
 
 pub mod audio;
+
+pub mod library;

@@ -117,6 +117,75 @@ pub fn list(
     }
     Ok(sources)
 }
+/// Remote selections are reopened beneath their held directory descriptor immediately
+/// before producing the native grant, and again before the repository effect.
+pub async fn add_remote(
+    state: AppState,
+    selection: crate::remote::folders::Selection,
+    kinds: Vec<MediaKind>,
+) -> Result<String, AppError> {
+    let _gate = state
+        .device_gate
+        .clone()
+        .try_lock_owned()
+        .map_err(|_| AppError::new("busy", "A device operation is running."))?;
+    let devices = crate::devices::udisks::discover().await?;
+    tokio::task::spawn_blocking(move || {
+        let _gate = _gate;
+        register_remote(&state, &selection, &kinds, &devices)
+    })
+    .await
+    .map_err(|_| AppError::new("source_error", "Source could not be added."))?
+}
+
+fn register_remote(
+    state: &AppState,
+    selection: &crate::remote::folders::Selection,
+    kinds: &[MediaKind],
+    devices: &crate::devices::udisks::Devices,
+) -> Result<String, AppError> {
+    selection.check_expiry(crate::app_state::now_ms())?;
+    let _descriptor = selection.revalidate()?;
+    let grant = state
+        .grants
+        .lock()
+        .map_err(|_| AppError::new("state_error", "Folder selection unavailable."))?
+        .issue(selection.path())?;
+    let root = state
+        .grants
+        .lock()
+        .map_err(|_| AppError::new("state_error", "Folder selection unavailable."))?
+        .consume(&grant)?;
+    selection.revalidate()?;
+    if root != selection.path() {
+        return Err(AppError::new("stale_state", "Folder changed."));
+    }
+    let mut db = state
+        .db
+        .lock()
+        .map_err(|_| AppError::new("database_error", "Library unavailable."))?;
+    let transaction = db.transaction()?;
+    let id = repository::add_resolved(&transaction, &root, kinds, devices)?;
+    selection.revalidate()?;
+    let record = repository::get(&transaction, &id)?;
+    if record
+        .volume
+        .as_deref()
+        .is_some_and(|v| v.starts_with("fingerprint:"))
+    {
+        state
+            .source_confirmations
+            .lock()
+            .map_err(|_| AppError::new("state_error", "Source confirmation unavailable."))?
+            .insert(
+                id.clone(),
+                confirmation::capture(&crate::library::files::descriptor_path(&_descriptor))?,
+            );
+    }
+    transaction.commit()?;
+    Ok(id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,5 +211,48 @@ mod tests {
         assert!(repository::records(&state.db.lock().unwrap())
             .unwrap()
             .is_empty());
+    }
+    #[test]
+    fn remote_grant_revalidates_before_registration_and_preserves_actual_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Music");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(root.join("Albums")).unwrap();
+        let state = AppState::open(dir.path().join("data")).unwrap();
+        let owner = crate::remote::adapters::checked("phone").unwrap();
+        let mut folders = crate::remote::folders::Folders::default();
+        let root_node = folders
+            .roots(&owner, vec![root.clone()], crate::app_state::now_ms())
+            .unwrap()
+            .items
+            .as_slice()[0]
+            .node_id
+            .clone();
+        let node = folders
+            .children(&owner, &root_node, None, None, crate::app_state::now_ms())
+            .unwrap()
+            .items
+            .as_slice()[0]
+            .node_id
+            .clone();
+        let selected = folders
+            .selection(&owner, &node, crate::app_state::now_ms())
+            .unwrap();
+        std::fs::rename(root.join("Albums"), root.join("original")).unwrap();
+        std::os::unix::fs::symlink("/etc", root.join("Albums")).unwrap();
+        assert!(
+            register_remote(&state, &selected, &[MediaKind::Audio], &Default::default()).is_err()
+        );
+        assert!(repository::records(&state.db.lock().unwrap())
+            .unwrap()
+            .is_empty());
+        let selection = folders
+            .selection(&owner, &root_node, crate::app_state::now_ms())
+            .unwrap();
+        let id =
+            register_remote(&state, &selection, &[MediaKind::Audio], &Default::default()).unwrap();
+        let record = repository::get(&state.db.lock().unwrap(), &id).unwrap();
+        assert_eq!(record.root, root);
+        assert_eq!(record.kinds, vec![MediaKind::Audio]);
     }
 }

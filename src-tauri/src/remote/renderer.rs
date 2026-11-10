@@ -503,6 +503,17 @@ impl super::dispatch::Dispatcher {
                             "activity.confirm"
                         }
                         crate::control::confirmations::Action::Audio { .. } => "audio.confirm",
+                        crate::control::confirmations::Action::Library(action) => match action {
+                            crate::control::library::LibraryAction::Add { .. } => {
+                                "folders.confirmAdd"
+                            }
+                            crate::control::library::LibraryAction::Reattach { .. } => {
+                                "sources.confirmReattachment"
+                            }
+                            crate::control::library::LibraryAction::Remove { .. } => {
+                                "sources.confirmRemove"
+                            }
+                        },
                     }
                 };
                 (

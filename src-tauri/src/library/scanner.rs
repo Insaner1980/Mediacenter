@@ -15,6 +15,54 @@ pub fn finish_scan(
     }
     Ok(())
 }
+/// Final native observation: a lost/replaced source must not mark prior metadata missing.
+struct ScanOutcome {
+    complete: bool,
+    offline: bool,
+    cancelled: bool,
+}
+fn finish_observed_scan(
+    db: &rusqlite::Connection,
+    source: &str,
+    scan: &str,
+    root: &std::path::Path,
+    initial: &std::fs::Metadata,
+    outcome: ScanOutcome,
+) -> Result<(), AppError> {
+    let offline = outcome.offline
+        || !std::fs::metadata(root)
+            .is_ok_and(|m| m.dev() == initial.dev() && m.ino() == initial.ino());
+    if offline {
+        db.execute(
+            "UPDATE media_sources SET availability='offline' WHERE id=?",
+            [source],
+        )?;
+    }
+    finish_scan(
+        db,
+        source,
+        scan,
+        outcome.complete && !offline,
+        outcome.cancelled,
+    )?;
+    if outcome.cancelled {
+        return Err(AppError::new(
+            "cancelled",
+            "The scan was cancelled. Existing library records were retained.",
+        ));
+    }
+    if offline {
+        return Err(AppError::new("source_offline", "The source disconnected during scanning. Existing records were retained. Reconnect the drive, refresh sources and scan again."));
+    }
+    if !outcome.complete {
+        return Err(AppError::new(
+            "scan_partial",
+            "Some folders or files could not be read. Existing records were retained.",
+        ));
+    }
+    Ok(())
+}
+
 pub fn invalidate_changed(
     db: &rusqlite::Connection,
     id: &str,
@@ -214,12 +262,40 @@ fn flush(
     updates.clear();
     Ok(())
 }
+fn acquire_scan_resource(
+    state: &AppState,
+    source: &str,
+    cancel: CancellationToken,
+) -> Result<super::resources::ResourceLease, AppError> {
+    state
+        .resources
+        .acquire(source, cancel.clone())
+        .map_err(|error| {
+            if cancel.is_cancelled() {
+                scan_cancelled()
+            } else {
+                error
+            }
+        })
+}
+
+fn scan_cancelled() -> AppError {
+    AppError::new(
+        "cancelled",
+        "The scan was cancelled. Existing library records were retained.",
+    )
+}
+
 pub async fn scan(
     app: tauri::AppHandle,
     state: AppState,
     source: String,
     cancel: CancellationToken,
 ) -> Result<(), AppError> {
+    if cancel.is_cancelled() {
+        return Err(scan_cancelled());
+    }
+
     {
         let mut scans = state
             .scans
@@ -244,7 +320,7 @@ pub async fn scan(
         state: state.clone(),
         id: source.clone(),
     };
-    let _resource = state.resources.acquire(&source, cancel.clone())?;
+    let _resource = acquire_scan_resource(&state, &source, cancel.clone())?;
     let devices = crate::devices::udisks::discover().await.unwrap_or_default();
     let record = {
         let db = state
@@ -318,48 +394,28 @@ pub async fn scan(
     let complete = enumerator
         .await
         .map_err(|_| AppError::new("scan_failed", "The folder scan stopped unexpectedly."))??;
-    offline |= !std::fs::metadata(&root)
-        .is_ok_and(|m| m.dev() == initial.dev() && m.ino() == initial.ino());
-    {
+    let outcome = {
         let db = state
             .db
             .lock()
             .map_err(|_| AppError::new("database_error", "The library is unavailable."))?;
-        if offline {
-            db.execute(
-                "UPDATE media_sources SET availability='offline' WHERE id=?",
-                [&source],
-            )?;
-        }
-        finish_scan(
+        finish_observed_scan(
             &db,
             &source,
             &scan,
-            complete && !offline,
-            cancel.is_cancelled(),
-        )?;
-    }
+            &root,
+            &initial,
+            ScanOutcome {
+                complete,
+                offline,
+                cancelled: cancel.is_cancelled(),
+            },
+        )
+    };
     publish_summaries(&app, &state)?;
-    if cancel.is_cancelled() {
-        return Err(AppError::new(
-            "cancelled",
-            "The scan was cancelled. Existing library records were retained.",
-        ));
-    }
-    if offline {
-        return Err(AppError::new(
-            "source_offline",
-            "The source disconnected during scanning. Existing records were retained.",
-        ));
-    }
-    if !complete {
-        return Err(AppError::new(
-            "scan_partial",
-            "Some folders or files could not be read. Existing records were retained.",
-        ));
-    }
-    Ok(())
+    outcome
 }
+
 pub fn publish_summaries(app: &tauri::AppHandle, state: &AppState) -> Result<(), AppError> {
     crate::remote::state::sources_changed(state);
     let counts = {
@@ -393,6 +449,76 @@ mod tests {
         db.execute("INSERT INTO media_sources(id,source_type,root,label,kinds,availability) VALUES('s','local',x'2f746d70','test','[]','available')",[]).unwrap();
         db.execute("INSERT INTO media_items(id,source_id,relative_path,display_name,kind,size,mtime_ns,availability,scan_id,thumbnail_id) VALUES('m','s',x'66','f','video',1,'1','available','old','thumb')",[]).unwrap();
         (dir, db)
+    }
+    #[test]
+    fn pre_cancelled_scan_admission_reports_cancelled_not_resource_busy() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().join("data")).unwrap();
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        let error = acquire_scan_resource(&state, "source", cancel)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "cancelled");
+        assert_eq!(state.resources.active_count(&["source".into()]).unwrap(), 0);
+        let _block = state.resources.block(&["source".into()]).unwrap();
+        assert_eq!(
+            acquire_scan_resource(&state, "source", CancellationToken::new())
+                .err()
+                .unwrap()
+                .code,
+            "source_busy"
+        );
+    }
+    #[test]
+    fn disconnected_source_during_scan_preserves_metadata_and_reports_recovery() {
+        let (dir, db) = fixture();
+        let root = dir.path().join("USB");
+        std::fs::create_dir(&root).unwrap();
+        let initial = std::fs::metadata(&root).unwrap();
+        std::fs::rename(&root, dir.path().join("disconnected")).unwrap();
+        let error = finish_observed_scan(
+            &db,
+            "s",
+            "new",
+            &root,
+            &initial,
+            ScanOutcome {
+                complete: true,
+                offline: false,
+                cancelled: false,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "source_offline");
+        assert!(error.message.contains("retained"));
+        assert_eq!(
+            db.query_row(
+                "SELECT availability FROM media_items WHERE id='m'",
+                [],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            "available"
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT thumbnail_id FROM media_items WHERE id='m'",
+                [],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            "thumb"
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT availability FROM media_sources WHERE id='s'",
+                [],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            "offline"
+        );
     }
     #[test]
     fn cancelled_scan_does_not_mark_files_missing() {

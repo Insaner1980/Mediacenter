@@ -174,7 +174,17 @@ impl Fixture {
                 "ui.moveFocus",
                 "ui.activate",
                 "ui.back",
-                "ui.search"
+                "ui.search",
+                "sources.list",
+                "folders.roots",
+                "folders.children",
+                "folders.prepareAdd",
+                "folders.confirmAdd",
+                "sources.scan",
+                "sources.cancelScan",
+                "sources.prepareRemove",
+                "sources.confirmRemove",
+                "sources.confirmReattachment"
             ])
         );
         let snapshot = next_json(&mut socket).await;

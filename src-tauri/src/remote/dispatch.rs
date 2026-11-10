@@ -11,9 +11,9 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub struct Dispatcher {
     pub(crate) services: ControlServices,
-    work: Arc<DeviceLimits>,
+    pub(crate) work: Arc<DeviceLimits>,
     cancellation_gate: Arc<Mutex<()>>,
-    pub(super) registration: Option<Arc<()>>,
+    pub(crate) registration: Option<Arc<()>>,
     #[cfg(test)]
     pub(super) pause_effect: Option<Arc<dyn Fn() -> Result<(), AppError> + Send + Sync>>,
 }
@@ -30,9 +30,9 @@ pub(crate) fn unavailable() -> RemoteError {
     )
 }
 pub fn capabilities() -> Capabilities {
-    checked(serde_json::json!({"methods":["state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback","ui.navigate","ui.moveFocus","ui.activate","ui.back","ui.search"],"services":[],"browserBridge":false})).expect("static capabilities")
+    checked(serde_json::json!({"methods":["state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback","ui.navigate","ui.moveFocus","ui.activate","ui.back","ui.search","sources.list","folders.roots","folders.children","folders.prepareAdd","folders.confirmAdd","sources.scan","sources.cancelScan","sources.prepareRemove","sources.confirmRemove","sources.confirmReattachment"],"services":[],"browserBridge":false})).expect("static capabilities")
 }
-fn value(value: impl serde::Serialize) -> Result<serde_json::Value, RemoteError> {
+pub(crate) fn value(value: impl serde::Serialize) -> Result<serde_json::Value, RemoteError> {
     serde_json::to_value(value).map_err(|_| RemoteError::invalid())
 }
 impl Dispatcher {
@@ -75,6 +75,11 @@ impl Dispatcher {
                 | RemoteCommand::ActivityConfirm(_)
                 | RemoteCommand::AudioPrepare(_)
                 | RemoteCommand::AudioConfirm(_)
+                | RemoteCommand::FoldersPrepareAdd(_)
+                | RemoteCommand::FoldersConfirmAdd(_)
+                | RemoteCommand::SourcesPrepareRemove(_)
+                | RemoteCommand::SourcesConfirmRemove(_)
+                | RemoteCommand::SourcesConfirmReattachment(_)
                 | RemoteCommand::ConfirmationsCancel(_)
         );
         let result = self.dispatch_inner(principal, request).await;
@@ -88,6 +93,9 @@ impl Dispatcher {
         principal: &RemotePrincipal,
         request: RemoteRequest,
     ) -> Result<serde_json::Value, RemoteError> {
+        if crate::control::library::handles(&request.command) {
+            return crate::control::library::dispatch(self, principal, request).await;
+        }
         match &request.command {
             RemoteCommand::UiNavigate(_)
             | RemoteCommand::UiMoveFocus(_)
@@ -326,7 +334,7 @@ impl Dispatcher {
             _ => Err(RemoteError::invalid()),
         }
     }
-    fn cancel(
+    pub(crate) fn cancel(
         &self,
         principal: &RemotePrincipal,
         request: &RemoteRequest,
@@ -467,7 +475,7 @@ mod tests {
             ErrorCode::Forbidden
         );
         let request =
-            parse_request(r#"{"v":1,"id":"read","method":"sources.list","params":{}}"#).unwrap();
+            parse_request(r#"{"v":1,"id":"read","method":"drives.list","params":{}}"#).unwrap();
         assert_eq!(
             dispatcher
                 .dispatch(&principal, request)
@@ -492,7 +500,11 @@ mod tests {
 mod admission_tests;
 
 impl Dispatcher {
-    fn context(&self, owner: &RemotePrincipal, request: &RemoteRequest) -> CommandContext {
+    pub(crate) fn context(
+        &self,
+        owner: &RemotePrincipal,
+        request: &RemoteRequest,
+    ) -> CommandContext {
         CommandContext {
             principal: owner.clone(),
             request_id: request.id.clone(),
@@ -534,7 +546,7 @@ impl Dispatcher {
             confirm_method: ConfirmMethod::ActivityConfirm,
         })
     }
-    fn activity_replay(
+    pub(crate) fn activity_replay(
         &self,
         owner: &RemotePrincipal,
         request: &RemoteRequest,
@@ -555,7 +567,10 @@ impl Dispatcher {
                 .map_err(native_error)?;
             if matches!(
                 request.command,
-                RemoteCommand::ActivityPrepare(_) | RemoteCommand::AudioPrepare(_)
+                RemoteCommand::ActivityPrepare(_)
+                    | RemoteCommand::AudioPrepare(_)
+                    | RemoteCommand::FoldersPrepareAdd(_)
+                    | RemoteCommand::SourcesPrepareRemove(_)
             ) {
                 let pending = self
                     .services
@@ -565,7 +580,12 @@ impl Dispatcher {
                 if let Some(p) = pending.pending.values().find(|p| {
                     p.request == request.id && p.preview.owner_device_id == owner.device_id
                 }) {
-                    if matches!(request.command, RemoteCommand::AudioPrepare(_)) {
+                    if matches!(
+                        request.command,
+                        RemoteCommand::AudioPrepare(_)
+                            | RemoteCommand::FoldersPrepareAdd(_)
+                            | RemoteCommand::SourcesPrepareRemove(_)
+                    ) {
                         if let Some(operation_id) = &p.operation {
                             return value(ActivityPreparation::Accepted {
                                 operation: OperationRef {

@@ -75,6 +75,22 @@ pub fn add(
         ));
     }
     let root = root.canonicalize()?;
+    add_resolved(db, &root, kinds, devices)
+}
+/// The remote adapter has already pinned and revalidated this exact root.
+pub(crate) fn add_resolved(
+    db: &Connection,
+    root: &Path,
+    kinds: &[MediaKind],
+    devices: &Devices,
+) -> Result<String, AppError> {
+    if kinds.is_empty() || kinds.len() > 3 {
+        return Err(AppError::new(
+            "invalid_kinds",
+            "Select at least one media kind.",
+        ));
+    }
+    let root = root.to_path_buf();
     if !root.is_dir() {
         return Err(AppError::new(
             "source_offline",
