@@ -198,16 +198,17 @@ pub(crate) fn outputs_topic(
     revision: u64,
 ) -> Result<OutputsTopic, RemoteError> {
     let inventory = state.audio_outputs.lock().map_err(|_| unavailable())?;
-    let unavailable = home
-        .outputs
-        .effective
-        .audio_sink_id
-        .as_ref()
-        .is_none_or(|id| {
-            !inventory
-                .iter()
-                .any(|sink| &sink.id == id && sink.available)
-        });
+    let unavailable = home.outputs.audio_unavailable
+        || home
+            .outputs
+            .effective
+            .audio_sink_id
+            .as_ref()
+            .is_some_and(|id| {
+                !inventory
+                    .iter()
+                    .any(|sink| &sink.id == id && sink.available)
+            });
     let outputs = inventory
         .iter()
         .take(100)
@@ -515,7 +516,7 @@ mod tests {
         let state = AppState::open(dir.path().into()).unwrap();
         let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
         let before = snapshot(&principal(), &services).await.unwrap();
-        assert!(before.outputs.unavailable);
+        assert!(!before.outputs.unavailable);
         assert!(before.outputs.outputs.as_slice().is_empty());
         outputs_discovered(
             &state,
@@ -530,6 +531,76 @@ mod tests {
         assert_eq!(after.outputs.outputs.as_slice()[0].id.as_str(), "hdmi");
         assert!(after.outputs.effective_output_id.is_none());
     }
+    #[test]
+    fn task10_fix1_audio_projection_distinguishes_idle_preference_and_lost_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let sink = native::AudioSinkDescriptor {
+            id: "hdmi".into(),
+            backend_name: "hdmi".into(),
+            name: "TV".into(),
+            available: true,
+        };
+        outputs_discovered(&state, vec![sink.clone()]);
+        let project = || outputs_topic(&state, &state.snapshot().unwrap(), 7).unwrap();
+        let idle = project();
+        crate::control::audio::save_preference(&state, "hdmi").unwrap();
+        let preference = project();
+        state.home.lock().unwrap().outputs.effective.audio_sink_id = Some("hdmi".into());
+        let active = project();
+        outputs_discovered(&state, vec![]);
+        let lost = project();
+        crate::events::commit(&state, |home| {
+            home.outputs
+                .observe_audio(&Err(crate::contracts::AppError::new(
+                    "sink_unavailable",
+                    "Private lost-sink fixture",
+                )));
+            home.outputs.effective.audio_sink_id = None;
+        })
+        .unwrap();
+        let lost_after_clear = project();
+        outputs_discovered(&state, vec![sink]);
+        crate::events::commit(&state, |home| {
+            home.outputs
+                .observe_audio(&Err(crate::contracts::AppError::new(
+                    "audio_stream_pending",
+                    "Private pending retry fixture",
+                )))
+        })
+        .unwrap();
+        let returned_without_stream = project();
+        crate::events::commit(&state, |home| {
+            home.outputs.observe_audio(&Ok("hdmi".into()));
+            home.outputs.effective.audio_sink_id = Some("hdmi".into());
+        })
+        .unwrap();
+        let recovered = project();
+        println!(
+            "TASK10_AUDIO_PROJECTIONS={}",
+            serde_json::json!({"idle":idle,"preference":preference,"active":active,"lost":lost,"lostAfterClear":lost_after_clear,"returnedWithoutStream":returned_without_stream,"recovered":recovered})
+        );
+        assert!(
+            !idle.unavailable,
+            "fresh idle has no failed playback stream"
+        );
+        assert!(
+            !preference.unavailable,
+            "saved available output is a preference until a stream exists"
+        );
+        assert!(!active.unavailable);
+        assert!(!recovered.unavailable);
+        assert!(lost.unavailable);
+        assert!(
+            lost_after_clear.unavailable,
+            "clearing effective output cannot erase a known hotplug loss"
+        );
+        assert!(
+            returned_without_stream.unavailable,
+            "rediscovery alone does not verify active stream routing"
+        );
+    }
+
     #[tokio::test]
     async fn snapshot_and_subscription_require_browse_scope() {
         let dir = tempfile::tempdir().unwrap();

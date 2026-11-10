@@ -78,6 +78,11 @@ pub struct PlaybackTarget {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputSnapshot {
+    // Transient native truth, cloned under the home guard with each publication.
+    // Absence of an initial stream is not a routing failure.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub(crate) audio_unavailable: bool,
     #[ts(type = "number")]
     pub revision: u64,
     pub desired: PlaybackTarget,
@@ -85,6 +90,19 @@ pub struct OutputSnapshot {
     pub state: String,
     pub label: String,
 }
+impl OutputSnapshot {
+    pub(crate) fn audio_fault_after(&self, result: &Result<String, AppError>) -> bool {
+        match result {
+            Ok(_) => false,
+            Err(error) if error.code == "audio_stream_pending" => self.audio_unavailable,
+            Err(_) => true,
+        }
+    }
+    pub(crate) fn observe_audio(&mut self, result: &Result<String, AppError>) {
+        self.audio_unavailable = self.audio_fault_after(result);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceDefinition {

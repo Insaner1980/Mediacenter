@@ -68,3 +68,40 @@ impl Drop for DeferredPublications<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod audio_fault_tests {
+    use super::*;
+    #[test]
+    fn task10_fix1_private_fault_only_commit_still_publishes_outputs_revision() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        let mut subscription = state.event_hub.subscribe();
+        let before = serde_json::to_value(state.snapshot().unwrap().outputs).unwrap();
+        let publication = commit(&state, |home| {
+            home.outputs.observe_audio(&Err(AppError::new(
+                "sink_unavailable",
+                "Private fault-only fixture",
+            )))
+        })
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(&publication.snapshot.outputs).unwrap(),
+            before,
+            "native transient field is not a serialized contract change"
+        );
+        assert!(!crate::contracts::typescript().contains("audio_unavailable"));
+        assert!(!crate::contracts::typescript().contains("audioUnavailable"));
+        crate::remote::state::home_changed(&state, &publication.snapshot, publication.stamps);
+        let events = subscription.drain().unwrap();
+        let output = events
+            .iter()
+            .find_map(|event| match event {
+                crate::remote::protocol::RemoteEvent::Outputs { data, .. } => Some(data),
+                _ => None,
+            })
+            .unwrap();
+        assert!(output.unavailable);
+        assert!(output.revision.value() > 0);
+    }
+}

@@ -7,6 +7,16 @@ pub fn combined_state(picture: bool, audio: bool) -> &'static str {
 }
 use crate::{app_state::AppState, contracts::*, events};
 use tauri::Manager;
+fn audio_route_changed(
+    outputs: &OutputSnapshot,
+    actual: &Option<String>,
+    status: &str,
+    result: &Result<String, AppError>,
+) -> bool {
+    actual != &outputs.effective.audio_sink_id
+        || status != outputs.state
+        || outputs.audio_unavailable != outputs.audio_fault_after(result)
+}
 pub async fn list(app: &tauri::AppHandle) -> Result<OutputList, AppError> {
     let (monitors, computer_monitor_id) = super::monitors::discover(app)?;
     let (audio_sinks, audio_error) = match super::audio::discover().await {
@@ -198,6 +208,7 @@ pub async fn move_browser(
         _ => "Playback output unconfirmed".into(),
     };
     let publication = events::commit(state, |home| {
+        home.outputs.observe_audio(&audio);
         home.outputs.effective = effective;
         home.outputs.state = status.into();
         home.outputs.label = label;
@@ -311,16 +322,17 @@ async fn reconcile_browser_audio(app: &tauri::AppHandle, state: &AppState) {
         Err(_) => return,
     };
     let state_name = combined_state(browser.session.target.monitor_id.is_some(), result.is_ok());
-    if actual == snapshot.outputs.effective.audio_sink_id && state_name == snapshot.outputs.state {
+    if !audio_route_changed(&snapshot.outputs, &actual, state_name, &result) {
         return;
     }
     browser.session.target.audio_sink_id = actual.clone();
     let id = browser.session.id.clone();
-    let label = match result {
+    let label = match &result {
         Ok(_) => "Playback audio confirmed",
         Err(_) => "Audio output unavailable; browser pausing is unavailable",
     };
     let publication = events::commit(state, |home| {
+        home.outputs.observe_audio(&result);
         home.outputs.effective.audio_sink_id = actual.clone();
         home.outputs.state = state_name.into();
         home.outputs.label = label.into();
@@ -408,6 +420,7 @@ pub async fn move_player(
     let session = player.session.clone();
     let status = combined_state(picture.is_ok(), audio.is_ok());
     let publication = events::commit(state, |home| {
+        home.outputs.observe_audio(&audio);
         home.outputs.effective = session.target.clone();
         home.outputs.state = status.into();
         home.outputs.label = if status == "ready" {
@@ -485,12 +498,13 @@ pub async fn reconcile_audio(app: &tauri::AppHandle, state: &AppState) {
     let Ok(snapshot) = state.snapshot() else {
         return;
     };
-    if actual == snapshot.outputs.effective.audio_sink_id && status == snapshot.outputs.state {
+    if !audio_route_changed(&snapshot.outputs, &actual, status, &result) {
         return;
     }
     player.session.target.audio_sink_id = actual.clone();
     let id = player.session.id.clone();
     let publication = events::commit(state, |home| {
+        home.outputs.observe_audio(&result);
         home.outputs.effective.audio_sink_id = actual.clone();
         home.outputs.state = status.into();
         home.outputs.label = if actual.is_some() {
@@ -561,5 +575,33 @@ mod loss_tests {
             session.target.monitor_id.as_deref(),
             Some("disconnected-display")
         );
+    }
+}
+
+#[cfg(test)]
+mod audio_fault_tests {
+    use super::*;
+    #[test]
+    fn task10_fix1_fault_only_routing_change_is_not_dropped_and_pending_retry_preserves_loss() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        let mut outputs = state.snapshot().unwrap().outputs;
+        outputs.state = "partial".into();
+        let failed = Err(AppError::new(
+            "sink_unavailable",
+            "Private missing-sink fixture",
+        ));
+        assert!(audio_route_changed(&outputs, &None, "partial", &failed));
+        outputs.observe_audio(&failed);
+        assert!(!audio_route_changed(&outputs, &None, "partial", &failed));
+        let pending = Err(AppError::new(
+            "audio_stream_pending",
+            "Private pending retry fixture",
+        ));
+        outputs.observe_audio(&pending);
+        assert!(outputs.audio_unavailable);
+        assert!(!audio_route_changed(&outputs, &None, "partial", &pending));
+        outputs.observe_audio(&Ok("hdmi".into()));
+        assert!(!outputs.audio_unavailable);
     }
 }

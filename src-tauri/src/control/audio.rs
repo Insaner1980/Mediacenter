@@ -63,6 +63,8 @@ fn publication(
     pending: bool,
 ) -> Result<HomePublication, AppError> {
     crate::events::commit(state, |home| {
+        // An explicit available preference may intentionally replace an earlier fault.
+        home.outputs.audio_unavailable = actual.is_none() && !pending;
         home.outputs.effective.audio_sink_id = actual.clone();
         home.outputs.state = crate::outputs::coordinator::combined_state(
             home.outputs.effective.monitor_id.is_some(),
@@ -277,5 +279,32 @@ mod tests {
         assert!(output.effective.monitor_id.is_none());
         assert_eq!(output.effective.audio_sink_id.as_deref(), Some("hdmi"));
         assert_eq!(output.state, "partial");
+    }
+    #[test]
+    fn task10_fix1_explicit_available_preference_clears_old_fault_without_claiming_routing() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        let sink = AudioSinkDescriptor {
+            id: "hdmi".into(),
+            backend_name: "hdmi".into(),
+            name: "Private available preference".into(),
+            available: true,
+        };
+        validate_output(std::slice::from_ref(&sink), "hdmi").unwrap();
+        crate::remote::state::outputs_discovered(&state, vec![sink]);
+        crate::events::commit(&state, |home| {
+            home.outputs.observe_audio(&Err(AppError::new(
+                "sink_unavailable",
+                "Private prior loss",
+            )))
+        })
+        .unwrap();
+        save_preference(&state, "hdmi").unwrap();
+        publication(&state, "", None, true).unwrap();
+        let home = state.snapshot().unwrap();
+        let topic = crate::remote::state::outputs_topic(&state, &home, 4).unwrap();
+        assert!(!topic.unavailable);
+        assert_eq!(topic.requested_output_id.unwrap().as_str(), "hdmi");
+        assert!(topic.effective_output_id.is_none());
     }
 }

@@ -94,6 +94,7 @@ impl AppState {
                 error_code: None,
             },
             outputs: OutputSnapshot {
+                audio_unavailable: false,
                 revision: 0,
                 desired: target,
                 effective: PlaybackTarget::default(),
