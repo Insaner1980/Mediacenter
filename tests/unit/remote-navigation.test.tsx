@@ -19,7 +19,7 @@ describe('remote navigation',()=>{
   view.rerender(<><Sidebar route="home" onNavigate={()=>{}}/>{['a','c'].map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</>);registry.sync();expect(screen.getByText('c')).toHaveFocus();registry.move('down');expect(screen.getByText('c')).toHaveFocus();
  });
  it('uses actual grid geometry for directional movement',()=>{
-  render(<>{['a','b','c','d'].map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</>);
+  render(<div data-remote-section="movies" data-remote-layout="grid">{['a','b','c','d'].map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</div>);
   for(const [i,id] of ['a','b','c','d'].entries())screen.getByText(id).getBoundingClientRect=()=>({left:(i%2)*100,top:Math.floor(i/2)*100,width:80,height:80} as DOMRect);
   const registry=createFocusRegistry();registry.configure('1','videos');registry.move('down');registry.move('right');expect(screen.getByText('b')).toHaveFocus();registry.move('down');expect(screen.getByText('d')).toHaveFocus();registry.move('left');expect(screen.getByText('c')).toHaveFocus();
  });
@@ -57,5 +57,38 @@ describe('remote navigation',()=>{
 
  it('rejects a known search field when its containing panel is hidden',()=>{
   render(<div style={{display:'none'}}><LibraryToolbar kind="video" query="" sources={[]} sourceId={null} onQueryChange={()=>{}} onSourceChange={()=>{}} onRefresh={()=>{}}/></div>);const registry=createFocusRegistry();registry.configure('1','videos');expect(()=>registry.search('videos','hidden')).toThrow();
+ });
+
+ it('visits adjacent unequal-width list rows without skipping aligned rows',()=>{
+  render(<div data-remote-section="tracks" data-remote-layout="list">{['a','b','c'].map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</div>);
+  for(const [i,id] of ['a','b','c'].entries())screen.getByText(id).getBoundingClientRect=()=>({left:0,top:i*100,width:id==='b'?240:80,height:40} as DOMRect);
+  const registry=createFocusRegistry();registry.configure('1','music');registry.move('down');registry.move('down');expect(screen.getByText('b')).toHaveFocus();registry.move('down');expect(screen.getByText('c')).toHaveFocus();registry.move('up');expect(screen.getByText('b')).toHaveFocus();
+ });
+ it('stays within an incomplete grid row at horizontal boundaries',()=>{
+  render(<div data-remote-section="movies" data-remote-layout="grid">{['a','b','c'].map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</div>);
+  for(const [i,id] of ['a','b','c'].entries())screen.getByText(id).getBoundingClientRect=()=>({left:(i%2)*100,top:Math.floor(i/2)*100,width:80,height:80} as DOMRect);
+  const registry=createFocusRegistry();registry.configure('1','videos');registry.move('down');registry.move('down');expect(screen.getByText('c')).toHaveFocus();registry.move('right');expect(screen.getByText('c')).toHaveFocus();registry.move('left');expect(screen.getByText('c')).toHaveFocus();registry.move('up');expect(screen.getByText('a')).toHaveFocus();
+ });
+ it('selects the adjacent grid row before considering horizontal alignment',()=>{
+  render(<div data-remote-section="movies" data-remote-layout="grid">{['a','b','c'].map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</div>);
+  for(const [i,id] of ['a','b','c'].entries())screen.getByText(id).getBoundingClientRect=()=>({left:id==='b'?300:0,top:i*100,width:80,height:80} as DOMRect);
+  const registry=createFocusRegistry();registry.configure('1','videos');registry.move('down');registry.move('down');expect(screen.getByText('b')).toHaveFocus();
+ });
+ it('recovers the next stable survivor after multiple removals and a reorder',()=>{
+  const rows=(ids:string[])=><div data-remote-section="tracks" data-remote-layout="list">{ids.map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</div>;
+  const view=render(rows(['a','b','c','d']));const registry=createFocusRegistry();registry.configure('1','music');registry.move('down');registry.move('down');expect(screen.getByText('b')).toHaveFocus();
+  view.rerender(rows(['c','d']));registry.sync();expect(screen.getByText('c')).toHaveFocus();view.rerender(rows(['a','b','c','d']));screen.getByText('b').focus();registry.sync();view.rerender(rows(['d','c']));registry.sync();expect(screen.getByText('c')).toHaveFocus();view.rerender(rows(['d']));registry.sync();expect(screen.getByText('d')).toHaveFocus();
+ });
+ it('uses a defined next section when an entire list disappears',()=>{
+  const contents=(ids:string[])=><><Sidebar route="audio" onNavigate={()=>{}}/><div data-remote-section="search" data-remote-layout="row"><button data-remote-id="search" data-remote-group="content">Search</button></div><div data-remote-section="tracks" data-remote-layout="list">{ids.map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</div><div data-remote-section="pages" data-remote-layout="row"><button data-remote-id="next" data-remote-group="content">Next page</button></div></>;
+  const view=render(contents(['a','b']));const registry=createFocusRegistry();registry.configure('1','music');screen.getByText('b').focus();registry.sync();view.rerender(contents([]));registry.sync();expect(screen.getByText('Next page')).toHaveFocus();
+ });
+ it('recovers semantic order inside the modal and falls back inside that modal',()=>{
+  const contents=(ids:string[])=><><button data-remote-id="outside" data-remote-group="content">Outside</button><Dialog remoteDismiss open title="Items" onRequestClose={()=>{}}><div data-remote-section="modal-items" data-remote-layout="list">{ids.map(id=><button key={id} data-remote-id={id} data-remote-group="modal">{id}</button>)}</div></Dialog></>;
+  const view=render(contents(['a','b','c','d']));const registry=createFocusRegistry();registry.configure('1','music');screen.getByText('b').focus();registry.sync();view.rerender(contents(['c','d']));registry.sync();expect(screen.getByText('c')).toHaveFocus();view.rerender(contents([]));registry.sync();expect(screen.getByRole('button',{name:'Close'})).toHaveFocus();expect(screen.getByText('Outside')).not.toHaveFocus();
+ });
+ it('recovers backward in prior semantic order when no later item survives',()=>{
+  const rows=(ids:string[])=><div data-remote-section="tracks" data-remote-layout="list">{ids.map(id=><button key={id} data-remote-id={id} data-remote-group="content">{id}</button>)}</div>;
+  const view=render(rows(['a','b','c','d']));const registry=createFocusRegistry();registry.configure('1','music');screen.getByText('c').focus();registry.sync();view.rerender(rows(['b','a']));registry.sync();expect(screen.getByText('b')).toHaveFocus();
  });
 });
