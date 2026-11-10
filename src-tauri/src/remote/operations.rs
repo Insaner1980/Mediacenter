@@ -582,11 +582,14 @@ mod tests {
             })
             .unwrap();
         assert_eq!(first.operation_id, retry.operation_id);
+        // Terminal persistence intentionally precedes asynchronous token cleanup.
+        // Wait for both boundaries before asserting that all native work retired.
         for _ in 0..100 {
             if registry
                 .lookup(&principal, &first.operation_id)
                 .unwrap()
                 .is_some_and(|op| op.status == OperationStatus::Succeeded)
+                && state.operations.lock().unwrap().is_empty()
             {
                 break;
             }

@@ -69,6 +69,7 @@ struct Cached {
     image: PhotoImage,
 }
 struct Session {
+    selection: Option<String>,
     id: String,
     queue: Queue,
     monitor: String,
@@ -91,6 +92,70 @@ struct Publication {
     home: Option<crate::events::HomePublication>,
 }
 impl State {
+    fn select(
+        &mut self,
+        selection: &str,
+        item: &str,
+        paused: bool,
+        interval: u32,
+        adoption: Option<&[String]>,
+    ) -> Result<bool, AppError> {
+        let Some(session) = self.session.as_mut() else {
+            return Ok(false);
+        };
+        validate_interval(interval)?;
+        if !paused && session.display_missing {
+            return Err(AppError::new(
+                "display_missing",
+                "The presentation display is unavailable.",
+            ));
+        }
+        let replacement = if session.selection.as_deref() != Some(selection) {
+            // activity.confirm(photo) creates a paused singleton without a
+            // selection context. Only that exact visible item can adopt a
+            // caller-authorized order; never replace a running/other selection.
+            let ids = adoption.filter(|ids| ids.first().is_some_and(|id| id == item));
+            if session.selection.is_some()
+                || !session.queue.paused
+                || session.queue.ids.len() != 1
+                || session.queue.current() != item
+                || ids.is_none()
+            {
+                return Err(AppError::new(
+                    "stale_state",
+                    "The photo selection changed. Review the activity first.",
+                ));
+            }
+            Some(Queue::new(SlideshowRequest {
+                media_ids: ids.expect("validated selection").to_vec(),
+                monitor_id: None,
+                interval_seconds: interval,
+                shuffle: false,
+            })?)
+        } else {
+            None
+        };
+        let index = replacement
+            .as_ref()
+            .unwrap_or(&session.queue)
+            .ids
+            .iter()
+            .position(|id| id == item)
+            .ok_or_else(|| {
+                AppError::new("not_found", "The photo is outside the active selection.")
+            })?;
+        if let Some(queue) = replacement {
+            session.queue = queue;
+            session.selection = Some(selection.into());
+        }
+        session.queue.index = index;
+        session.queue.pause(paused);
+        session.queue.interval = interval;
+        session.next_at = Instant::now() + Duration::from_secs(u64::from(interval));
+        retain(session);
+        Ok(true)
+    }
+
     pub(crate) fn snapshot(&self) -> SlideshowSnapshot {
         match &self.session {
             None => self.last.clone(),
@@ -283,6 +348,45 @@ pub async fn start(
         .session_gate
         .try_lock()
         .map_err(|_| AppError::new("session_busy", "Another session is changing. Try again."))?;
+    start_in_session(app, state, request, false, None).await
+}
+/// Caller holds session_gate. Still photos start paused before publication/worker startup.
+pub(crate) async fn start_in_session(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    request: SlideshowRequest,
+    paused: bool,
+    selection: Option<String>,
+) -> Result<SlideshowSnapshot, AppError> {
+    let selection_sources = if selection.is_some() {
+        Some(sources(state, &request.media_ids)?)
+    } else {
+        None
+    };
+    if let Some(selection) = &selection {
+        let item = request
+            .media_ids
+            .first()
+            .ok_or_else(|| AppError::new("invalid_slideshow", "Choose a photo."))?;
+        let mut photos = state.photos.lock().await;
+        if photos.select(
+            selection,
+            item,
+            paused,
+            request.interval_seconds,
+            Some(&request.media_ids),
+        )? {
+            photos.session.as_mut().expect("selected session").sources = selection_sources
+                .as_ref()
+                .expect("selected sources")
+                .clone();
+            let value = photos.snapshot();
+            let publication = photos.publication(state);
+            drop(photos);
+            publish(app, state, publication);
+            return Ok(value);
+        }
+    }
     if state.browser.lock().await.is_some()
         || state
             .player
@@ -297,8 +401,12 @@ pub async fn start(
         ));
     }
     let monitor_id = request.monitor_id.clone();
-    let queue = Queue::new(request)?;
-    let source_ids = sources(state, &queue.ids)?;
+    let mut queue = Queue::new(request)?;
+    queue.pause(paused);
+    let source_ids = match selection_sources {
+        Some(ids) => ids,
+        None => sources(state, &queue.ids)?,
+    };
     let (monitors, computer) = crate::outputs::monitors::discover(app)?;
     let monitor =
         crate::outputs::monitors::resolve(&monitors, monitor_id.as_deref(), computer.as_deref())?;
@@ -335,6 +443,7 @@ pub async fn start(
     let id = uuid::Uuid::new_v4().to_string();
     let cancel = CancellationToken::new();
     photos.session = Some(Session {
+        selection,
         id: id.clone(),
         queue,
         monitor: monitor.id.clone(),
@@ -364,15 +473,29 @@ pub async fn control(
     state: &AppState,
     action: SlideshowAction,
 ) -> Result<SlideshowSnapshot, AppError> {
+    control_session(app, state, None, action).await
+}
+/// Check the session under the same photo lock that applies the action.
+pub async fn control_session(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    id: Option<&str>,
+    action: SlideshowAction,
+) -> Result<SlideshowSnapshot, AppError> {
     let mut photos = state.photos.lock().await;
+    if id.is_some() && photos.session.as_ref().map(|s| s.id.as_str()) != id {
+        return Err(AppError::new("stale_state", "The photo session changed."));
+    }
     if matches!(action, SlideshowAction::Stop) {
         photos.stop(None);
         let publication = photos.publication(state);
-        drop(photos);
-        publish(app, state, publication);
+        // Keep the domain guard until the old presentation window is closed;
+        // a concurrent start must not reuse it before this close completes.
         if let Some(w) = app.get_webview_window(LABEL) {
             let _ = w.close();
         }
+        drop(photos);
+        publish(app, state, publication);
         return Ok(snapshot(state).await);
     }
     let session = photos
@@ -426,11 +549,13 @@ pub async fn stop_source(app: &tauri::AppHandle, state: &AppState, source_id: &s
             "The photo source was removed. Reconnect it before starting again.".into(),
         ));
         let publication = photos.publication(state);
-        drop(photos);
-        publish(app, state, publication);
+        // Keep the domain guard until the old presentation window is closed;
+        // a concurrent start must not reuse it before this close completes.
         if let Some(w) = app.get_webview_window(LABEL) {
             let _ = w.close();
         }
+        drop(photos);
+        publish(app, state, publication);
     }
 }
 async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: CancellationToken) {
@@ -465,11 +590,11 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
                     "The photo source is unavailable. Reconnect it before starting again.".into(),
                 ));
                 let publication = photos.publication(&state);
-                drop(photos);
-                publish(&app, &state, publication);
                 if let Some(w) = app.get_webview_window(LABEL) {
                     let _ = w.close();
                 }
+                drop(photos);
+                publish(&app, &state, publication);
                 return;
             }
             if app.get_webview_window(LABEL).is_none() {
@@ -545,11 +670,11 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
             }
             if photos.session.is_none() {
                 let publication = photos.publication(&state);
-                drop(photos);
-                publish(&app, &state, publication);
                 if let Some(w) = app.get_webview_window(LABEL) {
                     let _ = w.close();
                 }
+                drop(photos);
+                publish(&app, &state, publication);
                 return;
             }
         }
@@ -558,10 +683,112 @@ async fn worker(app: tauri::AppHandle, state: AppState, id: String, cancel: Canc
 }
 
 #[cfg(test)]
+pub(crate) async fn seed_test_session(state: &AppState, id: &str) {
+    state.photos.lock().await.session = Some(Session {
+        selection: None,
+        id: id.into(),
+        queue: Queue::new(SlideshowRequest {
+            media_ids: vec!["existing-photo".into()],
+            monitor_id: None,
+            interval_seconds: 5,
+            shuffle: false,
+        })
+        .unwrap(),
+        monitor: "test".into(),
+        sources: vec![],
+        cache: HashMap::new(),
+        cancel: CancellationToken::new(),
+        next_at: Instant::now(),
+        display_missing: false,
+        fit: true,
+    });
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn task9_still_photo_selection_keeps_session_and_pauses_before_publication() {
+        let mut state = State {
+            session: Some(session()),
+            ..Default::default()
+        };
+        assert!(state.select("selected-order", "c", true, 5, None).unwrap());
+        assert_eq!(state.snapshot().session_id.as_deref(), Some("test-session"));
+        assert_eq!(state.snapshot().media_id.as_deref(), Some("c"));
+        assert!(state.snapshot().paused);
+        assert!(state
+            .select("another-selection", "a", false, 5, None)
+            .is_err());
+        assert_eq!(state.snapshot().media_id.as_deref(), Some("c"));
+    }
+    #[test]
+    fn task9_paused_singleton_adopts_exact_item_selection_without_replacing_session() {
+        let mut singleton = session();
+        singleton.selection = None;
+        singleton.queue = Queue::new(SlideshowRequest {
+            media_ids: vec!["c".into()],
+            monitor_id: None,
+            interval_seconds: 5,
+            shuffle: false,
+        })
+        .unwrap();
+        singleton.queue.pause(true);
+        let mut state = State {
+            session: Some(singleton),
+            ..Default::default()
+        };
+        let ids = vec!["c".into(), "d".into(), "a".into()];
+        assert!(state
+            .select("owned-selection", "c", true, 5, Some(&ids))
+            .unwrap());
+        assert_eq!(state.snapshot().session_id.as_deref(), Some("test-session"));
+        assert_eq!(state.snapshot().media_id.as_deref(), Some("c"));
+        assert!(state.snapshot().paused);
+        assert_eq!(state.session.as_ref().unwrap().queue.ids, ids);
+        assert_eq!(
+            state.session.as_ref().unwrap().selection.as_deref(),
+            Some("owned-selection")
+        );
+    }
+    #[test]
+    fn task9_singleton_handoff_rejects_wrong_item_and_playing_session() {
+        for (current, paused) in [("wrong-item", true), ("c", false)] {
+            let mut singleton = session();
+            singleton.selection = None;
+            singleton.queue = Queue::new(SlideshowRequest {
+                media_ids: vec![current.into()],
+                monitor_id: None,
+                interval_seconds: 5,
+                shuffle: false,
+            })
+            .unwrap();
+            singleton.queue.pause(paused);
+            let mut state = State {
+                session: Some(singleton),
+                ..Default::default()
+            };
+            let before = state.snapshot();
+            assert_eq!(
+                state
+                    .select(
+                        "owned-selection",
+                        "c",
+                        true,
+                        5,
+                        Some(&["c".into(), "d".into()])
+                    )
+                    .unwrap_err()
+                    .code,
+                "stale_state"
+            );
+            assert_eq!(state.snapshot(), before);
+            assert!(state.session.as_ref().unwrap().selection.is_none());
+        }
+    }
     fn session() -> Session {
         Session {
+            selection: Some("selected-order".into()),
             id: "test-session".into(),
             queue: Queue::new(SlideshowRequest {
                 media_ids: vec!["a".into(), "b".into(), "c".into(), "d".into()],

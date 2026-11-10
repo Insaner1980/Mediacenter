@@ -322,6 +322,16 @@ pub(crate) async fn play_in_transition(
         .session_gate
         .try_lock()
         .map_err(|_| AppError::new("session_busy", "Another playback session is starting."))?;
+    play_in_session(app, state.clone(), id, resume, cancel).await
+}
+/// Caller holds music_gate and session_gate through the entire replacement.
+pub(crate) async fn play_in_session(
+    app: tauri::AppHandle,
+    state: AppState,
+    id: String,
+    resume: bool,
+    cancel: CancellationToken,
+) -> Result<(), AppError> {
     if state.browser.lock().await.is_some() {
         return Err(AppError::new(
             "session_switch_required",
@@ -349,6 +359,20 @@ pub(crate) async fn play_in_transition(
         return Err(AppError::new(
             "session_switch_required",
             "Stop the slideshow before opening a local video.",
+        ));
+    }
+    // Validate the target before retiring the current owned process.
+    let media = crate::library::query::open(&state, &id).await?;
+    if media.kind == MediaKind::Photo {
+        return Err(AppError::new(
+            "invalid_media_kind",
+            "Open photos in the photo viewer.",
+        ));
+    }
+    if !std::path::Path::new("/usr/bin/mpv").is_file() {
+        return Err(AppError::new(
+            "player_unavailable",
+            "Install mpv to play local media.",
         ));
     }
     let mut registry = state.player.lock().await;
@@ -545,6 +569,7 @@ async fn observe(
         let mut save_soon = false;
         let mut immediate = false;
         let mut terminal = false;
+        let mut reached_end = false;
         use std::os::unix::fs::MetadataExt;
         if player.media.lease.cancelled()
             || !std::fs::metadata(&player.media.root).is_ok_and(|m| {
@@ -567,11 +592,10 @@ async fn observe(
                 terminal = true;
                 break;
             }
-            if event["event"] == "property-change"
-                && event["name"] == "eof-reached"
-                && event["data"] == true
-            {
-                player.natural_end = true;
+            if event["event"] == "property-change" && event["name"] == "eof-reached" {
+                let ended = event["data"].as_bool().unwrap_or(false);
+                reached_end |= ended && !player.natural_end;
+                player.natural_end = ended;
             }
             if event["event"] == "playback-restart" || event["event"] == "seek" {
                 save_soon = true;
@@ -623,7 +647,8 @@ async fn observe(
         } else {
             None
         };
-        let advance = !terminal && player.natural_end && player.media.kind == MediaKind::Audio;
+        let advance =
+            !terminal && reached_end && player.natural_end && player.media.kind == MediaKind::Audio;
         let removed = if terminal {
             let _ = retire(&app, &state, &mut registry).await;
             registry.is_none().then(|| {
@@ -654,7 +679,9 @@ async fn observe(
         }
         if advance {
             crate::music::on_end(app.clone(), state.clone(), id.clone()).await;
-            return;
+            // A standalone audio item, or a failed queue advance, can leave
+            // this player owned. Keep observing; the next iteration checks the
+            // exact session and exits only if it was actually retired/replaced.
         }
     }
 }
@@ -687,6 +714,8 @@ pub async fn control(
         .as_mut()
         .filter(|p| p.session.id == id)
         .ok_or_else(|| AppError::new("player_missing", "This player session is unavailable."))?;
+    crate::control::playback::validate(&player.snapshot, &action)?;
+    let seeking = matches!(&action, PlayerAction::Seek { .. });
     let command = match action {
         PlayerAction::Stop => {
             let result = retire(app, state, &mut registry).await;
@@ -704,47 +733,20 @@ pub async fn control(
         }
         PlayerAction::Pause { paused } => json!(["set_property", "pause", paused]),
         PlayerAction::Mute { muted } => json!(["set_property", "mute", muted]),
-        PlayerAction::Volume { value } if value.is_finite() && (0.0..=100.0).contains(&value) => {
-            json!(["set_property", "volume", value])
-        }
-        PlayerAction::Seek { seconds }
-            if seconds.is_finite()
-                && seconds >= 0.
-                && player.snapshot.seekable
-                && player
-                    .snapshot
-                    .duration_seconds
-                    .is_none_or(|d| seconds <= d) =>
-        {
-            json!(["seek", seconds, "absolute+exact"])
-        }
-        PlayerAction::AudioTrack { id }
-            if player
-                .snapshot
-                .tracks
-                .iter()
-                .any(|track| track.id == id && track.kind == "audio") =>
-        {
-            json!(["set_property", "aid", id])
-        }
+        PlayerAction::Volume { value } => json!(["set_property", "volume", value]),
+        PlayerAction::Seek { seconds } => json!(["seek", seconds, "absolute+exact"]),
+        PlayerAction::AudioTrack { id } => json!(["set_property", "aid", id]),
         PlayerAction::SubtitleTrack { id: None } => json!(["set_property", "sid", "no"]),
-        PlayerAction::SubtitleTrack { id: Some(id) }
-            if player
-                .snapshot
-                .tracks
-                .iter()
-                .any(|track| track.id == id && track.kind == "sub") =>
-        {
-            json!(["set_property", "sid", id])
-        }
-        _ => {
-            return Err(AppError::new(
-                "invalid_player_action",
-                "The requested player action is not available.",
-            ))
-        }
+        PlayerAction::SubtitleTrack { id: Some(id) } => json!(["set_property", "sid", id]),
     };
     player.ipc.command(command).await?;
+    if seeking {
+        player.natural_end = false;
+    }
     save(state, player)?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "mpv_tests.rs"]
+mod native_observer_tests;

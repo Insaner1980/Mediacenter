@@ -1,7 +1,9 @@
-//! Shared read-only entry point. Native services remain authoritative.
+//! Shared typed control entry point. Native services remain authoritative.
 use crate::{app_state::AppState, contracts::AppError, remote::protocol::Id};
 #[derive(Clone)]
 pub struct ControlServices {
+    pub(crate) confirmations: std::sync::Arc<std::sync::Mutex<confirmations::Confirmations>>,
+    pub(crate) media: std::sync::Arc<std::sync::Mutex<crate::remote::media::MediaState>>,
     pub(crate) state: AppState,
     pub(crate) server_identity: Id,
     app: Option<tauri::AppHandle>,
@@ -26,6 +28,8 @@ impl ControlServices {
             server_identity.clone(),
         )?;
         Ok(Self {
+            media: Default::default(),
+            confirmations: Default::default(),
             state,
             server_identity,
             app: None,
@@ -39,3 +43,7 @@ impl ControlServices {
         self.operations.clone()
     }
 }
+
+pub mod activity;
+pub mod confirmations;
+pub mod playback;

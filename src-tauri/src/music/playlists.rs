@@ -73,16 +73,27 @@ fn save_transaction(
     name: &str,
     ids: &[String],
 ) -> Result<PlaylistRevision, AppError> {
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let result = save_contents(&tx, id, expected, name, ids)?;
+    tx.commit()?;
+    Ok(result)
+}
+fn save_contents(
+    tx: &Connection,
+    id: Option<&str>,
+    expected: Option<u64>,
+    name: &str,
+    ids: &[String],
+) -> Result<PlaylistRevision, AppError> {
     if name.trim().is_empty() || name.chars().count() > 200 {
         return Err(AppError::new(
             "playlist_name",
             "Use a playlist name from 1 to 200 characters.",
         ));
     }
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     let (id, next) = match id {
         Some(id) => {
-            let current = revision(&tx, id)?.revision.value();
+            let current = revision(tx, id)?.revision.value();
             if expected.is_some_and(|expected| expected != current) {
                 return Err(AppError::new(
                     "stale_state",
@@ -103,7 +114,7 @@ fn save_transaction(
         None => (uuid::Uuid::new_v4().to_string(), 1),
     };
     // Validate inside the same write transaction as the revision check.
-    items(&tx, ids)?;
+    items(tx, ids)?;
     let now = crate::app_state::now_ms() as i64;
     tx.execute("INSERT INTO playlists(id,name,created_at_ms,updated_at_ms,revision) VALUES(?1,?2,?3,?3,?4) ON CONFLICT(id) DO UPDATE SET name=excluded.name,updated_at_ms=excluded.updated_at_ms,revision=excluded.revision",rusqlite::params![id,name,now,next])?;
     tx.execute("DELETE FROM playlist_items WHERE playlist_id=?", [&id])?;
@@ -114,7 +125,6 @@ fn save_transaction(
             insert.execute(rusqlite::params![id, ordinal as i64, media])?;
         }
     }
-    tx.commit()?;
     Ok(PlaylistRevision {
         playlist_id: id,
         revision: (next as u64).into(),
@@ -159,6 +169,27 @@ pub fn save_if_revision(
         ));
     }
     save_transaction(db, id, expected, name, ids)
+}
+pub fn edit_if_revision<F>(
+    db: &mut Connection,
+    id: &str,
+    expected: u64,
+    edit: F,
+) -> Result<PlaylistRevision, AppError>
+where
+    F: FnOnce(Playlist) -> Result<(String, Vec<String>), AppError>,
+{
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    if revision(&tx, id)?.revision.value() != expected {
+        return Err(AppError::new(
+            "stale_state",
+            "The playlist changed. Refresh it.",
+        ));
+    }
+    let (name, ids) = edit(get(&tx, id)?)?;
+    let result = save_contents(&tx, Some(id), Some(expected), &name, &ids)?;
+    tx.commit()?;
+    Ok(result)
 }
 pub fn remove_if_revision(db: &mut Connection, id: &str, expected: u64) -> Result<(), AppError> {
     let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;

@@ -137,7 +137,7 @@ async fn start_current(
             queue.message = Some("Music playback was cancelled.".into());
             return Err(AppError::new("cancelled", "Music playback was cancelled."));
         }
-        match mpv::play_in_transition(
+        match mpv::play_in_session(
             app.clone(),
             state.clone(),
             id.clone(),
@@ -191,6 +191,35 @@ pub async fn play(
     cancel: CancellationToken,
 ) -> Result<(), AppError> {
     let _gate = state.music_gate.lock().await;
+    play_in_transition(app, state.clone(), media_ids, start_index, cancel, true).await
+}
+pub(crate) async fn play_in_transition(
+    app: tauri::AppHandle,
+    state: AppState,
+    media_ids: Vec<String>,
+    start_index: usize,
+    cancel: CancellationToken,
+    allow_replace: bool,
+) -> Result<(), AppError> {
+    let _session = state
+        .session_gate
+        .try_lock()
+        .map_err(|_| AppError::new("session_busy", "Another playback session is starting."))?;
+    if !allow_replace {
+        let active = state.player.lock().await.as_ref().map(|p| p.media.kind);
+        if active.is_some_and(|kind| kind != crate::contracts::MediaKind::Audio)
+            || state.browser.lock().await.is_some()
+            || crate::photos::presenter::snapshot(&state)
+                .await
+                .session_id
+                .is_some()
+        {
+            return Err(AppError::new(
+                "session_switch_required",
+                "Prepare an activity replacement first.",
+            ));
+        }
+    }
     let items = {
         let db = state.db.lock().map_err(|_| database_error())?;
         playlists::items(&db, &media_ids)?
@@ -200,6 +229,9 @@ pub async fn play(
     replacement.replace(items, start_index)?;
     if cancel.is_cancelled() {
         return Err(AppError::new("cancelled", "Music playback was cancelled."));
+    }
+    if let Some(id) = replacement.current_media_id() {
+        crate::library::query::open(&state, &id).await?;
     }
     stop_owned(&app, &state, &mut current).await?;
     let result = start_current(&app, &state, &mut replacement, cancel).await;
@@ -232,9 +264,39 @@ pub async fn control(
     action: MusicAction,
     cancel: CancellationToken,
 ) -> Result<MusicQueue, AppError> {
+    control_inner(
+        Some(app),
+        state,
+        session_id,
+        revision,
+        (crate::control::playback::QueueAction::Native(action), true),
+        cancel,
+    )
+    .await
+}
+/// Local and remote queue edits share validation, serialization and effects.
+pub async fn control_entry(
+    app: Option<tauri::AppHandle>,
+    state: AppState,
+    session_id: Option<String>,
+    revision: u32,
+    action: crate::control::playback::QueueAction,
+    cancel: CancellationToken,
+) -> Result<MusicQueue, AppError> {
+    control_inner(app, state, session_id, revision, (action, false), cancel).await
+}
+async fn control_inner(
+    app: Option<tauri::AppHandle>,
+    state: AppState,
+    session_id: Option<String>,
+    revision: u32,
+    command: (crate::control::playback::QueueAction, bool),
+    cancel: CancellationToken,
+) -> Result<MusicQueue, AppError> {
+    let (action, allow_replace) = command;
     let _gate = state.music_gate.lock().await;
     let mut queue = state.music.lock().await.clone();
-    queue.validate(revision)?;
+    let action = crate::control::playback::resolve(&queue, revision, action)?;
     if !queue.matches_session(session_id.as_deref()) {
         return Err(AppError::new(
             "queue_session_stale",
@@ -253,17 +315,49 @@ pub async fn control(
     let mut next = queue.clone();
     let playback = next.edit(current_revision, action, items, crate::app_state::now_ms())?;
     let result = if playback {
+        let _session = state
+            .session_gate
+            .try_lock()
+            .map_err(|_| AppError::new("session_busy", "Another playback session is starting."))?;
+        if !allow_replace {
+            let active = state
+                .player
+                .lock()
+                .await
+                .as_ref()
+                .map(|p| p.session.id.clone());
+            if active != queue.session_id
+                || crate::photos::presenter::snapshot(&state)
+                    .await
+                    .session_id
+                    .is_some()
+                || state.browser.lock().await.is_some()
+            {
+                return Err(AppError::new(
+                    "session_switch_required",
+                    "Prepare an activity replacement first.",
+                ));
+            }
+        }
         if cancel.is_cancelled() {
             return Err(AppError::new("cancelled", "Music playback was cancelled."));
         }
-        stop_owned(&app, &state, &mut queue).await?;
+        let app = app
+            .as_ref()
+            .ok_or_else(|| AppError::new("unavailable", "The native player is unavailable."))?;
+        if let Some(id) = next.current_media_id() {
+            crate::library::query::open(&state, &id).await?;
+        }
+        stop_owned(app, &state, &mut queue).await?;
         next.session_id = None;
-        start_current(&app, &state, &mut next, cancel).await
+        start_current(app, &state, &mut next, cancel).await
     } else {
         Ok(())
     };
     let saved = store(&state, &mut next).await;
-    let _ = app.emit_to("main", "music_queue_changed", next.snapshot());
+    if let Some(app) = app {
+        let _ = app.emit_to("main", "music_queue_changed", next.snapshot());
+    }
     result?;
     saved?;
     Ok(next.snapshot())
@@ -294,6 +388,9 @@ pub fn on_end(
             return;
         }
         let result = async {
+            let _session = state.session_gate.try_lock().map_err(|_| {
+                AppError::new("session_busy", "Another playback session is starting.")
+            })?;
             refresh(&state, &mut queue)?;
             // Stop's session guard is rechecked under the player lock. A user Stop
             // between the check above and this call prevents any next-track launch.

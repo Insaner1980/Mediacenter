@@ -5512,6 +5512,7 @@
         "outcome_unknown",
         "unavailable",
         "not_found",
+        "selection_too_large",
         "desktop_locked",
         "renderer_unavailable",
         "local_authorization_required",

@@ -1467,6 +1467,8 @@ pub enum WireErrorCode {
     Unavailable,
     #[serde(rename = "not_found")]
     NotFound,
+    #[serde(rename = "selection_too_large")]
+    SelectionTooLarge,
     #[serde(rename = "desktop_locked")]
     DesktopLocked,
     #[serde(rename = "renderer_unavailable")]
