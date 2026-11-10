@@ -443,3 +443,30 @@ fn operation_cancellation_accepts_exactly_one_request_or_operation_identity() {
         assert!(parse_request(&fixture.to_string()).is_err());
     }
 }
+
+#[test]
+fn task10_foreground_ack_is_synchronous_transient_and_has_no_operation() {
+    use super::protocol::*;
+    for (method, name) in [
+        (MethodName::ActivityShowMenu, "activity.showMenu"),
+        (MethodName::ActivityShowPlayback, "activity.showPlayback"),
+    ] {
+        let request=parse_request(&json!({"v":1,"id":"focus","method":name,"params":{},"expected":{"serverEpoch":"epoch","sessionId":"session"}}).to_string()).unwrap();
+        assert_eq!(request.command.delivery(), Delivery::Transient);
+        assert!(parse_reply(
+            method.clone(),
+            &json!({"v":1,"id":"focus","ok":true,"result":{"requestId":"focus"}}).to_string()
+        )
+        .is_ok());
+        for result in [
+            json!({}),
+            json!({"status":"accepted","operationId":"fake-operation"}),
+        ] {
+            assert!(parse_reply(
+                method.clone(),
+                &json!({"v":1,"id":"focus","ok":true,"result":result}).to_string()
+            )
+            .is_err());
+        }
+    }
+}

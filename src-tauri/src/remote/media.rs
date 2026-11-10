@@ -455,6 +455,13 @@ pub(crate) fn normalize(mut error: crate::contracts::AppError) -> crate::contrac
         | "invalid_interval" => "invalid_request",
         "session_busy" | "source_busy" | "resource_limit" => "busy",
         "ownership_uncertain" => "identity_changed",
+        "sink_unavailable" => "audio_output_unavailable",
+        "audio_unavailable"
+        | "audio_unrecognized"
+        | "audio_request_failed"
+        | "audio_route_unconfirmed"
+        | "audio_stream_changed"
+        | "audio_stream_pending" => "unavailable",
         "media_unavailable"
         | "source_offline"
         | "volume_unmounted"

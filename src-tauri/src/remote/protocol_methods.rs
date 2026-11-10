@@ -2082,6 +2082,12 @@ pub struct ManualChallengeResponse {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForegroundAck {
+    pub request_id: Id,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params")]
 pub enum RemoteCommand {
     #[serde(rename = "state.get")]
@@ -3305,8 +3311,8 @@ pub enum RemoteResult {
     PhotosStop(Box<AcceptedResult>),
     ActivityPrepare(Box<ActivityPreparation>),
     ActivityConfirm(Box<AcceptedResult>),
-    ActivityShowMenu(Box<AcceptedResult>),
-    ActivityShowPlayback(Box<AcceptedResult>),
+    ActivityShowMenu(Box<ForegroundAck>),
+    ActivityShowPlayback(Box<ForegroundAck>),
     UiNavigate(Box<UiAck>),
     UiMoveFocus(Box<UiAck>),
     UiActivate(Box<UiAck>),
@@ -3486,11 +3492,11 @@ pub fn parse_reply(
         MethodName::ActivityConfirm => serde_json::from_str::<RemoteReply<AcceptedResult>>(input)
             .map(|r| r.map_result(|v| RemoteResult::ActivityConfirm(Box::new(v))))
             .map_err(|_| RemoteError::invalid()),
-        MethodName::ActivityShowMenu => serde_json::from_str::<RemoteReply<AcceptedResult>>(input)
+        MethodName::ActivityShowMenu => serde_json::from_str::<RemoteReply<ForegroundAck>>(input)
             .map(|r| r.map_result(|v| RemoteResult::ActivityShowMenu(Box::new(v))))
             .map_err(|_| RemoteError::invalid()),
         MethodName::ActivityShowPlayback => {
-            serde_json::from_str::<RemoteReply<AcceptedResult>>(input)
+            serde_json::from_str::<RemoteReply<ForegroundAck>>(input)
                 .map(|r| r.map_result(|v| RemoteResult::ActivityShowPlayback(Box::new(v))))
                 .map_err(|_| RemoteError::invalid())
         }

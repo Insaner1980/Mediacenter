@@ -2,11 +2,21 @@
 use super::activity::Identity;
 use crate::remote::protocol::*;
 #[derive(Clone)]
+pub enum Action {
+    Activity {
+        target: ActivityPrepareParams,
+        media: super::activity::MediaIdentity,
+    },
+    Audio {
+        output: crate::contracts::AudioSinkDescriptor,
+        sessions: super::audio::Sessions,
+    },
+}
+#[derive(Clone)]
 pub struct Pending {
     pub preview: ConfirmationPreview,
-    pub target: ActivityPrepareParams,
+    pub action: Action,
     pub observed: Identity,
-    pub media: super::activity::MediaIdentity,
     pub request: Id,
     pub expires_at: u64,
     pub operation: Option<Id>,
@@ -65,9 +75,11 @@ mod tests {
             id.as_str().into(),
             Pending {
                 preview,
-                target: checked(serde_json::json!({"kind":"photo","itemId":"photo"})).unwrap(),
+                action: Action::Activity {
+                    target: checked(serde_json::json!({"kind":"photo","itemId":"photo"})).unwrap(),
+                    media: Default::default(),
+                },
                 observed: Identity::default(),
-                media: Default::default(),
                 request: checked("request").unwrap(),
                 expires_at: 60001,
                 operation: None,

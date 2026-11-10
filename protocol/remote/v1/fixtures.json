@@ -1759,8 +1759,7 @@
         "id": "request-1",
         "ok": true,
         "result": {
-          "status": "accepted",
-          "operationId": "opaque-1"
+          "requestId": "request-1"
         }
       }
     },
@@ -1771,8 +1770,7 @@
         "id": "request-1",
         "ok": true,
         "result": {
-          "status": "accepted",
-          "operationId": "opaque-1"
+          "requestId": "request-1"
         }
       }
     },

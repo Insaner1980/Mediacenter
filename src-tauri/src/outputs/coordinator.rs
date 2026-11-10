@@ -178,6 +178,13 @@ pub async fn move_browser(
     .await;
     let audio = super::audio::route(&browser.identity, target.audio_sink_id.as_deref()).await;
     let status = combined_state(picture.is_ok(), audio.is_ok());
+    if let Ok(id) = &audio {
+        browser
+            .routing_target
+            .as_mut()
+            .expect("routing target")
+            .audio_sink_id = Some(id.clone());
+    }
     browser.session.target = PlaybackTarget {
         monitor_id: picture.as_ref().ok().cloned(),
         audio_sink_id: audio.as_ref().ok().cloned(),
@@ -205,6 +212,14 @@ pub async fn move_browser(
     audio?;
     Ok(())
 }
+fn local_audio_unavailable(session: &ManagedSession, outputs: &OutputList) -> bool {
+    session.target.audio_sink_id.as_ref().is_some_and(|id| {
+        !outputs
+            .audio_sinks
+            .iter()
+            .any(|sink| &sink.id == id && sink.available)
+    })
+}
 pub async fn reconcile(app: &tauri::AppHandle, state: &AppState) {
     let Ok(outputs) = list(app).await else {
         return;
@@ -221,7 +236,6 @@ pub async fn reconcile(app: &tauri::AppHandle, state: &AppState) {
             .as_ref()
             .is_some_and(|id| !outputs.monitors.iter().any(|m| &m.id == id && m.connected))
         {
-            let _ = move_browser(app, state, &session.id, PlaybackTarget::default()).await;
             let _ = events::publish(app, state, |home| {
                 home.outputs.state = "partial".into();
                 home.outputs.label = "Display disconnected; service playback was not paused".into();
@@ -233,18 +247,8 @@ pub async fn reconcile(app: &tauri::AppHandle, state: &AppState) {
         .iter()
         .find(|s| s.kind.starts_with("local-"))
     {
-        let missing_picture = session
-            .target
-            .monitor_id
-            .as_ref()
-            .is_some_and(|id| !outputs.monitors.iter().any(|m| &m.id == id && m.connected));
-        let missing_audio = session.target.audio_sink_id.as_ref().is_some_and(|id| {
-            !outputs
-                .audio_sinks
-                .iter()
-                .any(|sink| &sink.id == id && sink.available)
-        });
-        if missing_picture || missing_audio {
+        let missing_audio = local_audio_unavailable(session, &outputs);
+        if missing_audio {
             let _ = crate::player::mpv::control(
                 app,
                 state,
@@ -252,12 +256,9 @@ pub async fn reconcile(app: &tauri::AppHandle, state: &AppState) {
                 PlayerAction::Pause { paused: true },
             )
             .await;
-            if missing_picture {
-                let _ = move_player(app, state, &session.id, PlaybackTarget::default()).await;
-            }
             let _ = events::publish(app, state, |home| {
                 home.outputs.state = "partial".into();
-                home.outputs.label = "Playback paused after an output disconnected".into();
+                home.outputs.label = "Audio output unavailable".into();
                 home.outputs.revision += 1;
             });
         }
@@ -291,7 +292,19 @@ async fn reconcile_browser_audio(app: &tauri::AppHandle, state: &AppState) {
     if browser.verify().await.is_err() {
         return;
     }
-    let result = super::audio::route(&browser.identity, target.audio_sink_id.as_deref()).await;
+    let chosen = target.audio_sink_id.as_deref().or(browser
+        .session
+        .target
+        .audio_sink_id
+        .as_deref());
+    let result = super::audio::route(&browser.identity, chosen).await;
+    if let Ok(id) = &result {
+        browser
+            .routing_target
+            .as_mut()
+            .expect("routing target")
+            .audio_sink_id = Some(id.clone());
+    }
     let actual = result.as_ref().ok().cloned();
     let snapshot = match state.snapshot() {
         Ok(s) => s,
@@ -305,7 +318,7 @@ async fn reconcile_browser_audio(app: &tauri::AppHandle, state: &AppState) {
     let id = browser.session.id.clone();
     let label = match result {
         Ok(_) => "Playback audio confirmed",
-        Err(_) => "Playback audio unavailable or unconfirmed",
+        Err(_) => "Audio output unavailable; browser pausing is unavailable",
     };
     let publication = events::commit(state, |home| {
         home.outputs.effective.audio_sink_id = actual.clone();
@@ -381,6 +394,13 @@ pub async fn move_player(
             .await;
     }
     let audio = super::audio::route(&player.identity, target.audio_sink_id.as_deref()).await;
+    if let Ok(id) = &audio {
+        player
+            .routing_target
+            .as_mut()
+            .expect("routing target")
+            .audio_sink_id = Some(id.clone());
+    }
     player.session.target = PlaybackTarget {
         monitor_id: picture.as_ref().ok().cloned().flatten(),
         audio_sink_id: audio.as_ref().ok().cloned(),
@@ -425,6 +445,9 @@ pub async fn move_session(
 }
 
 pub async fn reconcile_audio(app: &tauri::AppHandle, state: &AppState) {
+    if let Ok(outputs) = super::audio::discover().await {
+        crate::remote::state::outputs_discovered(state, outputs);
+    }
     reconcile_browser_audio(app, state).await;
     let Ok(mut registry) = state.player.try_lock() else {
         return;
@@ -438,15 +461,24 @@ pub async fn reconcile_audio(app: &tauri::AppHandle, state: &AppState) {
     if !player.identity.still_owned() {
         return;
     }
-    let result = super::audio::route(&player.identity, target.audio_sink_id.as_deref()).await;
-    if result
-        .as_ref()
-        .is_err_and(|error| error.code == "sink_unavailable")
-    {
-        let _ = player
+    let chosen = target
+        .audio_sink_id
+        .as_deref()
+        .or(player.session.target.audio_sink_id.as_deref());
+    let result = super::audio::route_or_pause(&player.identity, chosen, || async {
+        player
             .ipc
             .command(serde_json::json!(["set_property", "pause", true]))
-            .await;
+            .await
+            .map(|_| ())
+    })
+    .await;
+    if let Ok(id) = &result {
+        player
+            .routing_target
+            .as_mut()
+            .expect("routing target")
+            .audio_sink_id = Some(id.clone());
     }
     let actual = result.as_ref().ok().cloned();
     let status = combined_state(player.session.target.monitor_id.is_some(), result.is_ok());
@@ -464,7 +496,7 @@ pub async fn reconcile_audio(app: &tauri::AppHandle, state: &AppState) {
         home.outputs.label = if actual.is_some() {
             "Local playback audio confirmed".into()
         } else {
-            "Local playback audio unavailable or unconfirmed".into()
+            "Audio output unavailable".into()
         };
         home.outputs.revision += 1;
         if let Some(session) = home.sessions.iter_mut().find(|s| s.id == id) {
@@ -484,5 +516,50 @@ mod tests {
         assert_eq!(super::combined_state(false, true), "partial");
         assert_eq!(super::combined_state(false, false), "unavailable");
         assert_eq!(super::combined_state(true, true), "ready");
+    }
+}
+
+#[cfg(test)]
+mod loss_tests {
+    use super::*;
+    #[test]
+    fn task10_display_only_loss_preserves_playback_but_missing_hdmi_requires_pause() {
+        let session = ManagedSession {
+            id: "private-player".into(),
+            kind: "local-video".into(),
+            service_id: None,
+            media_id: Some("private-media".into()),
+            phase: "ready".into(),
+            target: PlaybackTarget {
+                monitor_id: Some("disconnected-display".into()),
+                audio_sink_id: Some("hdmi".into()),
+            },
+        };
+        let mut outputs = OutputList {
+            monitors: vec![],
+            audio_sinks: vec![AudioSinkDescriptor {
+                id: "hdmi".into(),
+                backend_name: "hdmi".into(),
+                name: "Private HDMI fixture".into(),
+                available: true,
+            }],
+            computer_monitor_id: None,
+            audio_error: None,
+        };
+        assert!(!local_audio_unavailable(&session, &outputs));
+        outputs.audio_sinks.clear();
+        assert!(local_audio_unavailable(&session, &outputs));
+        outputs.audio_sinks.push(AudioSinkDescriptor {
+            id: "laptop".into(),
+            backend_name: "laptop".into(),
+            name: "Private laptop fixture".into(),
+            available: true,
+        });
+        assert!(local_audio_unavailable(&session, &outputs));
+        assert_eq!(session.target.audio_sink_id.as_deref(), Some("hdmi"));
+        assert_eq!(
+            session.target.monitor_id.as_deref(),
+            Some("disconnected-display")
+        );
     }
 }

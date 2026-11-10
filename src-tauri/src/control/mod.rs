@@ -47,3 +47,5 @@ impl ControlServices {
 pub mod activity;
 pub mod confirmations;
 pub mod playback;
+
+pub mod audio;

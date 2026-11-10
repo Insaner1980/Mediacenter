@@ -226,3 +226,126 @@ mod tests {
         validate_identity(&before, &before).unwrap();
     }
 }
+
+trait MenuWindow {
+    fn show(&self) -> Result<(), AppError>;
+    fn focus(&self) -> Result<(), AppError>;
+}
+impl MenuWindow for tauri::WebviewWindow {
+    fn show(&self) -> Result<(), AppError> {
+        tauri::WebviewWindow::show(self)
+            .map_err(|_| AppError::new("unavailable", "The menu window could not be shown."))
+    }
+    fn focus(&self) -> Result<(), AppError> {
+        self.set_focus()
+            .map_err(|_| AppError::new("unavailable", "The menu window could not be focused."))
+    }
+}
+fn focus_menu(window: &impl MenuWindow) -> Result<(), AppError> {
+    window.show()?;
+    window.focus()
+}
+pub fn show_menu(app: &tauri::AppHandle) -> Result<(), AppError> {
+    use tauri::Manager;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| AppError::new("unavailable", "The menu window is unavailable."))?;
+    focus_menu(&window)
+}
+pub async fn show_playback(state: &AppState, expected: &str) -> Result<(), AppError> {
+    let player = state.player.lock().await;
+    if let Some(player) = player.as_ref().filter(|p| p.session.id == expected) {
+        if !player.identity.still_owned() {
+            return Err(AppError::new(
+                "ownership_uncertain",
+                "The player process changed.",
+            ));
+        }
+        let window = player
+            .window
+            .as_ref()
+            .ok_or_else(|| AppError::new("unavailable", "The player window is unavailable."))?;
+        let listing = crate::outputs::x11::wmctrl(&["-lpG"]).await?;
+        let verified = crate::outputs::x11::owned_window(&listing, player.identity.pid)
+            .filter(|w| w.id == window.id)
+            .ok_or_else(|| AppError::new("ownership_uncertain", "The player window changed."))?;
+        if !player.identity.still_owned() {
+            return Err(AppError::new(
+                "ownership_uncertain",
+                "The player process changed.",
+            ));
+        }
+        crate::outputs::x11::wmctrl(&["-ia", &verified.id]).await?;
+        return Ok(());
+    }
+    drop(player);
+    let browser = state.browser.lock().await;
+    let browser = browser
+        .as_ref()
+        .filter(|b| b.session.id == expected)
+        .ok_or_else(|| AppError::new("stale_state", "The playback session changed."))?;
+    browser.focus().await
+}
+
+#[cfg(test)]
+mod foreground_tests {
+    use super::*;
+    struct Window(std::sync::Mutex<Vec<&'static str>>);
+    impl MenuWindow for Window {
+        fn show(&self) -> Result<(), AppError> {
+            self.0.lock().unwrap().push("show");
+            Ok(())
+        }
+        fn focus(&self) -> Result<(), AppError> {
+            self.0.lock().unwrap().push("focus");
+            Ok(())
+        }
+    }
+    #[test]
+    fn task10_show_menu_only_shows_and_focuses_existing_window_without_picture_or_geometry_changes()
+    {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        let target = crate::contracts::PlaybackTarget {
+            monitor_id: Some("mirrored-desktop".into()),
+            audio_sink_id: Some("hdmi".into()),
+        };
+        state.home.lock().unwrap().outputs.desired = target;
+        state.db.lock().unwrap().execute("INSERT INTO settings(key,value_json,updated_at_ms) VALUES('main_geometry','{\"x\":40,\"y\":50,\"width\":1100,\"height\":700}',1)",[]).unwrap();
+        let before = serde_json::to_value(state.snapshot().unwrap()).unwrap();
+        let window = Window(Default::default());
+        focus_menu(&window).unwrap();
+        assert_eq!(*window.0.lock().unwrap(), ["show", "focus"]);
+        assert_eq!(
+            serde_json::to_value(state.snapshot().unwrap()).unwrap(),
+            before
+        );
+        let geometry: String = state
+            .db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT value_json FROM settings WHERE key='main_geometry'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(geometry, r#"{"x":40,"y":50,"width":1100,"height":700}"#);
+    }
+    #[tokio::test]
+    async fn task10_show_playback_never_relaunches_a_missing_or_unowned_session() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = AppState::open(directory.path().into()).unwrap();
+        let before = serde_json::to_value(state.snapshot().unwrap()).unwrap();
+        assert_eq!(
+            show_playback(&state, "not-owned").await.unwrap_err().code,
+            "stale_state"
+        );
+        assert_eq!(
+            serde_json::to_value(state.snapshot().unwrap()).unwrap(),
+            before
+        );
+        assert!(state.player.lock().await.is_none());
+        assert!(state.browser.lock().await.is_none());
+    }
+}

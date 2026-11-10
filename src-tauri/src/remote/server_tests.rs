@@ -163,7 +163,13 @@ impl Fixture {
                 "activity.prepare",
                 "activity.confirm",
                 "confirmations.get",
-                "confirmations.cancel"
+                "confirmations.cancel",
+                "audio.outputs",
+                "audio.prepare",
+                "audio.confirm",
+                "audio.test",
+                "activity.showMenu",
+                "activity.showPlayback"
             ])
         );
         let snapshot = next_json(&mut socket).await;
