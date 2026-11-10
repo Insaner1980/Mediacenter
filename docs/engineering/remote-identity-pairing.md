@@ -153,3 +153,17 @@ handshake), and direct uses of already locked futures-util 0.3.34 (sink), hyper
 - https://docs.rs/crate/tokio-tungstenite/0.30.0/features — minimal handshake feature.
 - https://docs.rs/tokio-tungstenite/0.30.0/tokio_tungstenite/struct.WebSocketStream.html — raw upgraded streams, read cancellation safety and send boundaries.
 - https://docs.rs/hyper/1.12.0/hyper/server/conn/http1/struct.Builder.html — bounded HTTP/1 headers/buffers and timed reads.
+
+## Desktop setup and Android pairing integration
+
+The desktop Settings → Remote control sheet is the only local setup entry. Remote access is off on a fresh installation. Enablement requires an explicitly selected physical LAN interface and port; the native controller retains one identity/runtime across listener changes. The versioned private network-v1.json must match the enabled preferences revision before binding. Missing/corrupt/mismatched configuration fails closed and never chooses a substitute interface. Disable closes listeners, sockets, active pairing and discovery. Interface loss closes the old listener while retaining identity and credentials for a later valid rebind.
+
+The discovery flag records the mdns-sd daemon's announcement attempt. It does not prove successful multicast delivery or phone reachability; a blocked multicast route can still use direct QR/manual pairing. Final LAN/firewall acceptance requires the actual devices.
+
+Android has a separate Mediacenter endpoint policy, pinned transport, connection and credential store. Socket factory and literal-address resolution belong to the selected Android Network; process-global routing and LG trust/credentials are unchanged. Link-local IPv6 uses the phone's interface scope, never the computer's scope number. QR candidate reachability is probed with a strictly pinned, secret-free manual challenge, checking both server identity and attempt ID. After selecting a candidate the QR secret is submitted once, with no retry after an ambiguous response.
+
+Manual setup captures an immutable certificate observation before application data. The same observation produces the displayed six-word phrase and confirmed pin. Only after explicit confirmation is the challenge/code exchange permitted. The Android/native bip39-en-v1 wordlist bytes match. Codes, pins and credentials are not written into logs or generic preferences. MC credential bytes are Keystore-encrypted in a separate no-backup file; forgetting MC does not remove LG records.
+
+QR scanning uses bundled ML Kit 17.3.0 with Camera2 and a camera permission requested only for scanning. Camera denial retains manual pairing; LAN permission remains a separate prerequisite. Google's [privacy documentation](https://developers.google.com/ml-kit/terms) states that image processing and decoded outputs remain on-device, while the SDK can send performance/usage metrics. Do not describe this dependency as entirely network-silent.
+
+Automated tests and APK compilation do not establish camera, Android Keystore or sofa acceptance. Keystore instrumentation explicitly refuses the production application ID and requires an isolated test package; default skipped tests are not acceptance. Real process-restart verification requires separate write/read invocations with an OS force-stop between them. Consult the task report for commands and evidence.
