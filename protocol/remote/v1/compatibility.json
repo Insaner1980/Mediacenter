@@ -3,7 +3,7 @@
   "desktopBaseCommit": "89dd3589c3750edb9e1461d07811758f4631a750",
   "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
   "androidSdkMajor": 37,
-  "note": "These paired sources use the tested shared contract including bounded service preferences, redacted diagnostics and ephemeral pairing QR rows. Local media, folders, drives, VPN and settings have source evidence. Task15 confirmation/revision fixes await scoped review; target integration, browser and physical acceptance are incomplete. This is not an accepted remote-control release.",
+  "note": "These paired sources use the tested shared contract including bounded service preferences, redacted diagnostics and ephemeral pairing QR rows. Local media, folders, drives, VPN and routine settings have reviewed source evidence, including confirmation-race and settings-revision fixes. Target integration, browser and physical acceptance remain incomplete; this is not an accepted remote-control release.",
   "desktopSourceCommit": "fd25b91089ab4b1387c98fe3db58acab2a50b155",
   "androidSourceCommit": "3b92c4646fc555d8fa2d2e0ff1ef1354e6e5a633",
   "schemaSha256": "275823d7721bebd9a408dfe221a5a6d56bcffa4db6342eda703195120265fb7c",
