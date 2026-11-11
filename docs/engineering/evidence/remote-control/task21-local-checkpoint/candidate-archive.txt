@@ -1,0 +1,11 @@
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr/bin
+-rwxr-xr-x 0/0        35486912 2026-11-11 17:02 usr/bin/mediacenter
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr/share
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr/share/applications
+-rw-r--r-- 0/0             182 2026-11-11 17:02 usr/share/applications/Mediacenter.desktop
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr/share/icons
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr/share/icons/hicolor
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr/share/icons/hicolor/128x128
+drwxr-xr-x 0/0               0 2026-11-11 17:02 usr/share/icons/hicolor/128x128/apps
+-rw-r--r-- 0/0            1721 2026-11-11 17:02 usr/share/icons/hicolor/128x128/apps/mediacenter.png

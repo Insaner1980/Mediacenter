@@ -96,5 +96,24 @@
   "sourceCheckpoint": "Implementation and focused checks DONE; final broad gates and independent review parent-owned and pending",
   "desktopSourceCommit": "4548950bc68ab53eba9cec9d17218e1166e3542f",
   "androidSourceCommit": "caad0fda0cb682e739ecb521b944a33ed404aabb",
-  "review": "PENDING independent source-checkpoint review"
+  "review": {
+    "scope": "labelled local-media source checkpoint",
+    "spec": "APPROVED",
+    "quality": "APPROVED",
+    "critical": 0,
+    "important": 0,
+    "minor": 1,
+    "minorDescription": "inherited toolchain warnings",
+    "report": "review.md",
+    "reviewedDesktopHead": "3dc5d4d20fa53bf2addda42f2a8c8aacd8478bc4",
+    "reviewedAndroidHead": "caad0fda0cb682e739ecb521b944a33ed404aabb"
+  },
+  "sourceCandidates": {
+    "record": "source-candidates.json",
+    "checksumFile": "candidate-SHA256SUMS.txt",
+    "scope": "LOCAL-MEDIA SOURCE CANDIDATE ONLY",
+    "buildInspection": "PASS",
+    "installed": false,
+    "acceptedRelease": false
+  }
 }

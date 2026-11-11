@@ -1,0 +1,57 @@
+{
+  "scope": "local-media source candidate; not accepted release",
+  "desktopSourceCommit": "4548950bc68ab53eba9cec9d17218e1166e3542f",
+  "androidSourceCommit": "caad0fda0cb682e739ecb521b944a33ed404aabb",
+  "android": {
+    "path": "releases/remote-local-source-4548950/Remote-debug.apk",
+    "sha256": "ba1e07227ed624501181f46ea8be5310fa5b6295a3051fa419eb424d91e46e0a",
+    "applicationId": "com.emmah.colordock.remote",
+    "versionName": "1.0.0",
+    "versionCode": 1,
+    "minSdk": 37,
+    "targetSdk": 37,
+    "compileSdk": 37,
+    "signatureVerification": "PASS via pinned JDK17 apksigner.jar",
+    "signerCertificateSha256": "c9091d20e12b6eeb96ef57e01ee1e27e57cf20fb17583f0dc1f803b8a1481046",
+    "installedPhoneCertificateMatch": "NOT RUN: no attached device",
+    "installation": "NOT RUN"
+  },
+  "nativeCandidate": "BUILD AND ARCHIVE INSPECTION PASS; not installed; not accepted release",
+  "desktop": {
+    "path": "releases/remote-local-source-4548950/Mediacenter_0.1.6_amd64.deb",
+    "sha256": "6ec94c623842955d55f59f455c97ef611e00784b7b3ec358b0390dca92a0a610",
+    "sizeBytes": 11222028,
+    "sourceCommit": "4548950bc68ab53eba9cec9d17218e1166e3542f",
+    "buildHead": "3dc5d4d20fa53bf2addda42f2a8c8aacd8478bc4",
+    "buildCommand": "source scripts/dev-env.sh && npm run tauri -- build --bundles deb -- --locked",
+    "installation": "NOT RUN",
+    "fields": {
+      "Package": "mediacenter",
+      "Version": "0.1.6",
+      "Architecture": "amd64",
+      "Depends": "libwebkit2gtk-4.1-0, libgtk-3-0, mpv, ffmpeg, pulseaudio-utils, wmctrl, x11-xserver-utils, udisks2, libwebkit2gtk-4.1-0, libgtk-3-0",
+      "Maintainer": "emma"
+    },
+    "inspection": {
+      "controlFiles": [
+        "control",
+        "md5sums"
+      ],
+      "maintainerScripts": [],
+      "archiveFileCount": 5,
+      "archiveFiles": [
+        "DEBIAN/control",
+        "DEBIAN/md5sums",
+        "usr/bin/mediacenter",
+        "usr/share/applications/Mediacenter.desktop",
+        "usr/share/icons/hicolor/128x128/apps/mediacenter.png"
+      ],
+      "desktopEntry": "[Desktop Entry]\nCategories=Network;\nComment=Personal Linux media center\nExec=mediacenter\nStartupWMClass=mediacenter\nIcon=mediacenter\nName=Mediacenter\nTerminal=false\nType=Application\n",
+      "hostLdd": "PASS: no missing linked libraries; clean target resolution NOT RUN",
+      "binarySha256": "07eeb0064e6c92ba1a80e9892fc3970d30cffeed1dfe6cc82a0f0bbbd6f2f3bd",
+      "noFixtureMarkers": "PASS",
+      "runtimeLaunch": "NOT RUN",
+      "cleanInstallUpgradeUninstall": "NOT RUN"
+    }
+  }
+}

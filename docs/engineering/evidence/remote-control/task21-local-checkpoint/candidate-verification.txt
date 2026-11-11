@@ -1,0 +1,7 @@
+Native locked release build: PASS,4m07s.
+SHA256SUMS: Debian and APK OK.
+Extracted DEBIAN/md5sums: binary, desktop entry and icon OK.
+Archive:5files including control/md5sums; no maintainer scripts.
+Host ldd: no missing linked libraries; clean-machine dependency resolution NOT RUN.
+Pinned JDK17/apksigner.jar signature verification: exit0. Android applicationId/version/SDK values inspected with aapt2. An initial apksigner shell-wrapper call could not locate java; corrected by invoking pinned Java directly.
+No artifact was installed or launched during inspection. Phone certificate match and physical/browser/OS/upgrade acceptance NOT RUN.
