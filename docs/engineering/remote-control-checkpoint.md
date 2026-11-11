@@ -1,12 +1,12 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s explicit request on 2026-11-11. Tasks 1–14 have completed source implementation and independent review with zero blocking findings. Task 13 root-authorization fix `27ae3e6` and Task 14 USB implementation/recovery/message fixes through native `91f3d13` and Android `9a6988d` are approved. Continue Task 15. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
+Resumed at the user’s explicit request on 2026-11-11. Tasks 1–14 have completed source implementation and independent review with zero blocking findings. Task 13 root-authorization fix `27ae3e6` and Task 14 USB implementation/recovery/message fixes through native `91f3d13` and Android `9a6988d` are approved. Task 15 source is tested and committed at desktop `c7655e4` / Android `3b92c46`, but independent review found two Important issues; fix round1 is tested and committed at `fd25b91`, with scoped re-review pending. Do not start Task16 before that gate closes. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
 ## Resume
 
-Continue `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` at Task 15 after reading the latest ledger, prepared Task 15 brief/spec/context/dispatch and final Task 14 report/reviews. Tasks 1–14 are complete; do not restart them. Retain the pending **Task 17** browser installation step.
+Continue `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` at Task 15 fix round1 after reading the latest ledger, task-15-review.md, task-15-fix1-dispatch.md and the final appended Task15 report. Resume original `/root/task15_settings`; do not redispatch the initial implementation. Tasks 1–14 are complete; do not restart them. Retain the pending **Task 17** browser installation step.
 
 Task 10's scoped re-review approved both fixes with zero open findings. Desktop source is `9cc72f1`, paired metadata `b3c2861`, and Android `fbca8d2`. Read its final report and `task-10-fix1-review.md` for APIs and evidence; do not redispatch its implementation.
 
@@ -168,3 +168,15 @@ Final native25-path manifest SHA256 `2f5e054b6431256cc36ab992dd65801bfcb5311251e
 Evidence caveat: one initial legacy deferred-method test entered newly implemented read-only native VPN observation before its old assertion failed; it used temporary AppState and performed no VPN/settings/pairing mutation. The parent also checked installed NordVPN6.0.2 version/read-only help; sandbox blocked unrelated CLI log rotation. New effect regressions use isolated fake providers/stores. No real VPN change, credential rotation, APK installation or physical acceptance occurred.
 
 Task15 source is committed and frozen for independent spec/quality review. Do not start Task16 or mark Task15 complete until that gate closes. Task16 owns target selection/mounting and deferred Task14 M2 cancellation-ack presentation. Task17 supported Chrome manual installation and Task21 phone/HDMI/USB/VPN acceptance remain pending; no answer or outcome has been inferred.
+
+## Task 15 independent review — fix round1 active
+
+`task-15-review.md` reports zero Critical, two Important and one baseline Minor. I1: cancelling/replacing/expiring a VPN preview during awaited confirmation reads can still journal/spawn work and then panic on a removed registry entry. I2: using home.revision for settings means ordinary VPN polling invalidates unchanged phone preferences. Original implementer `/root/task15_settings` resumes from exact findings in task-15-fix1-dispatch.md, bases MC56f0b61/Remote3b92c46. Native helper belongs exclusively to that worker; parent owns actual Android installs/gates/Git. Require deterministic RED/GREEN for live confirmation admission and actual publication versus preference revision, then scoped independent re-review. Task16 remains gated; baseline toolchain warnings stay in final maintenance triage.
+
+## Task 15 fix round1 — tested, scoped review pending
+
+Native fix source `fd25b91089ab4b1387c98fe3db58acab2a50b155`; Android remains `3b92c4646fc555d8fa2d2e0ff1ef1354e6e5a633`. I1 validates the live owner/action/request/epoch/expiry after awaited reads and keeps journal admission plus consumption under the same synchronous confirmation lock. I2 uses private persisted `routine_settings_revision` in the existing settings table; real preference changes and its counter commit atomically, while VPN publications do not advance it. Existing transport setup CAS is separate and unchanged. Task20 startup/keep-available must use RemoteStore.save_preferences, which shares this atomic boundary.
+
+Actual RED reproduced all three cancellation/expiry/replacement cases and both publication/revision cases. Affected VPN/policy24, settings9, store19 and setup9 tests passed; the subsequently strengthened rollback test passed1/1. Final all-target Clippy-Dwarnings, formatting and diff checks passed. Six exact source hashes match manifest `task-15-fix1-native-source-manifest.json`, SHA256 `3a48e6cfa4c446c1f71810b7c8f8581cbbe7f4571d3485126b5cda2f0c22ba99`. Actual logs and prior test-only compile failures remain in checkpoint-evidence/task15-fix1; no unchanged broad native/Android suite was repeated. Source/helper released; no Android/wire/dependency/SDK change or production effect.
+
+Next is scoped I1/I2 re-review from MC56f0b61 /Remote3b92c46. Do not mark Task15 complete or start Task16 before approval. Earlier broad368-native/396-Android results remain separate pre-fix snapshots.
