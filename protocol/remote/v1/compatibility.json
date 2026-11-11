@@ -3,7 +3,7 @@
   "desktopBaseCommit": "89dd3589c3750edb9e1461d07811758f4631a750",
   "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
   "androidSdkMajor": 37,
-  "note": "These paired sources include reviewed local media, folders/drives, VPN/settings and target integration, plus tested background/startup/end-session and durable recovery fixes awaiting scoped Task20 review. Browser integration and actual phone/HDMI/login/idle acceptance remain incomplete. This is a source checkpoint, not an accepted remote-control release.",
+  "note": "These paired sources have reviewed local media, folders/drives, VPN/settings, LG/Mediacenter target integration and background/startup/end-session with durable recovery fixes. Interoperability/end-to-end checkpoint, browser integration and actual phone/HDMI/login/idle acceptance remain incomplete. This is a source checkpoint, not an accepted remote-control release.",
   "desktopSourceCommit": "92f22d97de687e4d0156fe9e6ded6663fbf0b505",
   "androidSourceCommit": "899edad359f06262061e2345200ef49e48f04657",
   "schemaSha256": "f7231d1864fa77b52ba035dd3418bfae57ec2787924bee9a957e58765695a1a0",
