@@ -77,11 +77,14 @@ pub struct ExitStatus {
     pub local_active: bool,
     pub streaming_active: bool,
     pub background_active: bool,
+    pub remote_enabled: bool,
+    pub explicit_quit: bool,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ExitAction {
     KeepOpen,
+    KeepAvailable,
     StopPlaybackAndQuit,
     LeaveServiceOpenAndQuit,
     CloseServiceAndQuit,
@@ -101,10 +104,49 @@ pub async fn exit_status(state: &AppState) -> ExitStatus {
         local_active,
         streaming_active,
         background_active,
+        remote_enabled: false,
+        explicit_quit: false,
     }
 }
 pub async fn request_close(app: tauri::AppHandle, state: AppState) {
-    let status = exit_status(&state).await;
+    let mut status = exit_status(&state).await;
+    if let Some(remote) = app.try_state::<crate::remote::setup::RemoteSetup>() {
+        let preferences = match remote.lifetime_preferences().await {
+            Ok(preferences) => preferences,
+            Err(_) => {
+                state.exit_pending.store(false, Ordering::SeqCst);
+                let _ = app.emit_to(
+                    "main",
+                    "exit_error",
+                    AppError::new(
+                        "unavailable",
+                        "Remote availability could not be checked. Mediacenter remains open.",
+                    ),
+                );
+                return;
+            }
+        };
+        {
+            status.remote_enabled = preferences.enabled;
+            if preferences.enabled && preferences.keep_available {
+                if let Some(window) = app.get_webview_window("main") {
+                    if window.hide().is_err() {
+                        let _ = app.emit_to(
+                            "main",
+                            "exit_error",
+                            AppError::new("unavailable", "The main window could not be hidden."),
+                        );
+                    }
+                }
+                state.exit_pending.store(false, Ordering::SeqCst);
+                return;
+            }
+        }
+    }
+    if status.remote_enabled {
+        let _ = app.emit_to("main", "exit_requested", status);
+        return;
+    }
     if !status.local_active && !status.streaming_active && !status.background_active {
         if let Err(error) = exit(&app, &state, ExitAction::StopPlaybackAndQuit).await {
             state.exit_pending.store(false, Ordering::SeqCst);
@@ -120,6 +162,21 @@ pub async fn exit(
     action: ExitAction,
 ) -> Result<(), AppError> {
     if matches!(action, ExitAction::KeepOpen) {
+        state.exit_pending.store(false, Ordering::SeqCst);
+        return Ok(());
+    }
+    if matches!(action, ExitAction::KeepAvailable) {
+        let remote = app
+            .try_state::<crate::remote::setup::RemoteSetup>()
+            .ok_or_else(|| AppError::new("unavailable", "Remote availability is unavailable."))?;
+        remote
+            .keep_available(|| {
+                app.get_webview_window("main")
+                    .ok_or_else(|| AppError::new("unavailable", "Main window unavailable."))?
+                    .hide()
+                    .map_err(|_| AppError::new("unavailable", "Main window could not be hidden."))
+            })
+            .await?;
         state.exit_pending.store(false, Ordering::SeqCst);
         return Ok(());
     }
@@ -181,11 +238,20 @@ pub async fn exit(
             "Background work has not finished stopping. Mediacenter remains open.",
         )
     })?;
+    state.idle.end().await?;
     if let Some(remote) = app.try_state::<crate::remote::setup::RemoteSetup>() {
         remote.stop().await;
     }
     app.exit(0);
     Ok(())
+}
+pub async fn request_quit(app: tauri::AppHandle, state: AppState) {
+    let mut status = exit_status(&state).await;
+    status.explicit_quit = true;
+    if let Some(remote) = app.try_state::<crate::remote::setup::RemoteSetup>() {
+        status.remote_enabled = remote.lifetime_preferences().await.is_ok_and(|p| p.enabled);
+    }
+    let _ = app.emit_to("main", "exit_requested", status);
 }
 pub fn on_close(window: &tauri::Window, event: &tauri::WindowEvent) {
     if window.label() != "main" {

@@ -3,6 +3,7 @@ use super::activity::Identity;
 use crate::remote::protocol::*;
 #[derive(Clone)]
 pub enum Action {
+    EndSession(crate::remote::lifecycle::EndSession),
     Vpn(crate::remote::vpn::VpnChange),
     Admin(super::settings_devices::AdminAction),
     Eject(crate::remote::drives::EjectAction),

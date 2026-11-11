@@ -420,6 +420,16 @@ impl super::dispatch::Dispatcher {
             publish(&state);
         });
     }
+    async fn require_input_unlocked(&self) -> Result<(), RemoteError> {
+        #[cfg(test)]
+        if let Some(observe) = &self.lock_observation {
+            return super::idle::lock_decision(observe());
+        }
+        if self.services.app().is_none() {
+            return Err(unavailable());
+        }
+        super::idle::require_unlocked().await
+    }
     pub async fn renderer_input(
         &self,
         owner: &RemotePrincipal,
@@ -435,6 +445,7 @@ impl super::dispatch::Dispatcher {
         {
             return Err(stale());
         }
+        self.require_input_unlocked().await?;
         let ui = match request.command {
             RemoteCommand::UiNavigate(params) => UiRequest::UiNavigate { params },
             RemoteCommand::UiMoveFocus(params) => UiRequest::UiMoveFocus { params },
@@ -462,6 +473,7 @@ impl super::dispatch::Dispatcher {
             .update(&response.renderer_generation, response.context.clone())?;
         publish(&self.services.state);
         if let Some(action) = response.action {
+            self.require_input_unlocked().await?;
             self.semantic_action(owner, action).await?;
         }
         serde_json::to_value(UiAck {
@@ -499,6 +511,9 @@ impl super::dispatch::Dispatcher {
                     "confirmations.cancel"
                 } else {
                     match pending.action {
+                        crate::control::confirmations::Action::EndSession(_) => {
+                            "settings.endSession"
+                        }
                         crate::control::confirmations::Action::Vpn(_) => "vpn.confirmChange",
                         crate::control::confirmations::Action::Admin(action) => {
                             if action.target.is_some() {
@@ -794,5 +809,38 @@ mod tests {
             second.state.renderer.snapshot(0)
         );
         assert!(second.state.renderer.snapshot(0).available);
+    }
+}
+
+#[cfg(test)]
+mod lock_tests {
+    use super::*;
+    #[tokio::test]
+    async fn task20_locked_and_unobserved_desktop_refuse_renderer_input_before_delivery() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let services =
+            crate::control::ControlServices::native(state.clone(), checked("server").unwrap())
+                .unwrap();
+        let mut d = super::super::dispatch::Dispatcher::new(services);
+        let owner =
+            checked(serde_json::json!({"deviceId":"phone","scopes":["browse","navigation"]}))
+                .unwrap();
+        for (observation, expected) in [
+            (Some(true), ErrorCode::DesktopLocked),
+            (None, ErrorCode::Unavailable),
+        ] {
+            d.lock_observation = Some(Arc::new(move || observation));
+            let request=parse_request(&serde_json::json!({"v":1,"id":"input","method":"ui.navigate","params":{"rendererGeneration":"1","focusRevision":"1","route":"videos"},"expected":{"serverEpoch":state.event_hub.epoch()}}).to_string()).unwrap();
+            assert_eq!(
+                d.renderer_input(&owner, request, "fixture")
+                    .await
+                    .unwrap_err()
+                    .code,
+                expected
+            );
+            assert!(state.renderer.inner.lock().unwrap().pending.is_empty());
+            assert!(state.operations.lock().unwrap().is_empty());
+        }
     }
 }

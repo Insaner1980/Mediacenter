@@ -124,6 +124,8 @@ impl Fixture {
             hello["capabilities"]["methods"],
             serde_json::json!([
                 "settings.get",
+                "settings.endSession",
+                "settings.startAtLogin.set",
                 "settings.theme.set",
                 "vpn.state",
                 "vpn.countries",

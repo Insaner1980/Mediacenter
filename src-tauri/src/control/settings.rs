@@ -90,6 +90,11 @@ fn save_requirement_at(
     Ok(publication)
 }
 pub fn read(d: &Dispatcher) -> Result<SettingsState, RemoteError> {
+    if crate::remote::autostart::pending(&d.services.state, &d.services.server_identity)
+        .map_err(native_error)?
+    {
+        return Err(RemoteError::new(ErrorCode::Unavailable,"A startup preference change is incomplete. Review Remote availability on the computer."));
+    }
     let (home, revision, start) = {
         let home = d.services.state.home.lock().map_err(|_| unavailable())?;
         let mut db = d.services.state.db.lock().map_err(|_| unavailable())?;
@@ -101,7 +106,7 @@ pub fn read(d: &Dispatcher) -> Result<SettingsState, RemoteError> {
         (home.clone(), revision, start)
     };
     checked(
-        serde_json::json!({"revision":revision.to_string(),"theme":home.theme,"startAtLogin":start,
+        serde_json::json!({"revision":revision.to_string(),"theme":home.theme,"startAtLogin":start,"idleInhibition":d.services.state.idle.status(),
         "servicePreferences":home.services.iter().map(|s|serde_json::json!({"serviceId":crate::streaming::catalog::key(s.id),"label":s.name,"vpnRequired":s.vpn_required})).collect::<Vec<_>>(),
         "connectionDiagnostics":d.services.network.lock().map_err(|_|unavailable())?.diagnostics}),
     )

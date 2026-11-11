@@ -15,6 +15,8 @@ pub struct Dispatcher {
     cancellation_gate: Arc<Mutex<()>>,
     pub(crate) registration: Option<Arc<()>>,
     #[cfg(test)]
+    pub(super) lock_observation: Option<Arc<dyn Fn() -> Option<bool> + Send + Sync>>,
+    #[cfg(test)]
     pub(super) pause_effect: Option<Arc<dyn Fn() -> Result<(), AppError> + Send + Sync>>,
 }
 pub(crate) fn native_error(error: AppError) -> RemoteError {
@@ -30,7 +32,7 @@ pub(crate) fn unavailable() -> RemoteError {
     )
 }
 pub fn capabilities() -> Capabilities {
-    checked(serde_json::json!({"methods":["settings.get","settings.theme.set","vpn.state","vpn.countries","vpn.prepareChange","vpn.confirmChange","vpn.requirement.set","devices.list","devices.revoke","pairing.begin","state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback","ui.navigate","ui.moveFocus","ui.activate","ui.back","ui.search","drives.list","drives.mount","drives.prepareEject","drives.confirmEject","sources.list","folders.roots","folders.children","folders.prepareAdd","folders.confirmAdd","sources.scan","sources.cancelScan","sources.prepareRemove","sources.confirmRemove","sources.confirmReattachment"],"services":[],"browserBridge":false})).expect("static capabilities")
+    checked(serde_json::json!({"methods":["settings.get","settings.endSession","settings.startAtLogin.set","settings.theme.set","vpn.state","vpn.countries","vpn.prepareChange","vpn.confirmChange","vpn.requirement.set","devices.list","devices.revoke","pairing.begin","state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback","ui.navigate","ui.moveFocus","ui.activate","ui.back","ui.search","drives.list","drives.mount","drives.prepareEject","drives.confirmEject","sources.list","folders.roots","folders.children","folders.prepareAdd","folders.confirmAdd","sources.scan","sources.cancelScan","sources.prepareRemove","sources.confirmRemove","sources.confirmReattachment"],"services":[],"browserBridge":false})).expect("static capabilities")
 }
 pub(crate) fn value(value: impl serde::Serialize) -> Result<serde_json::Value, RemoteError> {
     serde_json::to_value(value).map_err(|_| RemoteError::invalid())
@@ -44,6 +46,8 @@ impl Dispatcher {
             registration: None,
             #[cfg(test)]
             pause_effect: None,
+            #[cfg(test)]
+            lock_observation: None,
         }
     }
     pub fn authorize(
@@ -71,7 +75,8 @@ impl Dispatcher {
         Self::authorize(principal, &request)?;
         let confirmations_changed = matches!(
             request.command,
-            RemoteCommand::VpnPrepareChange(_)
+            RemoteCommand::SettingsEndSession(_)
+                | RemoteCommand::VpnPrepareChange(_)
                 | RemoteCommand::VpnConfirmChange(_)
                 | RemoteCommand::DevicesRevoke(_)
                 | RemoteCommand::PairingBegin(_)
@@ -99,6 +104,12 @@ impl Dispatcher {
         principal: &RemotePrincipal,
         request: RemoteRequest,
     ) -> Result<serde_json::Value, RemoteError> {
+        if matches!(request.command, RemoteCommand::SettingsStartAtLoginSet(_)) {
+            return super::lifecycle::set_start_at_login(self, principal, request).await;
+        }
+        if matches!(request.command, RemoteCommand::SettingsEndSession(_)) {
+            return super::lifecycle::dispatch(self, principal, request).await;
+        }
         if super::vpn::handles(&request.command) {
             return super::vpn::dispatch(self, principal, request).await;
         }
@@ -474,13 +485,37 @@ impl Dispatcher {
 mod tests {
     use super::*;
     #[tokio::test]
+    async fn task20_end_session_prepares_confirmation_without_stopping_availability() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = crate::app_state::AppState::open(dir.path().into()).unwrap();
+        let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
+        let device:PairedDevice=checked(serde_json::json!({"deviceId":"phone","label":"Phone","scopes":["browse","settings"],"createdAtMs":1,"revoked":false})).unwrap();
+        RemoteStore::new(&mut state.db.lock().unwrap(), &services.server_identity)
+            .add_device(
+                &device,
+                &super::super::store::CredentialHash::from_credential(
+                    &checked("a".repeat(43)).unwrap(),
+                ),
+            )
+            .unwrap();
+        let dispatcher = Dispatcher::new(services);
+        let owner = checked(serde_json::json!({"deviceId":"phone","scopes":["browse","settings"]}))
+            .unwrap();
+        let request = parse_request(&serde_json::json!({"v":1,"id":"end-preview","method":"settings.endSession","params":{},"expected":{"serverEpoch":state.event_hub.epoch()}}).to_string()).unwrap();
+        let result = dispatcher.dispatch(&owner, request).await.unwrap();
+        assert_eq!(result["status"], "confirmation_required");
+        assert_eq!(result["preview"]["action"], "end_session");
+        assert_eq!(result["preview"]["confirmMethod"], "settings.endSession");
+        assert!(!state.exit_pending.load(std::sync::atomic::Ordering::SeqCst));
+    }
+    #[tokio::test]
     async fn missing_scope_and_future_methods_do_not_create_journal_intents() {
         let dir = tempfile::tempdir().unwrap();
         let state = crate::app_state::AppState::open(dir.path().into()).unwrap();
         let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
         let dispatcher = Dispatcher::new(services);
         let principal = checked(
-            serde_json::json!({"deviceId":"phone","scopes":["browse","library_manage","settings"]}),
+            serde_json::json!({"deviceId":"phone","scopes":["browse","library_manage","settings","browser_control"]}),
         )
         .unwrap();
         let epoch = state.event_hub.epoch();
@@ -493,7 +528,11 @@ mod tests {
                 .code,
             ErrorCode::Forbidden
         );
-        let request = parse_request(&serde_json::json!({"v":1,"id":"deferred","method":"settings.startAtLogin.set","params":{"enabled":true},"expected":{"serverEpoch":epoch,"settingsRevision":"1"}}).to_string()).unwrap();
+        let request = parse_request(
+            &serde_json::json!({"v":1,"id":"deferred","method":"browser.state","params":{}})
+                .to_string(),
+        )
+        .unwrap();
         assert_eq!(
             dispatcher
                 .dispatch(&principal, request)

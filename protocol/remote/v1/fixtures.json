@@ -2390,7 +2390,8 @@
             "listener": "listening",
             "discovery": "announced",
             "vpnVersion": "3.20.1"
-          }
+          },
+          "idleInhibition": "unavailable"
         }
       }
     },

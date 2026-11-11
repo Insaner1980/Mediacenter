@@ -21,7 +21,10 @@ pub mod vpn;
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if remote::lifecycle::background_requested(args) {
+                return;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -173,7 +176,14 @@ pub fn run() {
             let dark = MenuItem::with_id(app, "theme-dark", "Dark", true, None::<&str>)?;
             let light = MenuItem::with_id(app, "theme-light", "Light", true, None::<&str>)?;
             let view = Submenu::with_items(app, "View", true, &[&dark, &light])?;
-            app.set_menu(Menu::with_items(app, &[&view])?)?;
+            let quit = MenuItem::with_id(
+                app,
+                "quit-mediacenter",
+                "Quit Mediacenter",
+                true,
+                None::<&str>,
+            )?;
+            app.set_menu(Menu::with_items(app, &[&view, &quit])?)?;
             let state = app.state::<app_state::AppState>();
             if let Err(error) = outputs::control_window::restore(app.handle(), &state) {
                 diagnostics::record(
@@ -185,6 +195,28 @@ pub fn run() {
                     Some(&error.code),
                 );
             }
+            if !remote::lifecycle::background_requested(std::env::args_os()) {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.show()?;
+                }
+            }
+            let idle_state = state.inner().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    let active = idle_state
+                        .player
+                        .lock()
+                        .await
+                        .as_ref()
+                        .is_some_and(|p| !p.snapshot.paused && p.snapshot.phase == "playing");
+                    let photos = photos::presenter::snapshot(&idle_state).await;
+                    idle_state
+                        .idle
+                        .reconcile(active || (photos.session_id.is_some() && !photos.paused))
+                        .await;
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+            });
             let _ = library::scanner::publish_summaries(app.handle(), &state);
             Ok(())
         })
@@ -193,6 +225,16 @@ pub fn run() {
             lifecycle::on_close(window, event);
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "quit-mediacenter" => {
+                let handle = app.clone();
+                let state = app.state::<app_state::AppState>().inner().clone();
+                if !state
+                    .exit_pending
+                    .swap(true, std::sync::atomic::Ordering::SeqCst)
+                {
+                    tauri::async_runtime::spawn(lifecycle::request_quit(handle, state));
+                }
+            }
             "theme-dark" => {
                 let _ = commands::save_theme(app, contracts::Theme::Dark);
             }

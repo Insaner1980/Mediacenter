@@ -135,7 +135,7 @@ export function RemoteSettings({api = remoteApi}: {api?: typeof remoteApi}) {
       {settings.requiresRepairing && <p className="message">Mediacenter's certificate was replaced. Pair your phones again.</p>}
       <label className="field"><span>Local network</span><select aria-label="Local network" value={network} disabled={busy || settings.enabled} onChange={e => {dirty.current = true; setNetwork(e.target.value);}}>
         <option value="">Choose a trusted local network</option>
-        {settings.interfaces.map(item => <option key={item.name} value={item.name}>{item.label} · {item.addresses.join(', ')}</option>)}
+        {settings.interfaces.map(item => <option key={item.name} value={item.name}>{item.label}: {item.addresses.join(', ')}</option>)}
       </select></label>
       <label className="field"><span>Port</span><input aria-label="Port" type="number" min="1" max="65535" value={port} disabled={busy || settings.enabled} onChange={e => {dirty.current = true; setPort(e.target.value);}}/></label>
       <p>Use the same trusted local network on your phone. If the port is occupied, choose another port before enabling.</p>

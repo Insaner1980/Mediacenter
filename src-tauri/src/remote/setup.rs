@@ -67,7 +67,7 @@ pub struct RemoteDevice {
     #[ts(type = "number | null")]
     pub last_seen_at_ms: Option<u64>,
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct NetworkConfig {
     version: u8,
@@ -135,6 +135,8 @@ pub struct RemoteSetup {
     default_port: u16,
     other_default_port: u16,
     name: &'static str,
+    settings_gate: Arc<tokio::sync::Mutex<()>>,
+    autostart: Option<super::autostart::Autostart>,
 }
 impl RemoteSetup {
     /// Construction is local-only and fallible remote state never aborts local startup.
@@ -144,6 +146,9 @@ impl RemoteSetup {
         server: Arc<RemoteServer>,
         namespace: IdentityNamespace,
     ) -> Self {
+        let autostart = app
+            .as_ref()
+            .and_then(|_| super::autostart::Autostart::production().ok());
         let other = match namespace {
             IdentityNamespace::Production => IdentityNamespace::Development,
             IdentityNamespace::Development => IdentityNamespace::Production,
@@ -176,6 +181,7 @@ impl RemoteSetup {
                 None => ControlServices::native(state.clone(), identity.id().clone()),
             }
             .map_err(|_| unavailable())?;
+            let interrupted = super::autostart::pending(&state, identity.id()).unwrap_or(true);
             let runtime = ServerRuntime::new(identity, services)?;
             let (config, status) = match NetworkConfig::read(&path) {
                 Ok(config) => (
@@ -193,15 +199,26 @@ impl RemoteSetup {
                 config,
                 enabled: preferences.enabled,
                 revision: preferences.revision.value(),
-                status,
+                status: if interrupted {
+                    "A Remote startup change was interrupted. Disable Remote, then enable it to restore the saved startup choice.".into()
+                } else {
+                    status
+                },
                 requires_repairing,
                 advertisement: None,
-                suspended: false,
+                suspended: interrupted,
                 network_epoch: None,
             })
         })();
         let inner=initialized.unwrap_or_else(|_|SetupState{runtime:None,config:None,enabled:false,revision:1,status:"Remote control could not initialize securely. Local media remains available. Restart Mediacenter or review its private remote identity files.".into(),requires_repairing:false,advertisement:None,suspended:true,network_epoch:None});
+        let settings_gate = inner
+            .runtime
+            .as_ref()
+            .map(|r| r.dispatcher.services.settings_gate.clone())
+            .unwrap_or_default();
         Self {
+            settings_gate,
+            autostart,
             inner: Arc::new(tokio::sync::Mutex::new(inner)),
             server,
             state,
@@ -424,8 +441,25 @@ impl RemoteSetup {
         &self,
         request: RemoteEnableRequest,
     ) -> Result<RemoteSettingsSnapshot, RemoteError> {
+        let _settings = self.settings_gate.lock().await;
         let mut inner = self.inner.lock().await;
         self.check_revision(&inner, request.revision)?;
+        let runtime = inner.runtime.as_ref().ok_or_else(unavailable)?.clone();
+        let interrupted =
+            super::autostart::pending(&self.state, runtime.identity().id()).unwrap_or(true);
+        if request.enabled && interrupted {
+            let saved_start = {
+                let mut db = self.state.db.lock().map_err(|_| unavailable())?;
+                RemoteStore::new(&mut db, runtime.identity().id())
+                    .preferences()
+                    .map_err(super::dispatch::native_error)?
+                    .start_at_login
+            };
+            // Explicit local Enable restores persisted intent; startup itself never repairs files.
+            self.set_lifetime_preference_locked(&mut inner, Some(saved_start), None, None, None)
+                .await?;
+        }
+
         if !request.enabled {
             self.stop_locked(&mut inner).await;
             inner.suspended = true;
@@ -433,7 +467,11 @@ impl RemoteSetup {
                 inner.status = error.to_string();
                 return Err(error);
             }
-            inner.status = "Remote control is off.".into();
+            inner.status = if interrupted {
+                "Remote control is off. Enable Remote to restore the saved startup choice.".into()
+            } else {
+                "Remote control is off.".into()
+            };
             inner.suspended = false;
         } else {
             let name = request.interface_name.ok_or_else(config_error)?;
@@ -573,6 +611,244 @@ impl RemoteSetup {
             .ok_or_else(unavailable)?
             .revoke_device(device)
     }
+    pub async fn lifetime_preferences(
+        &self,
+    ) -> Result<super::protocol::RemotePreferences, RemoteError> {
+        let inner = self.inner.lock().await;
+        let runtime = inner.runtime.as_ref().ok_or_else(unavailable)?;
+        let mut db = self.state.db.lock().map_err(|_| unavailable())?;
+        RemoteStore::new(&mut db, runtime.identity().id())
+            .preferences()
+            .map_err(super::dispatch::native_error)
+    }
+    /// Preference writers lock settings -> setup -> DB. File writes are synchronous and bounded;
+    /// there is no process, D-Bus, listener rebind or await while the database is held.
+    pub(crate) async fn set_lifetime_preference(
+        &self,
+        start_at_login: Option<bool>,
+        keep_available: Option<bool>,
+        expected_settings: Option<u64>,
+        actor: Option<&super::protocol::RemotePrincipal>,
+    ) -> Result<(), RemoteError> {
+        let _settings = self.settings_gate.lock().await;
+        let mut inner = self.inner.lock().await;
+        self.set_lifetime_preference_locked(
+            &mut inner,
+            start_at_login,
+            keep_available,
+            expected_settings,
+            actor,
+        )
+        .await
+    }
+    async fn set_lifetime_preference_locked(
+        &self,
+        inner: &mut SetupState,
+        start_at_login: Option<bool>,
+        keep_available: Option<bool>,
+        expected_settings: Option<u64>,
+        actor: Option<&super::protocol::RemotePrincipal>,
+    ) -> Result<(), RemoteError> {
+        let runtime = inner.runtime.as_ref().ok_or_else(unavailable)?.clone();
+        let mut uncertain = false;
+        let result = (|| {
+            let mut db = self.state.db.lock().map_err(|_| unavailable())?;
+            if let Some(expected) = expected_settings {
+                if crate::storage::settings_revision::revision(&db)
+                    .map_err(super::dispatch::native_error)?
+                    != expected
+                {
+                    return Err(RemoteError::new(
+                        ErrorCode::StaleState,
+                        "Settings changed. Refresh settings.",
+                    ));
+                }
+            }
+            let mut store = RemoteStore::new(&mut db, runtime.identity().id());
+            if let Some(actor) = actor {
+                if !store
+                    .active_devices()
+                    .map_err(super::dispatch::native_error)?
+                    .iter()
+                    .any(|d| {
+                        d.device_id == actor.device_id
+                            && d.scopes
+                                .as_slice()
+                                .contains(&super::protocol::Scope::Settings)
+                    })
+                {
+                    return Err(RemoteError::new(
+                        ErrorCode::Forbidden,
+                        "Phone authorization changed.",
+                    ));
+                }
+            }
+            let interrupted = super::autostart::pending(&self.state, runtime.identity().id())
+                .map_err(super::dispatch::native_error)?;
+            if interrupted && start_at_login.is_none() {
+                return Err(RemoteError::new(
+                    ErrorCode::Unavailable,
+                    "An interrupted startup change must be repaired first.",
+                ));
+            }
+            let before = store.preferences().map_err(super::dispatch::native_error)?;
+            if before.revision.value() != inner.revision {
+                return Err(RemoteError::new(
+                    ErrorCode::StaleState,
+                    "Remote preferences changed.",
+                ));
+            }
+            if keep_available == Some(true) && !before.enabled {
+                return Err(RemoteError::new(
+                    ErrorCode::Unavailable,
+                    "Enable Remote before keeping Mediacenter available.",
+                ));
+            }
+            let mut next = before.clone();
+            if let Some(value) = start_at_login {
+                next.start_at_login = value;
+            }
+            if let Some(value) = keep_available {
+                next.keep_available = value;
+            }
+            let adapter = if start_at_login.is_some() {
+                Some(self.autostart.as_ref().ok_or_else(unavailable)?)
+            } else {
+                None
+            };
+            let old_start = adapter
+                .map(|a| a.snapshot().map_err(super::dispatch::native_error))
+                .transpose()?
+                .flatten();
+            let old_config = tls::read_private(&self.path).map_err(|_| unavailable())?;
+            if let Some(expected) = &inner.config {
+                let actual = old_config
+                    .as_ref()
+                    .and_then(|bytes| serde_json::from_slice::<NetworkConfig>(bytes).ok());
+                if actual.as_ref() != Some(expected) {
+                    return Err(RemoteError::new(
+                        ErrorCode::StaleState,
+                        "Remote network configuration changed.",
+                    ));
+                }
+            }
+            let mut config = inner.config.clone();
+            if let Some(value) = config.as_mut() {
+                value.revision = before
+                    .revision
+                    .value()
+                    .checked_add(1)
+                    .ok_or_else(unavailable)?;
+            }
+            let new_config = config
+                .as_ref()
+                .map(serde_json::to_vec)
+                .transpose()
+                .map_err(|_| unavailable())?;
+            let new_start = adapter
+                .map(|a| {
+                    if next.start_at_login {
+                        a.contents().map(|v| Some(v.into_bytes()))
+                    } else {
+                        Ok(None)
+                    }
+                })
+                .transpose()
+                .map_err(super::dispatch::native_error)?
+                .flatten();
+            if next.start_at_login == before.start_at_login
+                && next.keep_available == before.keep_available
+                && (adapter.is_none() || old_start == new_start)
+                && !interrupted
+            {
+                return Ok(());
+            }
+            super::autostart::begin_change(&self.state, runtime.identity().id())
+                .map_err(super::dispatch::native_error)?;
+            let apply = (|| {
+                if let Some(adapter) = adapter {
+                    adapter
+                        .set_enabled(next.start_at_login)
+                        .map_err(super::dispatch::native_error)?;
+                }
+                if let Some(bytes) = &new_config {
+                    tls::write_private(&self.path, bytes).map_err(|_| unavailable())?;
+                }
+                store
+                    .save_preferences(&next)
+                    .map_err(super::dispatch::native_error)
+            })();
+            match apply {
+                Ok(saved) => {
+                    inner.revision = saved.revision.value();
+                    inner.config = config;
+                    if super::autostart::finish_change(&self.state, runtime.identity().id())
+                        .is_err()
+                    {
+                        uncertain = true;
+                        return Err(unavailable());
+                    }
+                    Ok(())
+                }
+                Err(error) => {
+                    if let Some(adapter) = adapter {
+                        let current = adapter.snapshot();
+                        if current.as_ref().ok() != Some(&old_start)
+                            && adapter
+                                .restore(old_start.as_deref(), new_start.as_deref())
+                                .is_err()
+                        {
+                            uncertain = true;
+                        }
+                    }
+                    let current = tls::read_private(&self.path);
+                    if current.as_ref().ok() != Some(&old_config) {
+                        if current.as_ref().ok() == Some(&new_config) {
+                            let restored = match &old_config {
+                                Some(bytes) => tls::write_private(&self.path, bytes),
+                                None => std::fs::remove_file(&self.path).map_err(|_| unavailable()),
+                            };
+                            if restored.is_err() {
+                                uncertain = true;
+                            }
+                        } else {
+                            uncertain = true;
+                        }
+                    }
+                    if !uncertain
+                        && super::autostart::finish_change(&self.state, runtime.identity().id())
+                            .is_err()
+                    {
+                        uncertain = true;
+                    }
+                    Err(error)
+                }
+            }
+        })();
+        if uncertain {
+            inner.suspended = true;
+            self.stop_locked(inner).await;
+            return Err(RemoteError::new(
+                ErrorCode::OutcomeUnknown,
+                "Preference rollback could not be verified. Remote availability is suspended.",
+            ));
+        }
+        result
+    }
+    pub(crate) async fn keep_available(
+        &self,
+        hide: impl FnOnce() -> Result<(), crate::contracts::AppError>,
+    ) -> Result<(), crate::contracts::AppError> {
+        self.set_lifetime_preference(None, Some(true), None, None)
+            .await
+            .map_err(|_| {
+                crate::contracts::AppError::new(
+                    "unavailable",
+                    "Remote availability preference could not be saved.",
+                )
+            })?;
+        hide()
+    }
     pub async fn stop(&self) {
         let mut inner = self.inner.lock().await;
         inner.suspended = true;
@@ -656,6 +932,324 @@ mod tests {
             IdentityNamespace::Development,
         );
         (dir, setup)
+    }
+    #[tokio::test]
+    async fn task20_lifetime_preferences_preserve_listener_and_rollback_exact_owned_files() {
+        let (dir, mut setup) = fixture();
+        let exe = dir.path().join("installed media");
+        std::fs::write(&exe, b"fixture").unwrap();
+        setup.autostart = Some(super::super::autostart::Autostart::new(dir.path(), &exe).unwrap());
+        let runtime = {
+            let mut inner = setup.inner.lock().await;
+            setup.save_enabled(&mut inner, true).unwrap();
+            let config = NetworkConfig {
+                version: 1,
+                revision: inner.revision,
+                interface_name: "fixture-lan".into(),
+                port: 47832,
+            };
+            config.save(&setup.path).unwrap();
+            inner.config = Some(config);
+            inner.network_epoch = Some(19);
+            inner.runtime.clone().unwrap()
+        };
+        let addresses = setup
+            .server
+            .start(runtime.clone(), BindAddresses::loopback_fixture(0))
+            .await
+            .unwrap();
+        let revision =
+            crate::storage::settings_revision::revision(&setup.state.db.lock().unwrap()).unwrap();
+        setup
+            .set_lifetime_preference(Some(true), None, Some(revision), None)
+            .await
+            .unwrap();
+        assert_eq!(setup.server.addresses().await, addresses);
+        assert!(tokio::net::TcpStream::connect(addresses[0]).await.is_ok());
+        let prefs = setup.lifetime_preferences().await.unwrap();
+        assert!(prefs.enabled && prefs.start_at_login);
+        let inner = setup.inner.lock().await;
+        assert_eq!(inner.network_epoch, Some(19));
+        assert!(!inner.suspended);
+        assert_eq!(
+            inner.config.as_ref().unwrap().revision,
+            prefs.revision.value()
+        );
+        assert!(Arc::ptr_eq(inner.runtime.as_ref().unwrap(), &runtime));
+        drop(inner);
+        let before_config = tls::read_private(&setup.path).unwrap();
+        let before_start = setup.autostart.as_ref().unwrap().snapshot().unwrap();
+        setup.state.db.lock().unwrap().execute_batch("CREATE TRIGGER task20_fail BEFORE UPDATE ON remote_preferences BEGIN SELECT RAISE(FAIL,'fixture'); END;").unwrap();
+        assert!(setup
+            .set_lifetime_preference(Some(false), None, None, None)
+            .await
+            .is_err());
+        assert_eq!(tls::read_private(&setup.path).unwrap(), before_config);
+        assert_eq!(
+            setup.autostart.as_ref().unwrap().snapshot().unwrap(),
+            before_start
+        );
+        assert_eq!(setup.server.addresses().await, addresses);
+        assert!(setup.lifetime_preferences().await.unwrap().start_at_login);
+        assert!(!super::super::autostart::pending(&setup.state, runtime.identity().id()).unwrap());
+
+        assert_eq!(
+            crate::storage::settings_revision::revision(&setup.state.db.lock().unwrap()).unwrap(),
+            revision + 1
+        );
+        setup.stop().await;
+    }
+    #[tokio::test]
+    async fn task20_stale_and_unowned_startup_changes_have_no_effect() {
+        let (dir, mut setup) = fixture();
+        let exe = dir.path().join("installed");
+        std::fs::write(&exe, b"fixture").unwrap();
+        setup.autostart = Some(super::super::autostart::Autostart::new(dir.path(), &exe).unwrap());
+        assert_eq!(
+            setup
+                .set_lifetime_preference(Some(true), None, Some(999), None)
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::StaleState
+        );
+        assert!(!dir.path().join("autostart").exists());
+        std::fs::create_dir(dir.path().join("autostart")).unwrap();
+        let path = dir
+            .path()
+            .join("autostart/io.emma.mediacenter-remote.desktop");
+        std::fs::write(&path, b"user owned").unwrap();
+        assert!(setup
+            .set_lifetime_preference(Some(true), None, None, None)
+            .await
+            .is_err());
+        assert_eq!(std::fs::read(path).unwrap(), b"user owned");
+        assert!(!setup.lifetime_preferences().await.unwrap().start_at_login);
+    }
+    #[tokio::test]
+    async fn task20_failed_owned_rollback_suspends_availability_and_reports_unknown() {
+        let (dir, mut setup) = fixture();
+        let exe = dir.path().join("installed");
+        std::fs::write(&exe, b"fixture").unwrap();
+        let mut adapter = super::super::autostart::Autostart::new(dir.path(), &exe).unwrap();
+        adapter.fail_restore = true;
+        setup.autostart = Some(adapter);
+        setup.state.db.lock().unwrap().execute_batch("CREATE TRIGGER task20_fail BEFORE UPDATE ON remote_preferences BEGIN SELECT RAISE(FAIL,'fixture'); END;").unwrap();
+        assert_eq!(
+            setup
+                .set_lifetime_preference(Some(true), None, None, None)
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::OutcomeUnknown
+        );
+        assert!(setup.inner.lock().await.suspended);
+        assert!(setup.server.addresses().await.is_empty());
+        assert!(!setup.lifetime_preferences().await.unwrap().start_at_login);
+        let reopened = RemoteSetup::new(
+            None,
+            AppState::open(dir.path().join("app")).unwrap(),
+            Arc::new(RemoteServer::default()),
+            IdentityNamespace::Development,
+        );
+        assert!(
+            reopened.inner.lock().await.suspended,
+            "uncertain owned file effects must survive restart"
+        );
+        let runtime = reopened.inner.lock().await.runtime.clone().unwrap();
+        assert_eq!(
+            crate::control::settings::read(&runtime.dispatcher)
+                .unwrap_err()
+                .code,
+            ErrorCode::Unavailable
+        );
+
+        // A subsequent explicit disabled value repairs the file even when its DB preference
+        // was already false; the failed operation is never silently treated as success.
+        setup
+            .state
+            .db
+            .lock()
+            .unwrap()
+            .execute_batch("DROP TRIGGER task20_fail")
+            .unwrap();
+        setup.autostart.as_mut().unwrap().fail_restore = false;
+        setup
+            .set_lifetime_preference(Some(false), None, None, None)
+            .await
+            .unwrap();
+        assert!(setup
+            .autostart
+            .as_ref()
+            .unwrap()
+            .snapshot()
+            .unwrap()
+            .is_none());
+    }
+    #[tokio::test]
+    async fn task20_keep_available_hides_only_ui_and_explicit_stop_closes_listener() {
+        let (_dir, setup) = fixture();
+        let runtime = {
+            let mut inner = setup.inner.lock().await;
+            setup.save_enabled(&mut inner, true).unwrap();
+            let config = NetworkConfig {
+                version: 1,
+                revision: inner.revision,
+                interface_name: "fixture-lan".into(),
+                port: 47832,
+            };
+            config.save(&setup.path).unwrap();
+            inner.config = Some(config);
+            inner.runtime.clone().unwrap()
+        };
+        let address = setup
+            .server
+            .start(runtime, BindAddresses::loopback_fixture(0))
+            .await
+            .unwrap()[0];
+        crate::photos::presenter::seed_test_session(&setup.state, "owned-photo").await;
+        let before = crate::control::activity::identity(&setup.state).await;
+        let mut hidden = false;
+        setup
+            .keep_available(|| {
+                hidden = true;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        assert!(hidden);
+        assert_eq!(
+            crate::control::activity::identity(&setup.state).await,
+            before
+        );
+        assert_eq!(setup.server.addresses().await, vec![address]);
+        assert!(tokio::net::TcpStream::connect(address).await.is_ok());
+        assert!(setup.lifetime_preferences().await.unwrap().keep_available);
+        setup.stop().await;
+        assert!(setup.server.addresses().await.is_empty());
+        assert!(tokio::net::TcpStream::connect(address).await.is_err());
+    }
+    #[tokio::test]
+    async fn task20_write_ahead_crash_marker_blocks_reopen_and_explicit_enable_repairs_saved_choice(
+    ) {
+        let (dir, mut setup) = fixture();
+        let executable = dir.path().join("installed");
+        std::fs::write(&executable, b"fixture").unwrap();
+        setup.autostart =
+            Some(super::super::autostart::Autostart::new(dir.path(), &executable).unwrap());
+        let identity = setup
+            .inner
+            .lock()
+            .await
+            .runtime
+            .as_ref()
+            .unwrap()
+            .identity()
+            .id()
+            .clone();
+        super::super::autostart::begin_change(&setup.state, &identity).unwrap();
+        setup.autostart.as_ref().unwrap().set_enabled(true).unwrap(); // crash before DB commit
+        let mut reopened = RemoteSetup::new(
+            None,
+            AppState::open(dir.path().join("app")).unwrap(),
+            Arc::new(RemoteServer::default()),
+            IdentityNamespace::Development,
+        );
+        reopened.autostart = setup.autostart.clone();
+        assert!(reopened.inner.lock().await.suspended);
+        let runtime = reopened.inner.lock().await.runtime.clone().unwrap();
+        assert_eq!(
+            crate::control::settings::read(&runtime.dispatcher)
+                .unwrap_err()
+                .code,
+            ErrorCode::Unavailable
+        );
+        let disabled = reopened
+            .set_enabled(RemoteEnableRequest {
+                revision: 1,
+                enabled: false,
+                interface_name: None,
+                port: 47832,
+            })
+            .await
+            .unwrap();
+        assert!(disabled.status.contains("restore the saved startup choice"));
+        assert!(super::super::autostart::pending(&reopened.state, &identity).unwrap());
+        // The deliberately colliding port refuses network selection AFTER safe local recovery;
+        // this fixture never probes an actual interface or starts a production listener.
+        let error = reopened
+            .set_enabled(RemoteEnableRequest {
+                revision: disabled.revision,
+                enabled: true,
+                interface_name: Some("fixture".into()),
+                port: 47831,
+            })
+            .await
+            .err()
+            .unwrap();
+        assert_eq!(error.code, ErrorCode::InvalidRequest);
+        assert!(!super::super::autostart::pending(&reopened.state, &identity).unwrap());
+        assert!(reopened
+            .autostart
+            .as_ref()
+            .unwrap()
+            .snapshot()
+            .unwrap()
+            .is_none());
+        assert!(
+            !reopened
+                .lifetime_preferences()
+                .await
+                .unwrap()
+                .start_at_login
+        );
+        let clean = RemoteSetup::new(
+            None,
+            AppState::open(dir.path().join("app")).unwrap(),
+            Arc::new(RemoteServer::default()),
+            IdentityNamespace::Development,
+        );
+        assert!(!clean.inner.lock().await.suspended);
+        assert!(clean.server.addresses().await.is_empty());
+    }
+    #[tokio::test]
+    async fn task20_unwritable_or_unowned_marker_refuses_before_startup_effects() {
+        let (dir, mut setup) = fixture();
+        let executable = dir.path().join("installed");
+        std::fs::write(&executable, b"fixture").unwrap();
+        setup.autostart =
+            Some(super::super::autostart::Autostart::new(dir.path(), &executable).unwrap());
+        let identity = setup
+            .inner
+            .lock()
+            .await
+            .runtime
+            .as_ref()
+            .unwrap()
+            .identity()
+            .id()
+            .clone();
+        let path = super::super::autostart::pending_path(&setup.state, &identity);
+        std::fs::write(&path, b"unowned marker").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+        assert!(setup
+            .set_lifetime_preference(Some(true), None, None, None)
+            .await
+            .is_err());
+        assert!(setup
+            .autostart
+            .as_ref()
+            .unwrap()
+            .snapshot()
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
+        assert_eq!(std::fs::read(path).unwrap(), b"unowned marker");
+        assert!(!setup.lifetime_preferences().await.unwrap().start_at_login);
     }
     #[tokio::test]
     async fn fresh_setup_is_disabled_and_cannot_issue_pairing_material() {

@@ -582,6 +582,30 @@ pub(crate) async fn execute(
     request: RemoteRequest,
     cancel: tokio_util::sync::CancellationToken,
 ) -> Result<(), crate::contracts::AppError> {
+    let viewing = matches!(
+        &request.command,
+        RemoteCommand::PlayerPlay(_)
+            | RemoteCommand::QueuePlayEntry(_)
+            | RemoteCommand::QueueNext(_)
+            | RemoteCommand::QueuePrevious(_)
+            | RemoteCommand::PlaylistsPlay(_)
+            | RemoteCommand::PhotosShow(_)
+            | RemoteCommand::PhotosSlideshowStart(_)
+    ) || matches!(&request.command,RemoteCommand::PlayerPause(p) if !p.paused)
+        || matches!(&request.command,RemoteCommand::PhotosPause(p) if !p.paused);
+    let idle = services.state.idle.clone();
+    execute_inner(services, owner, request, cancel).await?;
+    if viewing {
+        idle.begin_viewing();
+    }
+    Ok(())
+}
+async fn execute_inner(
+    services: ControlServices,
+    owner: RemotePrincipal,
+    request: RemoteRequest,
+    cancel: tokio_util::sync::CancellationToken,
+) -> Result<(), crate::contracts::AppError> {
     use crate::{
         contracts::AppError,
         control::playback::QueueAction,

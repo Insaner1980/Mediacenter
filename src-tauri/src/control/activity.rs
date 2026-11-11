@@ -188,6 +188,7 @@ pub async fn execute_locked(
             bind_music_handoff(state, target.item_id.as_str(), media_identity).await?;
         }
     }
+    state.idle.begin_viewing();
     Ok(())
 }
 #[cfg(test)]

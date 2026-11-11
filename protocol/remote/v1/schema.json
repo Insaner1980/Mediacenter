@@ -5881,6 +5881,9 @@
         },
         "connectionDiagnostics": {
           "$ref": "#/$defs/ConnectionDiagnostics"
+        },
+        "idleInhibition": {
+          "$ref": "#/$defs/IdleInhibition"
         }
       },
       "required": [
@@ -7018,6 +7021,15 @@
         "$ref": "#/$defs/QrRow"
       },
       "x-validation": "square_binary_matrix"
+    },
+    "IdleInhibition": {
+      "type": "string",
+      "enum": [
+        "inactive",
+        "active",
+        "unsupported",
+        "unavailable"
+      ]
     }
   },
   "x-methods": [

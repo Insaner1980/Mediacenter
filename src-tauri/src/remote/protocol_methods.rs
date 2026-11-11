@@ -1671,6 +1671,8 @@ pub struct SettingsState {
     pub service_preferences: Option<ServicePreferences>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connection_diagnostics: Option<ConnectionDiagnostics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idle_inhibition: Option<IdleInhibition>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2139,6 +2141,18 @@ pub struct ConnectionDiagnostics {
     pub discovery: DiscoveryObservation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vpn_version: Option<Label>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum IdleInhibition {
+    #[serde(rename = "inactive")]
+    Inactive,
+    #[serde(rename = "active")]
+    Active,
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    #[serde(rename = "unavailable")]
+    Unavailable,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
