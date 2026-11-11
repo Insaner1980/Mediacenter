@@ -117,12 +117,57 @@ pub fn list(
     }
     Ok(sources)
 }
+/// The same root policy is used for browsing, confirmation, and final registration.
+pub fn remote_roots(
+    db: &rusqlite::Connection,
+    devices: &crate::devices::udisks::Devices,
+    defaults: Vec<std::path::PathBuf>,
+) -> Result<Vec<std::path::PathBuf>, AppError> {
+    let mut roots = repository::records(db)?
+        .iter()
+        .filter_map(|s| repository::root(s, devices).ok())
+        .collect::<Vec<_>>();
+    roots.extend(defaults);
+    roots.extend(
+        devices
+            .volumes
+            .iter()
+            .filter(|v| {
+                v.removable
+                    && v.identity.as_ref().is_some_and(|id| {
+                        crate::devices::registry::resolve(&devices.volumes, id).is_ok()
+                    })
+            })
+            .flat_map(|v| v.mounts.clone()),
+    );
+    Ok(roots)
+}
+
+pub fn authorize_remote_root(
+    db: &rusqlite::Connection,
+    selection: &crate::remote::folders::Selection,
+    devices: &crate::devices::udisks::Devices,
+    defaults: Vec<std::path::PathBuf>,
+) -> Result<(), AppError> {
+    if !remote_roots(db, devices, defaults)?
+        .iter()
+        .any(|root| root == selection.root())
+    {
+        return Err(AppError::new(
+            "not_found",
+            "The folder is no longer authorized. Refresh folders.",
+        ));
+    }
+    Ok(())
+}
+
 /// Remote selections are reopened beneath their held directory descriptor immediately
 /// before producing the native grant, and again before the repository effect.
 pub async fn add_remote(
     state: AppState,
     selection: crate::remote::folders::Selection,
     kinds: Vec<MediaKind>,
+    defaults: Vec<std::path::PathBuf>,
 ) -> Result<String, AppError> {
     let _gate = state
         .device_gate
@@ -132,7 +177,7 @@ pub async fn add_remote(
     let devices = crate::devices::udisks::discover().await?;
     tokio::task::spawn_blocking(move || {
         let _gate = _gate;
-        register_remote(&state, &selection, &kinds, &devices)
+        register_remote(&state, &selection, &kinds, &devices, defaults)
     })
     .await
     .map_err(|_| AppError::new("source_error", "Source could not be added."))?
@@ -143,9 +188,18 @@ fn register_remote(
     selection: &crate::remote::folders::Selection,
     kinds: &[MediaKind],
     devices: &crate::devices::udisks::Devices,
+    defaults: Vec<std::path::PathBuf>,
 ) -> Result<String, AppError> {
     selection.check_expiry(crate::app_state::now_ms())?;
     let _descriptor = selection.revalidate()?;
+    // Keep root authorization and the effect in one transaction/DB guard. Both local
+    // and remote removal take this same guard, so revocation cannot race the grant.
+    let mut db = state
+        .db
+        .lock()
+        .map_err(|_| AppError::new("database_error", "Library unavailable."))?;
+    let transaction = db.transaction()?;
+    authorize_remote_root(&transaction, selection, devices, defaults)?;
     let grant = state
         .grants
         .lock()
@@ -160,11 +214,6 @@ fn register_remote(
     if root != selection.path() {
         return Err(AppError::new("stale_state", "Folder changed."));
     }
-    let mut db = state
-        .db
-        .lock()
-        .map_err(|_| AppError::new("database_error", "Library unavailable."))?;
-    let transaction = db.transaction()?;
     let id = repository::add_resolved(&transaction, &root, kinds, devices)?;
     selection.revalidate()?;
     let record = repository::get(&transaction, &id)?;
@@ -213,6 +262,125 @@ mod tests {
             .is_empty());
     }
     #[test]
+    fn remote_registration_rechecks_root_after_serialized_removal() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("LocalGrant");
+        std::fs::create_dir_all(root.join("Albums")).unwrap();
+        let state = AppState::open(dir.path().join("data")).unwrap();
+        let source = repository::add(
+            &state.db.lock().unwrap(),
+            &root,
+            &[MediaKind::Audio],
+            &Default::default(),
+        )
+        .unwrap();
+        let owner = crate::remote::adapters::checked("phone").unwrap();
+        let mut folders = crate::remote::folders::Folders::default();
+        let node = folders
+            .roots(&owner, vec![root.clone()], crate::app_state::now_ms())
+            .unwrap()
+            .items
+            .as_slice()[0]
+            .node_id
+            .clone();
+        let child = folders
+            .children(&owner, &node, None, None, crate::app_state::now_ms())
+            .unwrap()
+            .items
+            .as_slice()[0]
+            .node_id
+            .clone();
+        let selection = folders
+            .selection(&owner, &child, crate::app_state::now_ms())
+            .unwrap();
+        let db = state.db.lock().unwrap();
+        let worker_state = state.clone();
+        let (started, waiting) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            started.send(()).unwrap();
+            register_remote(
+                &worker_state,
+                &selection,
+                &[MediaKind::Audio],
+                &Default::default(),
+                vec![],
+            )
+        });
+        waiting.recv().unwrap();
+        repository::remove(&db, &source).unwrap();
+        drop(db);
+        assert_eq!(worker.join().unwrap().unwrap_err().code, "not_found");
+        assert!(repository::records(&state.db.lock().unwrap())
+            .unwrap()
+            .is_empty());
+        assert!(root.join("Albums").is_dir());
+    }
+    #[test]
+    fn default_and_removable_roots_survive_association_removal() {
+        for removable in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path().join("Music");
+            let child = root.join("Albums");
+            std::fs::create_dir_all(&child).unwrap();
+            let state = AppState::open(dir.path().join("data")).unwrap();
+            let devices = if removable {
+                crate::devices::udisks::Devices {
+                    drives: vec![],
+                    volumes: vec![crate::devices::registry::Volume {
+                        path: "/test".into(),
+                        id: "usb".into(),
+                        drive_id: "drive".into(),
+                        identity: Some("uuid:test".into()),
+                        mounts: vec![root.clone()],
+                        label: "USB".into(),
+                        size: 1024,
+                        removable: true,
+                    }],
+                }
+            } else {
+                Default::default()
+            };
+            let defaults = if removable {
+                vec![]
+            } else {
+                vec![root.clone()]
+            };
+            let source = repository::add(
+                &state.db.lock().unwrap(),
+                &root,
+                &[MediaKind::Audio],
+                &devices,
+            )
+            .unwrap();
+            let owner = crate::remote::adapters::checked("phone").unwrap();
+            let mut folders = crate::remote::folders::Folders::default();
+            let node = folders
+                .roots(&owner, vec![root.clone()], crate::app_state::now_ms())
+                .unwrap()
+                .items
+                .as_slice()[0]
+                .node_id
+                .clone();
+            let node = folders
+                .children(&owner, &node, None, None, crate::app_state::now_ms())
+                .unwrap()
+                .items
+                .as_slice()[0]
+                .node_id
+                .clone();
+            let selection = folders
+                .selection(&owner, &node, crate::app_state::now_ms())
+                .unwrap();
+            repository::remove(&state.db.lock().unwrap(), &source).unwrap();
+            let added =
+                register_remote(&state, &selection, &[MediaKind::Audio], &devices, defaults)
+                    .unwrap();
+            let record = repository::get(&state.db.lock().unwrap(), &added).unwrap();
+            assert_eq!(repository::root(&record, &devices).unwrap(), child);
+            assert_eq!(record.kinds, vec![MediaKind::Audio]);
+        }
+    }
+    #[test]
     fn remote_grant_revalidates_before_registration_and_preserves_actual_root() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("Music");
@@ -240,17 +408,28 @@ mod tests {
             .unwrap();
         std::fs::rename(root.join("Albums"), root.join("original")).unwrap();
         std::os::unix::fs::symlink("/etc", root.join("Albums")).unwrap();
-        assert!(
-            register_remote(&state, &selected, &[MediaKind::Audio], &Default::default()).is_err()
-        );
+        assert!(register_remote(
+            &state,
+            &selected,
+            &[MediaKind::Audio],
+            &Default::default(),
+            vec![root.clone()]
+        )
+        .is_err());
         assert!(repository::records(&state.db.lock().unwrap())
             .unwrap()
             .is_empty());
         let selection = folders
             .selection(&owner, &root_node, crate::app_state::now_ms())
             .unwrap();
-        let id =
-            register_remote(&state, &selection, &[MediaKind::Audio], &Default::default()).unwrap();
+        let id = register_remote(
+            &state,
+            &selection,
+            &[MediaKind::Audio],
+            &Default::default(),
+            vec![root.clone()],
+        )
+        .unwrap();
         let record = repository::get(&state.db.lock().unwrap(), &id).unwrap();
         assert_eq!(record.root, root);
         assert_eq!(record.kinds, vec![MediaKind::Audio]);

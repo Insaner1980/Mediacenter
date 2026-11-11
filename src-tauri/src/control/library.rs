@@ -75,24 +75,7 @@ pub fn roots(
     defaults: Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, AppError> {
     let db = state.db.lock().map_err(|_| state_error())?;
-    let mut roots = repository::records(&db)?
-        .iter()
-        .filter_map(|s| repository::root(s, devices).ok())
-        .collect::<Vec<_>>();
-    roots.extend(defaults);
-    roots.extend(
-        devices
-            .volumes
-            .iter()
-            .filter(|v| {
-                v.removable
-                    && v.identity.as_ref().is_some_and(|id| {
-                        crate::devices::registry::resolve(&devices.volumes, id).is_ok()
-                    })
-            })
-            .flat_map(|v| v.mounts.clone()),
-    );
-    Ok(roots)
+    crate::library::source_service::remote_roots(&db, devices, defaults)
 }
 async fn inventory(_d: &Dispatcher) -> Result<crate::devices::udisks::Devices, RemoteError> {
     crate::devices::udisks::discover()
@@ -103,8 +86,8 @@ async fn inventory(_d: &Dispatcher) -> Result<crate::devices::udisks::Devices, R
             Ok(crate::devices::udisks::Devices::default())
         })
 }
-fn defaults(d: &Dispatcher) -> Vec<PathBuf> {
-    let Some(app) = d.services.app() else {
+fn defaults(services: &super::ControlServices) -> Vec<PathBuf> {
+    let Some(app) = services.app() else {
         return vec![];
     };
     let Ok(home) = app.path().home_dir() else {
@@ -136,7 +119,8 @@ async fn authorized_selection(
         .selection(owner, node, now_ms())
         .map_err(native_error)?;
     let devices = inventory(d).await?;
-    let current = roots(&d.services.state, &devices, defaults(d)).map_err(native_error)?;
+    let current =
+        roots(&d.services.state, &devices, defaults(&d.services)).map_err(native_error)?;
     if !current.iter().any(|root| root == selection.root()) {
         return Err(RemoteError::new(
             ErrorCode::NotFound,
@@ -172,7 +156,8 @@ async fn read(
         }
         RemoteCommand::FoldersRoots(_) => {
             let devices = inventory(d).await?;
-            let roots = roots(&d.services.state, &devices, defaults(d)).map_err(native_error)?;
+            let roots =
+                roots(&d.services.state, &devices, defaults(&d.services)).map_err(native_error)?;
             value(
                 d.services
                     .folders
@@ -350,6 +335,7 @@ async fn apply(
                 services.state.clone(),
                 selection,
                 kinds,
+                defaults(&services),
             )
             .await?;
             crate::library::scanner::publish_summaries(&app, &services.state)?;
@@ -564,10 +550,21 @@ fn remember_scan(d: &Dispatcher, owner: &Id, id: &Id) -> Result<(), RemoteError>
 fn refresh_action(
     action: LibraryAction,
     state: &AppState,
+    devices: &crate::devices::udisks::Devices,
+    defaults: Vec<PathBuf>,
 ) -> Result<(LibraryAction, bool), RemoteError> {
     let source = match &action {
         LibraryAction::Remove { source } | LibraryAction::Reattach { source, .. } => source,
-        LibraryAction::Add { .. } => return Ok((action, false)),
+        LibraryAction::Add { selection, .. } => {
+            crate::library::source_service::authorize_remote_root(
+                &*state.db.lock().map_err(|_| unavailable())?,
+                selection,
+                devices,
+                defaults,
+            )
+            .map_err(native_error)?;
+            return Ok((action, false));
+        }
     };
     let current = repository::get(&*state.db.lock().map_err(|_| unavailable())?, &source.id)
         .map_err(|_| {
@@ -619,6 +616,7 @@ async fn confirm(
         ),
         _ => return Err(RemoteError::invalid()),
     };
+    let devices = inventory(d).await?;
     let mut confirmations = d.services.confirmations.lock().map_err(|_| unavailable())?;
     let pending = confirmations.get(&owner.device_id, id, now_ms())?;
     if pending.preview.confirm_method != method
@@ -636,7 +634,12 @@ async fn confirm(
     let super::confirmations::Action::Library(action) = pending.action else {
         return Err(RemoteError::invalid());
     };
-    let (action, resource_changed) = refresh_action(action, &d.services.state)?;
+    let (action, resource_changed) =
+        refresh_action(action, &d.services.state, &devices, defaults(&d.services)).inspect_err(
+            |_| {
+                confirmations.pending.remove(id.as_str());
+            },
+        )?;
     validate(&action, &d.services.state).map_err(|_| {
         RemoteError::new(
             ErrorCode::NotFound,
@@ -924,6 +927,153 @@ mod tests {
                 .contains("Photos")
         );
         assert!(repository::get(&d.services.state.db.lock().unwrap(), &id).is_ok());
+    }
+    #[tokio::test]
+    async fn revoked_root_invalidates_add_and_stale_preview_retry() {
+        for (refresh_before_removal, publish_removal) in
+            [(false, false), (false, true), (true, true)]
+        {
+            let (dir, d, owner) = fixture();
+            let root = dir.path().join("LocalGrant");
+            let child = root.join("Albums");
+            std::fs::create_dir_all(&child).unwrap();
+            let source = repository::add(
+                &d.services.state.db.lock().unwrap(),
+                &root,
+                &[crate::contracts::MediaKind::Audio],
+                &Default::default(),
+            )
+            .unwrap();
+            let node = {
+                let mut folders = d.services.folders.lock().unwrap();
+                let root_node = folders
+                    .roots(&owner.device_id, vec![root.clone()], now_ms())
+                    .unwrap()
+                    .items
+                    .as_slice()[0]
+                    .node_id
+                    .clone();
+                folders
+                    .children(&owner.device_id, &root_node, None, None, now_ms())
+                    .unwrap()
+                    .items
+                    .as_slice()[0]
+                    .node_id
+                    .clone()
+            };
+            let prepared = d
+                .dispatch(
+                    &owner,
+                    request(
+                        &d,
+                        "prepare-add",
+                        "folders.prepareAdd",
+                        serde_json::json!({"nodeId":node,"kinds":["music"]}),
+                    ),
+                )
+                .await
+                .unwrap();
+            let mut preview_id = prepared["preview"]["confirmationId"].clone();
+            if refresh_before_removal {
+                crate::remote::state::sources_changed(&d.services.state);
+                let error = d
+                    .dispatch(
+                        &owner,
+                        request(
+                            &d,
+                            "refresh-add",
+                            "folders.confirmAdd",
+                            serde_json::json!({"confirmationId":preview_id}),
+                        ),
+                    )
+                    .await
+                    .unwrap_err();
+                assert_eq!(error.code, ErrorCode::ConfirmationStale);
+                preview_id =
+                    serde_json::to_value(error.replacement_preview.unwrap().confirmation_id)
+                        .unwrap();
+            }
+            repository::remove(&d.services.state.db.lock().unwrap(), &source).unwrap();
+            if publish_removal {
+                crate::remote::state::sources_changed(&d.services.state);
+            }
+            assert!(!roots(&d.services.state, &Default::default(), vec![])
+                .unwrap()
+                .contains(&root));
+            for attempt in ["confirm-revoked", "retry-revoked"] {
+                let error = d
+                    .dispatch(
+                        &owner,
+                        request(
+                            &d,
+                            attempt,
+                            "folders.confirmAdd",
+                            serde_json::json!({"confirmationId":preview_id}),
+                        ),
+                    )
+                    .await
+                    .unwrap_err();
+                assert_eq!(error.code, ErrorCode::NotFound);
+                assert!(error.replacement_preview.is_none());
+            }
+            assert!(d
+                .services
+                .confirmations
+                .lock()
+                .unwrap()
+                .previews(now_ms())
+                .is_empty());
+            assert!(repository::records(&d.services.state.db.lock().unwrap())
+                .unwrap()
+                .is_empty());
+            assert!(child.is_dir());
+        }
+    }
+    #[test]
+    fn default_root_add_can_refresh_after_association_removal() {
+        let (dir, d, owner) = fixture();
+        let root = dir.path().join("Music");
+        std::fs::create_dir_all(root.join("Albums")).unwrap();
+        let source = repository::add(
+            &d.services.state.db.lock().unwrap(),
+            &root,
+            &[crate::contracts::MediaKind::Audio],
+            &Default::default(),
+        )
+        .unwrap();
+        let selection = {
+            let mut folders = d.services.folders.lock().unwrap();
+            let node = folders
+                .roots(&owner.device_id, vec![root.clone()], now_ms())
+                .unwrap()
+                .items
+                .as_slice()[0]
+                .node_id
+                .clone();
+            let child = folders
+                .children(&owner.device_id, &node, None, None, now_ms())
+                .unwrap()
+                .items
+                .as_slice()[0]
+                .node_id
+                .clone();
+            folders
+                .selection(&owner.device_id, &child, now_ms())
+                .unwrap()
+        };
+        repository::remove(&d.services.state.db.lock().unwrap(), &source).unwrap();
+        let action = LibraryAction::Add {
+            selection,
+            kinds: vec![crate::contracts::MediaKind::Audio],
+        };
+        let (refreshed, changed) =
+            refresh_action(action, &d.services.state, &Default::default(), vec![root]).unwrap();
+        assert!(!changed);
+        validate(&refreshed, &d.services.state).unwrap();
+        assert_eq!(
+            preview(&d, &owner, &refreshed).unwrap().action,
+            ActionKind::AddSource
+        );
     }
     #[tokio::test]
     async fn source_cancel_is_owner_scoped_and_waits_for_actual_completion() {
