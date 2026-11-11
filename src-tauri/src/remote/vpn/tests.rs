@@ -113,7 +113,7 @@ fn fixture() -> (tempfile::TempDir, Dispatcher, RemotePrincipal, Fake) {
     )
 }
 fn request(d: &Dispatcher, id: &str, method: &str, params: serde_json::Value) -> RemoteRequest {
-    parse_request(&serde_json::json!({"v":1,"id":id,"method":method,"params":params,"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":d.services.state.snapshot().unwrap().revision.to_string()}}).to_string()).unwrap()
+    parse_request(&serde_json::json!({"v":1,"id":id,"method":method,"params":params,"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":crate::control::settings::read(d).unwrap().revision}}).to_string()).unwrap()
 }
 async fn prepare(d: &Dispatcher, o: &RemotePrincipal, b: &Fake) -> ConfirmationPreview {
     let v = dispatch_with(
@@ -558,5 +558,203 @@ async fn provider_final_read_cannot_outlive_effect_authority() {
         terminal(&d, &o, &r.id).await.status,
         OperationStatus::Succeeded
     );
+    assert_eq!(b.calls.load(Ordering::SeqCst), 0);
+}
+
+#[derive(Clone)]
+struct PausedObservation {
+    fake: Fake,
+    entered: Arc<tokio::sync::Notify>,
+    resume: Arc<tokio::sync::Notify>,
+    paused: Arc<std::sync::atomic::AtomicBool>,
+}
+impl VpnBackend for PausedObservation {
+    async fn observe(&self, s: &ControlServices) -> Result<VpnSnapshot, AppError> {
+        if !self.paused.swap(true, Ordering::SeqCst) {
+            self.entered.notify_one();
+            self.resume.notified().await;
+        }
+        self.fake.observe(s).await
+    }
+    async fn countries(&self) -> Result<Vec<CountryOption>, AppError> {
+        self.fake.countries().await
+    }
+    async fn change(
+        &self,
+        s: &ControlServices,
+        p: VpnPrepareChangeParams,
+        c: CancellationToken,
+        authorize: EffectCheck,
+    ) -> Result<(), AppError> {
+        self.fake.change(s, p, c, authorize).await
+    }
+}
+#[derive(Clone, Copy)]
+enum ConfirmationInterruption {
+    Cancel,
+    Expire,
+    Replace,
+}
+async fn interrupted_confirmation(mode: ConfirmationInterruption) {
+    let (_dir, d, o, b) = fixture();
+    let preview = prepare(&d, &o, &b).await;
+    let r = request(
+        &d,
+        "paused-confirm",
+        "vpn.confirmChange",
+        serde_json::json!({"confirmationId":preview.confirmation_id}),
+    );
+    let backend = PausedObservation {
+        fake: b.clone(),
+        entered: Arc::default(),
+        resume: Arc::default(),
+        paused: Arc::default(),
+    };
+    let task = {
+        let (dispatcher, actor, command, provider) =
+            (d.clone(), o.clone(), r.clone(), backend.clone());
+        tokio::spawn(async move { dispatch_with(&dispatcher, &actor, command, provider).await })
+    };
+    tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        backend.entered.notified(),
+    )
+    .await
+    .unwrap();
+    match mode {
+        ConfirmationInterruption::Cancel => {
+            d.dispatch(
+                &o,
+                request(
+                    &d,
+                    "cancel-from-phone",
+                    "confirmations.cancel",
+                    serde_json::json!({"confirmationId":preview.confirmation_id}),
+                ),
+            )
+            .await
+            .unwrap();
+        }
+        ConfirmationInterruption::Expire => {
+            d.services
+                .confirmations
+                .lock()
+                .unwrap()
+                .pending
+                .get_mut(preview.confirmation_id.as_str())
+                .unwrap()
+                .expires_at = 0;
+        }
+        ConfirmationInterruption::Replace => {
+            let mut registry = d.services.confirmations.lock().unwrap();
+            let mut replacement = registry
+                .get(&o.device_id, &preview.confirmation_id, now_ms())
+                .unwrap();
+            replacement.preview.confirmation_id = checked("replacement-preview").unwrap();
+            registry.insert(replacement, now_ms()).unwrap();
+        }
+    }
+    backend.resume.notify_one();
+    let result = task
+        .await
+        .expect("confirmation refusal must not panic or poison the registry");
+    let code = result.unwrap_err().code;
+    assert_eq!(
+        code,
+        if matches!(mode, ConfirmationInterruption::Expire) {
+            ErrorCode::ConfirmationExpired
+        } else {
+            ErrorCode::NotFound
+        }
+    );
+    assert!(
+        d.services
+            .operations()
+            .lookup_request(&o, &r.id)
+            .unwrap()
+            .is_none(),
+        "no accepted effect intent after interruption"
+    );
+    assert_eq!(b.calls.load(Ordering::SeqCst), 0);
+    let registry = d
+        .services
+        .confirmations
+        .lock()
+        .expect("registry remains usable");
+    if matches!(mode, ConfirmationInterruption::Replace) {
+        assert!(registry
+            .get(
+                &o.device_id,
+                &checked("replacement-preview").unwrap(),
+                now_ms()
+            )
+            .is_ok());
+    }
+}
+#[tokio::test]
+async fn cancel_during_paused_confirm_refuses_without_effect_or_poisoning_registry() {
+    interrupted_confirmation(ConfirmationInterruption::Cancel).await;
+}
+#[tokio::test]
+async fn expiry_during_paused_confirm_refuses_without_effect_or_intent() {
+    interrupted_confirmation(ConfirmationInterruption::Expire).await;
+}
+#[tokio::test]
+async fn replacement_during_paused_confirm_preserves_new_sheet_without_effect() {
+    interrupted_confirmation(ConfirmationInterruption::Replace).await;
+}
+
+#[tokio::test]
+async fn native_vpn_publication_does_not_stale_preparation_or_preview_settings_revision() {
+    let (_dir, d, o, b) = fixture();
+    let before = crate::control::settings::read(&d).unwrap();
+    let r = request(
+        &d,
+        "after-poll",
+        "vpn.prepareChange",
+        serde_json::json!({"action":"disconnect"}),
+    );
+    crate::events::commit(&d.services.state, |home| home.vpn.observed_at_ms = now_ms()).unwrap();
+    let result = dispatch_with(&d, &o, r, b).await.unwrap();
+    let preview: ConfirmationPreview = serde_json::from_value(result["preview"].clone()).unwrap();
+    assert_eq!(preview.expected.settings_revision, Some(before.revision));
+}
+
+#[tokio::test]
+async fn native_preference_edit_during_preparation_refuses_old_revision() {
+    let (_dir, d, o, b) = fixture();
+    let r = request(
+        &d,
+        "prepare-during-edit",
+        "vpn.prepareChange",
+        serde_json::json!({"action":"disconnect"}),
+    );
+    let provider = PausedObservation {
+        fake: b.clone(),
+        entered: Arc::default(),
+        resume: Arc::default(),
+        paused: Arc::default(),
+    };
+    let task = {
+        let (dispatcher, actor, command, provider) =
+            (d.clone(), o.clone(), r.clone(), provider.clone());
+        tokio::spawn(async move { dispatch_with(&dispatcher, &actor, command, provider).await })
+    };
+    tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        provider.entered.notified(),
+    )
+    .await
+    .unwrap();
+    crate::control::settings::save_theme(&d.services.state, crate::contracts::Theme::Light)
+        .unwrap();
+    provider.resume.notify_one();
+    assert_eq!(task.await.unwrap().unwrap_err().code, ErrorCode::StaleState);
+    assert!(d
+        .services
+        .operations()
+        .lookup_request(&o, &r.id)
+        .unwrap()
+        .is_none());
     assert_eq!(b.calls.load(Ordering::SeqCst), 0);
 }

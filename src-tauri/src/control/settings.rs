@@ -21,14 +21,20 @@ fn save_theme_at(
 ) -> Result<HomePublication, AppError> {
     let mut saved = Ok(());
     let publication = crate::events::commit(state, |home| {
-        if expected.is_some_and(|r| r != home.revision) {
-            saved = Err(AppError::new("stale_state", "Settings changed."));
-            return;
-        }
         saved = (|| -> Result<(), AppError> {
-            state.db.lock().map_err(|_|AppError::new("unavailable", "Settings unavailable."))?.execute(
-                "INSERT INTO settings(key,value_json,updated_at_ms) VALUES('theme',?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at_ms=excluded.updated_at_ms",
-                rusqlite::params![serde_json::to_string(&theme).unwrap(), now_ms() as i64])?;
+            let mut db = state
+                .db
+                .lock()
+                .map_err(|_| AppError::new("unavailable", "Settings unavailable."))?;
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            let revision = crate::storage::settings_revision::check(&tx, expected)?;
+            if home.theme != theme {
+                tx.execute(
+                    "INSERT INTO settings(key,value_json,updated_at_ms) VALUES('theme',?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at_ms=excluded.updated_at_ms",
+                    rusqlite::params![serde_json::to_string(&theme).unwrap(), now_ms() as i64])?;
+                crate::storage::settings_revision::advance(&tx, revision)?;
+            }
+            tx.commit()?;
             Ok(())
         })();
         if saved.is_ok() {
@@ -53,14 +59,25 @@ fn save_requirement_at(
 ) -> Result<HomePublication, AppError> {
     let mut saved = Ok(());
     let publication = crate::events::commit(state, |home| {
-        if expected.is_some_and(|r| r != home.revision) {
-            saved = Err(AppError::new("stale_state", "Settings changed."));
-            return;
-        }
         saved = (|| -> Result<(), AppError> {
-            state.db.lock().map_err(|_|AppError::new("unavailable", "Settings unavailable."))?.execute(
-                "INSERT INTO service_preferences(service_id,vpn_required) VALUES(?1,?2) ON CONFLICT(service_id) DO UPDATE SET vpn_required=excluded.vpn_required",
-                rusqlite::params![crate::streaming::catalog::key(id), required])?;
+            let mut db = state
+                .db
+                .lock()
+                .map_err(|_| AppError::new("unavailable", "Settings unavailable."))?;
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            let revision = crate::storage::settings_revision::check(&tx, expected)?;
+            let current = home
+                .services
+                .iter()
+                .find(|service| service.id == id)
+                .ok_or_else(|| AppError::new("invalid_request", "Unknown service."))?;
+            if current.vpn_required != required {
+                tx.execute(
+                    "INSERT INTO service_preferences(service_id,vpn_required) VALUES(?1,?2) ON CONFLICT(service_id) DO UPDATE SET vpn_required=excluded.vpn_required",
+                    rusqlite::params![crate::streaming::catalog::key(id), required])?;
+                crate::storage::settings_revision::advance(&tx, revision)?;
+            }
+            tx.commit()?;
             Ok(())
         })();
         if saved.is_ok() {
@@ -73,16 +90,18 @@ fn save_requirement_at(
     Ok(publication)
 }
 pub fn read(d: &Dispatcher) -> Result<SettingsState, RemoteError> {
-    let home = d.services.state.snapshot().map_err(native_error)?;
-    let start = {
+    let (home, revision, start) = {
+        let home = d.services.state.home.lock().map_err(|_| unavailable())?;
         let mut db = d.services.state.db.lock().map_err(|_| unavailable())?;
-        RemoteStore::new(&mut db, &d.services.server_identity)
+        let revision = crate::storage::settings_revision::revision(&db).map_err(native_error)?;
+        let start = RemoteStore::new(&mut db, &d.services.server_identity)
             .preferences()
             .map_err(native_error)?
-            .start_at_login
+            .start_at_login;
+        (home.clone(), revision, start)
     };
     checked(
-        serde_json::json!({"revision":home.revision.to_string(),"theme":home.theme,"startAtLogin":start,
+        serde_json::json!({"revision":revision.to_string(),"theme":home.theme,"startAtLogin":start,
         "servicePreferences":home.services.iter().map(|s|serde_json::json!({"serviceId":crate::streaming::catalog::key(s.id),"label":s.name,"vpnRequired":s.vpn_required})).collect::<Vec<_>>(),
         "connectionDiagnostics":d.services.network.lock().map_err(|_|unavailable())?.diagnostics}),
     )
@@ -106,13 +125,20 @@ pub(crate) fn check_epoch(d: &Dispatcher, request: &RemoteRequest) -> Result<(),
     }
     Ok(())
 }
+pub(crate) fn revision(state: &AppState) -> Result<u64, AppError> {
+    let db = state
+        .db
+        .lock()
+        .map_err(|_| AppError::new("unavailable", "Settings unavailable."))?;
+    crate::storage::settings_revision::revision(&db)
+}
 pub(crate) fn check_revision(d: &Dispatcher, request: &RemoteRequest) -> Result<(), RemoteError> {
     if request
         .expected
         .as_ref()
         .and_then(|e| e.settings_revision.as_ref())
         .map(Decimal::value)
-        != Some(d.services.state.snapshot().map_err(native_error)?.revision)
+        != Some(revision(&d.services.state).map_err(native_error)?)
     {
         return Err(RemoteError::new(
             ErrorCode::StaleState,
@@ -297,7 +323,7 @@ mod tests {
             scopes: device.scopes,
         };
         let request = |id: &str, method: &str, params: serde_json::Value| {
-            parse_request(&serde_json::json!({"v":1,"id":id,"method":method,"params":params,"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":d.services.state.snapshot().unwrap().revision.to_string()}}).to_string()).unwrap()
+            parse_request(&serde_json::json!({"v":1,"id":id,"method":method,"params":params,"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":super::read(&d).unwrap().revision}}).to_string()).unwrap()
         };
         assert_eq!(
             d.dispatch(
@@ -374,7 +400,7 @@ mod tests {
         assert!(super::save_theme_at(
             &d.services.state,
             crate::contracts::Theme::Dark,
-            Some(home.revision - 1)
+            Some(super::read(&d).unwrap().revision.value() - 1)
         )
         .is_err());
         assert_eq!(
@@ -414,5 +440,232 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+    #[test]
+    fn native_vpn_publication_preserves_preference_revision_and_atomic_edit_conflicts() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = Dispatcher::new(
+            ControlServices::native(
+                AppState::open(dir.path().into()).unwrap(),
+                checked("server").unwrap(),
+            )
+            .unwrap(),
+        );
+        let before = super::read(&d).unwrap();
+        let home_before = d.services.state.snapshot().unwrap().revision;
+        crate::events::commit(&d.services.state, |home| {
+            home.vpn.observed_at_ms = crate::app_state::now_ms()
+        })
+        .unwrap();
+        assert!(d.services.state.snapshot().unwrap().revision > home_before);
+        assert_eq!(super::read(&d).unwrap().revision, before.revision);
+        super::save_theme_at(
+            &d.services.state,
+            crate::contracts::Theme::Light,
+            Some(before.revision.value()),
+        )
+        .unwrap();
+        let edited = super::read(&d).unwrap();
+        assert!(edited.revision.value() > before.revision.value());
+        super::save_requirement(
+            &d.services.state,
+            crate::contracts::ServiceId::Netflix,
+            false,
+        )
+        .unwrap();
+        assert!(super::save_theme_at(
+            &d.services.state,
+            crate::contracts::Theme::Dark,
+            Some(edited.revision.value())
+        )
+        .is_err());
+        assert_eq!(super::read(&d).unwrap().theme, Theme::Light);
+    }
+    fn preference_fixture() -> (tempfile::TempDir, Dispatcher) {
+        let dir = tempfile::tempdir().unwrap();
+        let d = Dispatcher::new(
+            ControlServices::native(
+                AppState::open(dir.path().into()).unwrap(),
+                checked("server").unwrap(),
+            )
+            .unwrap(),
+        );
+        (dir, d)
+    }
+    #[test]
+    fn preference_revision_survives_restart_ignores_noops_and_tracks_setup_preferences() {
+        let (dir, d) = preference_fixture();
+        let original = super::read(&d).unwrap().revision;
+        super::save_theme(&d.services.state, crate::contracts::Theme::Dark).unwrap();
+        super::save_requirement(
+            &d.services.state,
+            crate::contracts::ServiceId::Netflix,
+            true,
+        )
+        .unwrap();
+        {
+            let mut db = d.services.state.db.lock().unwrap();
+            let mut store =
+                crate::remote::store::RemoteStore::new(&mut db, &d.services.server_identity);
+            let before = store.preferences().unwrap();
+            let mut saved = store.save_preferences(&before).unwrap();
+            assert!(saved.revision.value() > before.revision.value());
+            drop(db);
+            assert_eq!(super::read(&d).unwrap().revision, original);
+            saved.start_at_login = true;
+            let mut db = d.services.state.db.lock().unwrap();
+            crate::remote::store::RemoteStore::new(&mut db, &d.services.server_identity)
+                .save_preferences(&saved)
+                .unwrap();
+        }
+        let edited = super::read(&d).unwrap();
+        assert_eq!(edited.revision.value(), original.value() + 1);
+        assert!(edited.start_at_login);
+        let reopened = Dispatcher::new(
+            ControlServices::native(
+                AppState::open(dir.path().into()).unwrap(),
+                checked("server").unwrap(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(super::read(&reopened).unwrap().revision, edited.revision);
+        assert!(super::read(&reopened).unwrap().start_at_login);
+        assert_ne!(
+            reopened.services.state.event_hub.epoch(),
+            d.services.state.event_hub.epoch()
+        );
+        let stale = parse_request(&serde_json::json!({"v":1,"id":"old-epoch","method":"settings.theme.set","params":{"theme":"light"},"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":edited.revision}}).to_string()).unwrap();
+        assert_eq!(
+            super::check_epoch(&reopened, &stale).unwrap_err().code,
+            ErrorCode::StaleState
+        );
+    }
+    #[test]
+    fn concurrent_native_preference_edits_share_one_atomic_revision() {
+        let (_dir, d) = preference_fixture();
+        let revision = super::read(&d).unwrap().revision.value();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let theme = {
+            let state = d.services.state.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                super::save_theme_at(&state, crate::contracts::Theme::Light, Some(revision)).is_ok()
+            })
+        };
+        let service = {
+            let state = d.services.state.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                super::save_requirement_at(
+                    &state,
+                    crate::contracts::ServiceId::Netflix,
+                    false,
+                    Some(revision),
+                )
+                .is_ok()
+            })
+        };
+        barrier.wait();
+        assert_ne!(theme.join().unwrap(), service.join().unwrap());
+        assert_eq!(super::read(&d).unwrap().revision.value(), revision + 1);
+    }
+    #[test]
+    fn invalid_or_exhausted_preference_counter_rolls_back_every_writer() {
+        use rusqlite::OptionalExtension;
+        for invalid in ["not-json", "0", "18446744073709551615"] {
+            let (_dir, d) = preference_fixture();
+            d.services.state.db.lock().unwrap().execute("INSERT INTO settings(key,value_json,updated_at_ms) VALUES('routine_settings_revision',?1,0)", [invalid]).unwrap();
+            assert!(super::save_theme(&d.services.state, crate::contracts::Theme::Light).is_err());
+            assert!(super::save_requirement(
+                &d.services.state,
+                crate::contracts::ServiceId::Netflix,
+                false
+            )
+            .is_err());
+            let mut db = d.services.state.db.lock().unwrap();
+            let mut store =
+                crate::remote::store::RemoteStore::new(&mut db, &d.services.server_identity);
+            let before = store.preferences().unwrap();
+            let mut changed = before.clone();
+            changed.start_at_login = true;
+            assert!(store.save_preferences(&changed).is_err());
+            assert_eq!(store.preferences().unwrap().revision, before.revision);
+            assert!(!store.preferences().unwrap().start_at_login);
+            let theme: Option<String> = db
+                .query_row(
+                    "SELECT value_json FROM settings WHERE key='theme'",
+                    [],
+                    |r| r.get(0),
+                )
+                .optional()
+                .unwrap();
+            assert!(theme.is_none());
+            assert_eq!(
+                db.query_row("SELECT count(*) FROM service_preferences", [], |r| r
+                    .get::<_, i64>(0))
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                db.query_row(
+                    "SELECT value_json FROM settings WHERE key='routine_settings_revision'",
+                    [],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+                invalid
+            );
+            drop(db);
+            assert_eq!(
+                d.services.state.snapshot().unwrap().theme,
+                crate::contracts::Theme::Dark
+            );
+            assert!(d.services.state.snapshot().unwrap().services[0].vpn_required);
+        }
+    }
+    #[test]
+    fn failed_counter_persistence_rolls_back_preference_and_home_update() {
+        let (_dir, d) = preference_fixture();
+        d.services.state.db.lock().unwrap().execute_batch("CREATE TRIGGER fail_counter BEFORE INSERT ON settings WHEN NEW.key='routine_settings_revision' BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END;").unwrap();
+        assert!(super::save_theme(&d.services.state, crate::contracts::Theme::Light).is_err());
+        assert!(super::save_requirement(
+            &d.services.state,
+            crate::contracts::ServiceId::Netflix,
+            false
+        )
+        .is_err());
+        assert_eq!(super::read(&d).unwrap().revision.value(), 1);
+        assert_eq!(super::read(&d).unwrap().theme, Theme::Dark);
+        assert!(
+            super::read(&d)
+                .unwrap()
+                .service_preferences
+                .unwrap()
+                .as_slice()[0]
+                .vpn_required
+        );
+        let mut db = d.services.state.db.lock().unwrap();
+        assert_eq!(
+            db.query_row("SELECT count(*) FROM settings WHERE key='theme'", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            db.query_row("SELECT count(*) FROM service_preferences", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        let mut store =
+            crate::remote::store::RemoteStore::new(&mut db, &d.services.server_identity);
+        let before = store.preferences().unwrap();
+        let mut changed = before.clone();
+        changed.start_at_login = true;
+        assert!(store.save_preferences(&changed).is_err());
+        assert_eq!(store.preferences().unwrap().revision, before.revision);
+        assert!(!store.preferences().unwrap().start_at_login);
     }
 }

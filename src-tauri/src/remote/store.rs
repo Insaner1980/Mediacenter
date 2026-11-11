@@ -297,7 +297,21 @@ impl<'a> RemoteStore<'a> {
             "INSERT OR IGNORE INTO remote_preferences(server_identity) VALUES(?)",
             [self.identity.as_str()],
         )?;
+        let before = tx.query_row(
+            "SELECT enabled,keep_available,start_at_login FROM remote_preferences WHERE server_identity=?1",
+            [self.identity.as_str()], |row| Ok((row.get::<_,bool>(0)?, row.get::<_,bool>(1)?, row.get::<_,bool>(2)?)),
+        )?;
+        let routine_revision = crate::storage::settings_revision::revision(&tx)?;
         if tx.execute("UPDATE remote_preferences SET revision=?6,enabled=?1,keep_available=?2,start_at_login=?3 WHERE server_identity=?4 AND revision=?5",params![preferences.enabled,preferences.keep_available,preferences.start_at_login,self.identity.as_str(),expected,next])? == 0 { return Err(error("stale_state")); }
+        if before
+            != (
+                preferences.enabled,
+                preferences.keep_available,
+                preferences.start_at_login,
+            )
+        {
+            crate::storage::settings_revision::advance(&tx, routine_revision)?;
+        }
         tx.commit()?;
         self.preferences()
     }

@@ -188,7 +188,7 @@ fn preview(
         ),
     };
     checked(
-        serde_json::json!({"confirmationId":uuid::Uuid::new_v4().to_string(),"ownerDeviceId":owner.device_id,"action":"change_vpn","affectedLabels":[change,"Streaming and the phone connection may be interrupted.","Kill Switch is preserved. Reconnect to inspect this operation; do not repeat the change."],"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":d.services.state.snapshot().map_err(native_error)?.revision.to_string()},"expiresInMs":60000,"confirmMethod":"vpn.confirmChange"}),
+        serde_json::json!({"confirmationId":uuid::Uuid::new_v4().to_string(),"ownerDeviceId":owner.device_id,"action":"change_vpn","affectedLabels":[change,"Streaming and the phone connection may be interrupted.","Kill Switch is preserved. Reconnect to inspect this operation; do not repeat the change."],"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":crate::control::settings::revision(&d.services.state).map_err(native_error)?.to_string()},"expiresInMs":60000,"confirmMethod":"vpn.confirmChange"}),
     )
 }
 fn pending(preview: ConfirmationPreview, action: VpnChange, request: Id) -> Pending {
@@ -298,6 +298,7 @@ async fn dispatch_admitted<B: VpnBackend>(
     if let RemoteCommand::VpnPrepareChange(params) = &request.command {
         crate::control::settings::check_revision(d, &request)?;
         let action = capture(d, owner, &backend, params.clone()).await?;
+        crate::control::settings::check_revision(d, &request)?;
         let preview = preview(d, owner, &action)?;
         let mut registry = d.services.confirmations.lock().map_err(|_| unavailable())?;
         registry.insert(
@@ -338,16 +339,37 @@ async fn dispatch_admitted<B: VpnBackend>(
         return Err(RemoteError::invalid());
     };
     let current = capture(d, owner, &backend, saved.params.clone()).await?;
+    // Cancellation and replacement do not take the native VPN gates. Revalidate
+    // the live sheet after every await, then admit and consume it under one lock.
+    let mut registry = d.services.confirmations.lock().map_err(|_| unavailable())?;
+    let live = registry.get(&owner.device_id, &params.confirmation_id, now_ms())?;
+    let Action::Vpn(live_action) = &live.action else {
+        return Err(RemoteError::invalid());
+    };
+    if live.request != old.request
+        || live.expires_at != old.expires_at
+        || live.preview.expected.server_epoch.as_ref() != Some(&d.services.state.event_hub.epoch())
+        || live_action.params.action != saved.params.action
+        || live_action.params.country_id != saved.params.country_id
+        || !same(live_action, &saved)
+    {
+        return Err(RemoteError::new(
+            ErrorCode::ConfirmationStale,
+            "The confirmation changed. Review again.",
+        ));
+    }
+    if let Some(operation_id) = live.operation {
+        return value(AcceptedResult {
+            status: OperationAccepted::Accepted,
+            operation_id,
+        });
+    }
     if !same(&saved, &current) {
         let replacement = preview(d, owner, &current)?;
-        d.services
-            .confirmations
-            .lock()
-            .map_err(|_| unavailable())?
-            .insert(
-                pending(replacement.clone(), current, request.id.clone()),
-                now_ms(),
-            )?;
+        registry.insert(
+            pending(replacement.clone(), current, request.id.clone()),
+            now_ms(),
+        )?;
         return Err(RemoteError {
             code: ErrorCode::ConfirmationStale,
             message: checked("VPN, playback or connection changed. Review again.")?,
@@ -358,7 +380,10 @@ async fn dispatch_admitted<B: VpnBackend>(
     }
     let native = d.clone();
     let actor = owner.clone();
-    let confirmation = params.confirmation_id.clone();
+    let pending = registry
+        .pending
+        .get_mut(params.confirmation_id.as_str())
+        .ok_or_else(|| RemoteError::new(ErrorCode::NotFound, "The confirmation was not found."))?;
     let outcome = d
         .services
         .operations()
@@ -409,14 +434,7 @@ async fn dispatch_admitted<B: VpnBackend>(
             },
         )
         .map_err(native_error)?;
-    d.services
-        .confirmations
-        .lock()
-        .map_err(|_| unavailable())?
-        .pending
-        .get_mut(confirmation.as_str())
-        .unwrap()
-        .operation = Some(outcome.operation_id.clone());
+    pending.operation = Some(outcome.operation_id.clone());
     value(AcceptedResult {
         status: OperationAccepted::Accepted,
         operation_id: outcome.operation_id,
