@@ -1,6 +1,6 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s explicit request on 2026-11-11. Tasks 1–13 have completed source implementation and independent review. Task 13 root-authorization fix `27ae3e6` passed scoped re-review with zero open findings. Task 14 USB source gates passed, but review found one phone recovery issue; its first fix round restored outcomes, and the second round passed covering gates and awaits scoped I2 review. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
+Resumed at the user’s explicit request on 2026-11-11. Tasks 1–14 have completed source implementation and independent review with zero blocking findings. Task 13 root-authorization fix `27ae3e6` and Task 14 USB implementation/recovery/message fixes through native `91f3d13` and Android `9a6988d` are approved. Continue Task 15. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
