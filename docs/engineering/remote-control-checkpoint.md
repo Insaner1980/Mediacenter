@@ -1,12 +1,12 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s explicit request on 2026-11-11. Tasks 1–15 have completed source implementation and independent review with zero blocking findings. Task15 native source is `fd25b91`, Android `3b92c46`; its confirmation/revision fix round1 is approved. Continue Task16 target integration. Task17 supported manual Chrome installation and physical acceptance remain pending.
+Resumed at the user’s explicit request on 2026-11-11. Tasks 1–15 have completed source implementation and independent review with zero blocking findings. Task15 native source is `fd25b91`, Android `3b92c46`; its confirmation/revision fix round1 is approved. Task16 target integration is tested and committed at Android `23263dd`, with independent review pending. Task17 supported manual Chrome installation and physical acceptance remain pending.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
 ## Resume
 
-Continue `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` at Task16 after the latest ledger and prepared task-16 brief/spec/context/dispatch. Tasks1–15 are source-complete; do not restart them. Task15 final report/review/fix1 review identify the approved handoff. Retain pending Task17 browser installation and Task21 actual-hardware acceptance.
+Continue `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` at the Task16 independent review gate after the latest ledger/report/package. Tasks1–15 are reviewed; Task16 source is committed and frozen, not an initial implementation to redispatch. Its review must close before Task20 independent background/startup source work. Retain pending Task17 browser installation and Task21 actual-hardware acceptance.
 
 Task 10's scoped re-review approved both fixes with zero open findings. Desktop source is `9cc72f1`, paired metadata `b3c2861`, and Android `fbca8d2`. Read its final report and `task-10-fix1-review.md` for APIs and evidence; do not redispatch its implementation.
 
@@ -186,3 +186,17 @@ Next is scoped I1/I2 re-review from MC56f0b61 /Remote3b92c46. Do not mark Task15
 Scoped task-15-fix1-review.md approves I1 and I2 with zero new/open findings. Native sourcefd25b91/Android3b92c46 are final Task15 sources. The independently reviewed six-file correction and retained actual RED/GREEN/strict evidence close the task at source level. Physical and browser acceptance remain separate.
 
 Task16 now owns canonical LG/Mediacenter selection/mounting, held-input and confirmation transitions, Task14 M2 cancellation-ack deduplication and the deferred Task7 failed-manual-challenge retry minor. Its context contains exact reviewed API handoffs. No Task15 implementation or unchanged broad verification should be repeated.
+
+## Task16 active — target/header integration
+
+Bases MC7fb520ee07a92c233b59a5481521cf5cc3dfa871 /Remote3b92c4646fc555d8fa2d2e0ff1ef1354e6e5a633. Sole implementer `/root/task16_targets`; parent owns actualRemote/Gradle/Git. First17-path core is installed but uncommitted, using the existing LG header location for one target selector and retaining target-specific destinations. Main/unit/instrumentation compilation passed; ControlTargetViewModel2 and active cancellation-ack regression1 passed. First static feedback has five scoped issues; worker is correcting them with cohesive helper/parameter changes and adding actual target lifecycle/manual-retry tests. No final source freeze/full gate/review is claimed. Read latest ledger and task-16-report.md before resuming, not the initial Task15 dispatch.
+
+The disposable Chrome profile was reopened on2026-11-11 for supported manual Load unpacked installation from browser-extension; user completion remains pending. No installed-extension/host/tab-input proof has been inferred. Fresh ADB inventory has no attached device; SDK37 is present but no emulator/image is installed and /dev/kvm is absent. Source-independent work continues; physical acceptance remains unrun.
+
+## Task16 tested source — independent review pending
+
+Android source `23263dd89dbb6c51f413e731f9afd7b15de45dd8`; native remains `fd25b91089ab4b1387c98fe3db58acab2a50b155`. A single selector occupies the existing LG header location; LG/Wallpapers/ColorDock and MC Remote/Library/Settings retain distinct readiness and commands. Target/context generations retire held input and volatile confirmation/QR state, including rapid same-frame return and blocking setup/appearance overlays. Accepted repository work remains queryable without replay. The deferred drive cancel-ACK duplicate and failed manual challenge retry are corrected.
+
+Actual behavioral REDs reproduced cancel-ACK duplication, consumed-observation retention and rapid held-input non-disposal. Focused68 tests passed; final whole Android gate passed411 tests/86 suites with zero failures/errors/skips, Detekt, ktlint, fresh lint, APK and instrumentation compilation in2m49s. All27 source hashes and exact dirty/staged sets matched `task-16-android-source-manifest.json`, SHA256 `214c0de65a59e6c39c508746634929ec076b764c0c32bd5471c50a5d666e92f7`. Exact command artifacts and separate interim/RED evidence remain in the durable workspace. Baseline Gradle/Compose-test/protobuf warnings remain disclosed. No native/protocol/dependency/SDK change or physical installation occurred.
+
+One explicit parameter-count annotation on the hoisted target-page API is a recorded controller ruling; all other checks remain strict. Thumbnail loading preserves the original server/epoch keys and fresh wrapper identity; an unsafe uninstalled method-reference shortcut was rejected. Review the complete Task16 range from MC7fb520e/Remote3b92c46. Do not start Task20 until independent spec/quality review closes. Browser/manual installation and physical acceptance remain pending; no user response has been inferred.
