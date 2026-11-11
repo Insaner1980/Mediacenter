@@ -3,7 +3,7 @@
   "desktopBaseCommit": "89dd3589c3750edb9e1461d07811758f4631a750",
   "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
   "androidSdkMajor": 37,
-  "note": "These paired sources use the tested shared contract. Native local media, folders, drives, VPN and settings have reviewed source evidence. Android target integration and its recovery regressions pass the full411-test source gate and await independent review. Browser and physical acceptance remain incomplete; this is not an accepted remote-control release.",
+  "note": "These paired sources have reviewed local media, folder/drive, VPN/settings and independent LG/Mediacenter target integration with source-level regression evidence. Background/startup/end-session, browser integration and physical acceptance remain incomplete. This is not an accepted remote-control release.",
   "desktopSourceCommit": "fd25b91089ab4b1387c98fe3db58acab2a50b155",
   "androidSourceCommit": "23263dd89dbb6c51f413e731f9afd7b15de45dd8",
   "schemaSha256": "275823d7721bebd9a408dfe221a5a6d56bcffa4db6342eda703195120265fb7c",
