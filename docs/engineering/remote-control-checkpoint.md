@@ -1,6 +1,6 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s explicit request on 2026-11-11. Tasks 1–13 have completed source implementation and independent review. Task 13 root-authorization fix `27ae3e6` passed scoped re-review with zero open findings. Continue Task 14. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
+Resumed at the user’s explicit request on 2026-11-11. Tasks 1–13 have completed source implementation and independent review. Task 13 root-authorization fix `27ae3e6` passed scoped re-review with zero open findings. Task 14 USB source gates passed; independent review is next. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
@@ -114,3 +114,13 @@ The correction shares the existing authorized-root policy between browsing, conf
 Affected native regressions passed 38 library tests, four folder tests and one confirmation test; final controller bytes passed nine tests after a Clippy-only style correction. Final strict Clippy, formatting and diff checks passed. These focused gates are distinct from the earlier 343-native/358-Android broad snapshots. Independent `task-13-fix1-review.md` approved I1 with zero new/open findings and verified source hashes and retained evidence.
 
 Task 13 is complete. Continue Task 14 using its prepared brief/spec/context/dispatch, now supplemented with the final Task 13 API handoff. The daemon restart during fix1 did not restart implementation: the same agent resumed from surviving files/logs. Chrome manual-install and phone-availability questions were asked asynchronously; no answer has been inferred. Physical acceptance remains Task 21.
+
+## Task 14 source checkpoint — independent review pending
+
+Desktop source `91f3d13253d902f508f2857a03ab16b608cfad6b`, Android `eff8ad1bc2030ee449d19549570fbd8f9daa6567`. The four existing drive methods implement opaque insertion-bound drive/volume handles, full sibling/owned-use previews, noninteractive normal mount/eject, stale/replug guards and owner-bound confirmation/operation lookup. Native timeout or unconfirmed effect remains `outcome_unknown`; cancellation is requested until native completion. The phone integrates drive Settings through the existing common confirmation owner. No force/deletion/path command, dependency/SDK/schema change or real device effect was introduced.
+
+Frozen source manifests cover14 native and10 Android paths and were verified after parent broad gates. Native full gate passed361 tests with four existing ignored cases; Android passed365 tests across73 suites, Detekt, ktlint, fresh lint, APK and instrumentation compilation. Scoped controller/rendered layout cases cover portrait, landscape and2x font. Actual logs/summaries and task-14-report.md remain in the durable workspace. Protocol parity remains88 methods/schema bfd145ef3eac74d3ca23e1ca26234ef4384a4f466d5759c2efef3f68eec7e2ae; runtime methods66.
+
+The observed old cancellation-test scheduling assumption was corrected to accept either an active cancelled token or its already-persisted terminal Cancelled outcome. Existing cancellation/replay assertions remain. First sandbox listener failures were rerun through normal escalation. Restored Android wrapper requires explicit `-Dorg.gradle.java.home=/home/emma/Dev/Mediacenter/.tools/remote-android/jdk17`; JDK25 Detekt failed before analysis. Existing build warnings remain separate.
+
+Next: independent Task14 review of the immutable joint package; fix any Important/Critical finding before Task15. Task15 draft context also records the plan ownership ruling for existing safe Connection methods devices.list/devices.revoke/pairing.begin (normative5.3/5.4/6.3). Do not mark Task14 complete from passing gates alone. Physical USB/phone/HDMI acceptance remains Task21.
