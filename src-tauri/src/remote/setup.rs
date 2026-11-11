@@ -651,6 +651,7 @@ impl RemoteSetup {
     ) -> Result<(), RemoteError> {
         let runtime = inner.runtime.as_ref().ok_or_else(unavailable)?.clone();
         let mut uncertain = false;
+        let mut interrupted = false;
         let result = (|| {
             let mut db = self.state.db.lock().map_err(|_| unavailable())?;
             if let Some(expected) = expected_settings {
@@ -683,7 +684,7 @@ impl RemoteSetup {
                     ));
                 }
             }
-            let interrupted = super::autostart::pending(&self.state, runtime.identity().id())
+            interrupted = super::autostart::pending(&self.state, runtime.identity().id())
                 .map_err(super::dispatch::native_error)?;
             if interrupted && start_at_login.is_none() {
                 return Err(RemoteError::new(
@@ -815,7 +816,10 @@ impl RemoteSetup {
                             uncertain = true;
                         }
                     }
+                    // Rolling back this attempt does not repair an older interrupted
+                    // change: those prior file bytes are still untrusted.
                     if !uncertain
+                        && !interrupted
                         && super::autostart::finish_change(&self.state, runtime.identity().id())
                             .is_err()
                     {
@@ -825,13 +829,16 @@ impl RemoteSetup {
                 }
             }
         })();
-        if uncertain {
+        if uncertain || (interrupted && result.is_err()) {
             inner.suspended = true;
             self.stop_locked(inner).await;
-            return Err(RemoteError::new(
-                ErrorCode::OutcomeUnknown,
-                "Preference rollback could not be verified. Remote availability is suspended.",
-            ));
+            inner.status = "Startup recovery is incomplete. Disable and enable Remote to restore the saved startup choice.".into();
+            if uncertain {
+                return Err(RemoteError::new(
+                    ErrorCode::OutcomeUnknown,
+                    "Preference rollback could not be verified. Remote availability is suspended.",
+                ));
+            }
         }
         result
     }
@@ -1000,6 +1007,76 @@ mod tests {
         setup.stop().await;
     }
     #[tokio::test]
+    async fn task20_fix1_rollback_sync_failure_keeps_marker_and_settings_unavailable() {
+        let (dir, mut setup) = fixture();
+        let exe = dir.path().join("installed");
+        std::fs::write(&exe, b"fixture").unwrap();
+        let mut adapter = super::super::autostart::Autostart::new(dir.path(), &exe).unwrap();
+        let runtime = setup.inner.lock().await.runtime.clone().unwrap();
+        let marker = super::super::autostart::pending_path(&setup.state, runtime.identity().id());
+        let directory = dir.path().join("autostart");
+        let entry = directory.join("io.emma.mediacenter-remote.desktop");
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = attempts.clone();
+        adapter.sync_probe = Some(Arc::new(move |path| {
+            assert!(
+                marker.exists(),
+                "write-ahead marker must precede every owned effect sync"
+            );
+            if path == directory {
+                assert!(!entry.exists());
+                // First sync publishes directories; second sync follows rollback unlink.
+                if observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+                    return Err(crate::contracts::AppError::new(
+                        "unavailable",
+                        "fixture sync failure",
+                    ));
+                }
+            }
+            Ok(())
+        }));
+        setup.autostart = Some(adapter);
+        setup.state.db.lock().unwrap().execute_batch("CREATE TRIGGER task20_fail BEFORE UPDATE ON remote_preferences BEGIN SELECT RAISE(FAIL,'fixture'); END;").unwrap();
+        let revision = setup.lifetime_preferences().await.unwrap().revision;
+        let before_config = tls::read_private(&setup.path).unwrap();
+        assert_eq!(
+            setup
+                .set_lifetime_preference(Some(true), None, None, None)
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::OutcomeUnknown
+        );
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+        assert!(setup
+            .autostart
+            .as_ref()
+            .unwrap()
+            .snapshot()
+            .unwrap()
+            .is_none());
+        assert_eq!(tls::read_private(&setup.path).unwrap(), before_config);
+        assert_eq!(
+            setup.lifetime_preferences().await.unwrap().revision,
+            revision
+        );
+        assert!(super::super::autostart::pending(&setup.state, runtime.identity().id()).unwrap());
+        assert!(setup.inner.lock().await.suspended);
+        assert_eq!(
+            crate::control::settings::read(&runtime.dispatcher)
+                .unwrap_err()
+                .code,
+            ErrorCode::Unavailable
+        );
+        let reopened = RemoteSetup::new(
+            None,
+            AppState::open(dir.path().join("app")).unwrap(),
+            Arc::new(RemoteServer::default()),
+            IdentityNamespace::Development,
+        );
+        assert!(reopened.inner.lock().await.suspended);
+    }
+    #[tokio::test]
     async fn task20_stale_and_unowned_startup_changes_have_no_effect() {
         let (dir, mut setup) = fixture();
         let exe = dir.path().join("installed");
@@ -1130,8 +1207,7 @@ mod tests {
         assert!(tokio::net::TcpStream::connect(address).await.is_err());
     }
     #[tokio::test]
-    async fn task20_write_ahead_crash_marker_blocks_reopen_and_explicit_enable_repairs_saved_choice(
-    ) {
+    async fn task20_fix1_write_ahead_crash_marker_survives_failed_recovery_until_repair() {
         let (dir, mut setup) = fixture();
         let executable = dir.path().join("installed");
         std::fs::write(&executable, b"fixture").unwrap();
@@ -1175,6 +1251,61 @@ mod tests {
             .unwrap();
         assert!(disabled.status.contains("restore the saved startup choice"));
         assert!(super::super::autostart::pending(&reopened.state, &identity).unwrap());
+        let old_start = reopened.autostart.as_ref().unwrap().snapshot().unwrap();
+        let old_config = tls::read_private(&reopened.path).unwrap();
+        let old_preferences = reopened.lifetime_preferences().await.unwrap();
+        reopened.state.db.lock().unwrap().execute_batch("CREATE TRIGGER task20_recovery_fail BEFORE UPDATE ON remote_preferences BEGIN SELECT RAISE(FAIL,'fixture recovery'); END;").unwrap();
+        assert!(reopened
+            .set_enabled(RemoteEnableRequest {
+                revision: disabled.revision,
+                enabled: true,
+                interface_name: Some("fixture".into()),
+                port: 47831,
+            })
+            .await
+            .is_err());
+        assert_eq!(
+            reopened.autostart.as_ref().unwrap().snapshot().unwrap(),
+            old_start
+        );
+        assert_eq!(tls::read_private(&reopened.path).unwrap(), old_config);
+        assert_eq!(
+            reopened.lifetime_preferences().await.unwrap().revision,
+            old_preferences.revision
+        );
+        assert!(
+            !reopened
+                .lifetime_preferences()
+                .await
+                .unwrap()
+                .start_at_login
+        );
+        assert!(
+            super::super::autostart::pending(&reopened.state, &identity).unwrap(),
+            "failed repair must preserve the prior uncertainty marker"
+        );
+        assert!(reopened.inner.lock().await.suspended);
+        assert_eq!(
+            crate::control::settings::read(&runtime.dispatcher)
+                .unwrap_err()
+                .code,
+            ErrorCode::Unavailable
+        );
+        let still_uncertain = RemoteSetup::new(
+            None,
+            AppState::open(dir.path().join("app")).unwrap(),
+            Arc::new(RemoteServer::default()),
+            IdentityNamespace::Development,
+        );
+        assert!(still_uncertain.inner.lock().await.suspended);
+        assert!(still_uncertain.server.addresses().await.is_empty());
+        reopened
+            .state
+            .db
+            .lock()
+            .unwrap()
+            .execute_batch("DROP TRIGGER task20_recovery_fail")
+            .unwrap();
         // The deliberately colliding port refuses network selection AFTER safe local recovery;
         // this fixture never probes an actual interface or starts a production listener.
         let error = reopened

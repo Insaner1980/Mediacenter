@@ -8,7 +8,11 @@ pub struct Autostart {
     executable: PathBuf,
     #[cfg(test)]
     pub(crate) fail_restore: bool,
+    #[cfg(test)]
+    pub(crate) sync_probe: Option<SyncProbe>,
 }
+#[cfg(test)]
+type SyncProbe = std::sync::Arc<dyn Fn(&Path) -> Result<(), AppError> + Send + Sync>;
 fn failed() -> AppError {
     AppError::new(
         "unavailable",
@@ -30,6 +34,8 @@ impl Autostart {
             executable,
             #[cfg(test)]
             fail_restore: false,
+            #[cfg(test)]
+            sync_probe: None,
         })
     }
     pub fn production() -> Result<Self, AppError> {
@@ -91,25 +97,46 @@ impl Autostart {
         }
         match before {
             Some(bytes) => super::tls::write_private(&self.path(), bytes).map_err(|_| failed()),
-            None => match std::fs::remove_file(self.path()) {
-                Ok(()) => Ok(()),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                Err(_) => Err(failed()),
-            },
+            None => self.remove_entry(),
         }
     }
     pub fn set_enabled(&self, enabled: bool) -> Result<(), AppError> {
         let path = self.path();
-        let before = self.snapshot()?;
-        if !enabled && before.is_none() {
-            return Ok(());
-        }
+        self.snapshot()?; // Refuse unowned entries before either effect.
         if !enabled {
-            return std::fs::remove_file(path).map_err(|_| failed());
+            return self.remove_entry();
         }
         std::fs::create_dir_all(&self.directory).map_err(|_| failed())?;
+        // Publish every path component before the entry. Existing components can be the
+        // visible but unflushed result of an interrupted attempt, so retries sync them too.
+        for directory in self.directory.ancestors() {
+            self.sync_directory(directory)?;
+        }
         super::tls::write_private(&path, self.contents()?.as_bytes()).map_err(|_| failed())?;
         Ok(())
+    }
+    fn remove_entry(&self) -> Result<(), AppError> {
+        match std::fs::remove_file(self.path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if !self.directory.try_exists().map_err(|_| failed())? {
+                    return Ok(());
+                }
+            }
+            Err(_) => return Err(failed()),
+        }
+        // Absence can also be a previous unlink whose sync failed. Verify durability
+        // before a caller can clear its write-ahead marker, including on retry.
+        self.sync_directory(&self.directory)
+    }
+    fn sync_directory(&self, directory: &Path) -> Result<(), AppError> {
+        #[cfg(test)]
+        if let Some(probe) = &self.sync_probe {
+            probe(directory)?;
+        }
+        std::fs::File::open(directory)
+            .and_then(|file| file.sync_all())
+            .map_err(|_| failed())
     }
 }
 /// Desktop-entry escaping has two layers: Exec quoting then string-value escaping.
@@ -204,6 +231,95 @@ pub(crate) fn finish_change(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn task20_fix1_disable_reports_directory_sync_failure_after_unlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("installed");
+        std::fs::write(&exe, b"fixture").unwrap();
+        let mut adapter = Autostart::new(dir.path(), &exe).unwrap();
+        adapter.set_enabled(true).unwrap();
+        let path = adapter.path();
+        let directory = adapter.directory.clone();
+        let called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let observed = called.clone();
+        adapter.sync_probe = Some(std::sync::Arc::new(move |synced| {
+            assert_eq!(synced, directory);
+            assert!(!path.exists(), "unlink must precede its directory sync");
+            observed.store(true, std::sync::atomic::Ordering::SeqCst);
+            Err(failed())
+        }));
+        assert!(
+            adapter.set_enabled(false).is_err(),
+            "unlink alone is not durable success"
+        );
+        assert!(called.load(std::sync::atomic::Ordering::SeqCst));
+        // An earlier unlink can be visible but not durable: retry must sync absence too.
+        assert!(adapter.set_enabled(false).is_err());
+        adapter.sync_probe = None;
+        adapter.set_enabled(false).unwrap();
+    }
+    #[test]
+    fn task20_fix1_rollback_to_absence_reports_directory_sync_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("installed");
+        std::fs::write(&exe, b"fixture").unwrap();
+        let mut adapter = Autostart::new(dir.path(), &exe).unwrap();
+        adapter.set_enabled(true).unwrap();
+        let written = adapter.snapshot().unwrap();
+        let path = adapter.path();
+        let directory = adapter.directory.clone();
+        adapter.sync_probe = Some(std::sync::Arc::new(move |synced| {
+            assert_eq!(synced, directory);
+            assert!(!path.exists());
+            Err(failed())
+        }));
+        assert!(
+            adapter.restore(None, written.as_deref()).is_err(),
+            "rollback unlink must be durable"
+        );
+        adapter.sync_probe = None;
+        adapter.restore(None, None).unwrap();
+    }
+    #[test]
+    fn task20_fix1_new_directory_publication_precedes_entry_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("installed");
+        std::fs::write(&exe, b"fixture").unwrap();
+        let config = dir.path().join("new/config");
+        let mut adapter = Autostart::new(&config, &exe).unwrap();
+        let path = adapter.path();
+        let stop_at = dir.path().to_path_buf();
+        let observed = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observations = observed.clone();
+        adapter.sync_probe = Some(std::sync::Arc::new(move |synced| {
+            assert!(!path.exists(), "publish directories before the entry");
+            observations.lock().unwrap().push(synced.to_path_buf());
+            if synced == stop_at {
+                Err(failed())
+            } else {
+                Ok(())
+            }
+        }));
+        assert!(
+            adapter.set_enabled(true).is_err(),
+            "ancestor sync failure must refuse entry write"
+        );
+        assert_eq!(
+            *observed.lock().unwrap(),
+            vec![
+                config.join("autostart"),
+                config.clone(),
+                dir.path().join("new"),
+                dir.path().to_path_buf()
+            ]
+        );
+        assert!(adapter.snapshot().unwrap().is_none());
+        // Created-but-unsynced directories still require publication on retry.
+        assert!(adapter.set_enabled(true).is_err());
+        adapter.sync_probe = None;
+        adapter.set_enabled(true).unwrap();
+        assert!(adapter.snapshot().unwrap().is_some());
+    }
     #[test]
     fn reversible_user_only_file_and_exec_escaping() {
         let dir = tempfile::tempdir().unwrap();
