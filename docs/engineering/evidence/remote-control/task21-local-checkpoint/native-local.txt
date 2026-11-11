@@ -1,0 +1,70 @@
+   Compiling mediacenter v0.1.6 (<MC>/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.91s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 30 tests
+test control::activity::tests::task9_confirmed_switch_cannot_target_replacement_session ... ok
+test control::confirmations::tests::task9_confirmation_ownership_expiry_and_consumption_are_server_bound ... ok
+test control::playback::tests::task9_player_validation_rejects_invalid_values_and_wrong_track_kind ... ok
+test control::playback::tests::task9_queue_start_reserves_session_transition_before_any_player_effect ... ok
+test control::playback::tests::task9_review_confirmed_music_adopts_explicit_duplicate_then_next ... ok
+test control::playback::tests::task9_review_music_handoff_rejects_stale_revision_session_and_wrong_media ... ok
+test control::playback::tests::task9_entry_identity_is_resolved_after_serialized_desktop_reorder ... ok
+test control::playback::tests::task9_remote_queue_play_requires_confirmation_before_replacing_photos ... ok
+test control::activity::tests::task9_missing_media_fails_preflight_without_changing_current_photo_session ... ok
+test photos::presenter::tests::task9_paused_singleton_adopts_exact_item_selection_without_replacing_session ... ok
+test photos::presenter::tests::task9_review_offline_neighbor_does_not_expire_current_still ... ok
+test photos::presenter::tests::task9_fix2_completed_obsolete_decode_cannot_replace_new_session ... ok
+test photos::presenter::tests::task9_fix2_new_navigation_reuses_preload_and_supersedes_pending_step ... ok
+test photos::presenter::tests::task9_singleton_handoff_rejects_wrong_item_and_playing_session ... ok
+test photos::presenter::tests::task9_still_photo_selection_keeps_session_and_pauses_before_publication ... ok
+test player::mpv::native_observer_tests::task9_native_audio_eof_keeps_observing_owned_player_after_seek_and_pause ... ignored, requires isolated Xvfb and real mpv; null audio/video outputs only
+test player::mpv::native_observer_tests::task9_native_eof_confirmed_music_adopts_queue_without_restart ... ignored, requires isolated Xvfb and real mpv; null audio/video outputs only
+test photos::presenter::tests::task9_review_still_start_and_adoption_retain_missing_neighbors ... ok
+test photos::presenter::tests::task9_review_unavailable_navigation_preserves_current_and_automatic_pauses ... ok
+test photos::presenter::tests::task9_fix2_stop_does_not_wait_for_navigation_decoder_permits ... ok
+test remote::dispatch::admission_tests::task9_absent_and_foreign_operation_lookup_are_indistinguishable_not_found ... ok
+test remote::dispatch::admission_tests::task9_activity_preview_revalidates_native_queue_revision ... ok
+test remote::dispatch::admission_tests::task9_activity_preview_binds_target_file_identity_and_returns_fresh_preview ... ok
+test remote::dispatch::admission_tests::task9_native_queue_cas_is_observed_after_acceptance_and_desktop_reorder ... ok
+test remote::dispatch::admission_tests::task9_pause_missing_session_finishes_with_typed_stale_state ... ok
+test remote::media::tests::task9_photo_handoff_rejects_foreign_owner_before_journal_or_native_effect ... ok
+test remote::dispatch::admission_tests::task9_replaced_preview_does_not_replay_as_successful_activity ... ok
+test remote::media::tests::task9_playlist_handles_are_resolved_only_after_revision_cas ... ok
+test remote::media::tests::task9_queue_read_pages_actual_metadata_and_retains_offline_items ... ok
+test remote::media::tests::task9_photo_selection_is_owner_bound_and_rejects_oversize_without_truncation ... ok
+
+test result: ok. 28 passed; 0 failed; 2 ignored; 0 measured; 379 filtered out; finished in 1.10s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.30s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 11 tests
+test remote::drives::tests::insertion_bound_handles_and_missing_identity_fail_closed ... ok
+test remote::drives::tests::cancellation_before_effect_does_not_quiesce_or_mutate ... ok
+test remote::drives::tests::accepted_eject_survives_disconnect_and_cancel_waits_for_actual_completion ... ok
+test remote::drives::tests::phone_owner_and_cancelled_preview_never_admit_eject ... ok
+test remote::drives::tests::preview_covers_sibling_volumes_owned_use_and_never_paths ... ok
+test remote::drives::tests::foreign_busy_and_local_authorization_are_terminal_failures ... ok
+test remote::drives::tests::mount_uses_only_inventory_handle_and_retains_native_authorization_failure ... ok
+test remote::drives::tests::wire_never_admits_device_paths_force_or_deletion_into_typed_command ... ok
+test remote::drives::tests::replacement_after_acceptance_is_checked_before_owned_use_stops ... ok
+test remote::drives::tests::timed_out_native_eject_is_unknown_and_lookup_never_replays ... ok
+test remote::drives::tests::replacement_and_replug_require_fresh_confirmation_without_effect ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 398 filtered out; finished in 0.17s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.32s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 8 tests
+test control::library::tests::default_and_removable_candidates_do_not_expose_parent_home ... ok
+test control::library::tests::phone_roots_are_authorized_only_and_paths_cannot_be_supplied ... ok
+test control::library::tests::default_root_add_can_refresh_after_association_removal ... ok
+test control::library::tests::remove_preview_is_bound_to_source_owner_and_never_removes_on_prepare ... ok
+test control::library::tests::source_identity_checks_detect_changed_association ... ok
+test control::library::tests::source_cancel_is_owner_scoped_and_waits_for_actual_completion ... ok
+test control::library::tests::stale_source_revision_requires_fresh_explicit_confirmation ... ok
+test control::library::tests::revoked_root_invalidates_add_and_stale_preview_retry ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 401 filtered out; finished in 0.14s

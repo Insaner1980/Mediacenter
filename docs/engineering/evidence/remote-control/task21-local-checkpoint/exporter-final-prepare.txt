@@ -1,0 +1,11 @@
+Task21 consumer input: <MC>/.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control/android-task21/app/src/test/java/com/emmah/colordock/remote/mediacenter/RustInteropTest.kt; SHA256 24b15aa2372b983889cabd36f0de6ac67b71cb7b308cea39ac30a363efd5ad0a
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 1 test
+Task21 exporter: 88 request shapes, 101 replies, 44 negative requests, fake-native effect count 1
+test remote::interop_tests::task21_export_rust_client_corpus ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 408 filtered out; finished in 0.04s
+
+Task21 freshly exported and staged: 074caea1bc6aaba3bf8be26db1a07765c439068a6ad97a4603fb47fef9f2c437; guarded parent install required.

@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-11",
+  "scope": "local-media source checkpoint; full Task21 PARTIAL",
+  "desktopSourceCommit": "4548950bc68ab53eba9cec9d17218e1166e3542f",
+  "androidSourceCommit": "caad0fda0cb682e739ecb521b944a33ed404aabb",
+  "schemaSha256": "f7231d1864fa77b52ba035dd3418bfae57ec2787924bee9a957e58765695a1a0",
+  "nativeLibrary": {
+    "passed": 405,
+    "failed": 0,
+    "ignored": 4
+  },
+  "nativeIntegration": {
+    "passed": 19,
+    "failed": 0
+  },
+  "nativeCheck": "PASS",
+  "nativeStrictClippy": "PASS",
+  "nativeFormat": "PASS",
+  "frontend": {
+    "unitTestsPassed": 189,
+    "suites": 31,
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "assets": "PASS",
+    "uiCopy": "PASS",
+    "strictContractParity": "PASS",
+    "extensionTestsPassed": 2
+  },
+  "android": {
+    "testsPassed": 418,
+    "suites": 88,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "detekt": "PASS",
+    "ktlint": "PASS",
+    "lint": "PASS",
+    "apkBuild": "PASS",
+    "instrumentationCompile": "PASS",
+    "connectedInstrumentation": "NOT RUN: no attached device"
+  },
+  "e2e": {
+    "passed": 17,
+    "failed": 0,
+    "singleFullRun": true
+  },
+  "visual": {
+    "passed": 103,
+    "failed": 0
+  },
+  "explicitNativeIgnores": [
+    "test devices::udisks::native_tests::host_device_discovery ... ignored, read-only host UDisks2 integration probe",
+    "test player::mpv::native_observer_tests::task9_native_audio_eof_keeps_observing_owned_player_after_seek_and_pause ... ignored, requires isolated Xvfb and real mpv; null audio/video outputs only",
+    "test player::mpv::native_observer_tests::task9_native_eof_confirmed_music_adopts_queue_without_restart ... ignored, requires isolated Xvfb and real mpv; null audio/video outputs only",
+    "test streaming::switching::tests::native_switches_preserve_profiles_and_leave_another_chrome_untouched ... ignored, requires an explicitly isolated X11 display and window manager"
+  ],
+  "androidDebugApkSha256": "ba1e07227ed624501181f46ea8be5310fa5b6295a3051fa419eb424d91e46e0a",
+  "acceptance": "NOT ACCEPTED: physical/browser/OS/latency/long-session/upgrade gates remain blocked",
+  "review": "PENDING independent source-checkpoint review"
+}

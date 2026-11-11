@@ -1,0 +1,19 @@
+   Compiling mediacenter v0.1.6 (<MC>/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.11s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 1 test
+
+thread 'remote::interop_tests::task21_export_rust_client_corpus' (282) panicked at src/remote/interop_tests.rs:14:81:
+invalid exporter reply for activity.confirm: {"id":"request-1","ok":true,"result":{"operation":{"operationId":"operation-1"},"status":"accepted"},"v":1}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test remote::interop_tests::task21_export_rust_client_corpus ... FAILED
+
+failures:
+
+failures:
+    remote::interop_tests::task21_export_rust_client_corpus
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 408 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--lib`

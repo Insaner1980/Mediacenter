@@ -1,0 +1,713 @@
+{
+  "suiteCount": 88,
+  "tests": 418,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "name": "com.emmah.colordock.remote.companion.CompanionClientTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "0e6b1bc809a01f2f6338a5cf386e79220d96d53b111befedbd837f83fd00a352"
+    },
+    {
+      "name": "com.emmah.colordock.remote.companion.PendingUploadStoreTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "12dacaafe65a4b17d5036f52e4431fcb9f4bdb52ddbee9b84b657d7ad4600d6c"
+    },
+    {
+      "name": "com.emmah.colordock.remote.companion.UploadControllerTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e5d8b6607d6715928446e0183e4a867b94936e01086d39e24aede0457583d5a8"
+    },
+    {
+      "name": "com.emmah.colordock.remote.images.AppIconCacheTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "27ce5920f16907cd57ff12e5962a893884442c8ff9643ac54b8eb4859a9e4ef1"
+    },
+    {
+      "name": "com.emmah.colordock.remote.images.CacheFilesTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "b971372a0a46bdadef8feec735ef7a62e7af5cf1597e02390b11ba6f79c5b7e3"
+    },
+    {
+      "name": "com.emmah.colordock.remote.images.ImagePreparerTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "6f824a712436e36a7bcdbe4569dd1fdf4176cb47ee482d9fb4e02aa103b3fe5e"
+    },
+    {
+      "name": "com.emmah.colordock.remote.images.ThumbnailCacheTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d301fc0de83f6ff3c18db9e27956ee736b2777567e7e763abf1444665f06ed1c"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.DriveRecoveryMetadataTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "a346d5f6062fa0d8a44386d0e28bb53450a2a98014b013a7dbd4761ff5772a3b"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.DriveRecoveryTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "9ae9b26c53b4a6b1e87a772d1a2f13d46875184e36ca01a83cd420f7940ce3c6"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterClientTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "4651ee61e85142198dde7feae88d90b69a499b560946eda8f8cfd3666ee671f9"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterCredentialCodecTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "bf936b334ae171eee08dc9fdfcff6aa779e5626747e682f3dcb1b377b6d5ff2d"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterDiscoveryTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "aa8f89f773ac887133348048a8f256ef37b822b6d895bfac7945b7322588029d"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterEndpointTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "39997ed6f065051da69654ea851c6bf12c7b731b5df2f83cdf10d41659b684d4"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterNsdOwnershipTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "fac86cc2127d1e9b3ca1a9bf7abaa36f257318b7419d8524a8ee91ff589fe1af"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterPairingFlowTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d5d18d3e8edd24e7e99969f58ee070f5433b404d9fbdd31834b9493caff2ba30"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterRecoveryTransportTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "94d0763384e2581801984686c892945a1b8522d7f40185067b2eb9598ca05123"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterThumbnailsTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "9e4e956379098093b883de7258caec517b2b18fbe81b09004572a85ba39fcc45"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.MediacenterTrustTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "03d090b240ef038fcac63b1b63cdbde2eeae082a147192c35f789d9b53d24aa6"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.PreparationRecoveryTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "4fcabf26a63662d505478462075f7696ff4c529adfcd2a86a259f4f101bf1abc"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.ReconnectTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "6872e9f4d1b45ab3e53ff709fa55428eecadb15c959238f1c9acc87e8d8d5ade"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.RemoteStateReducerTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "b57f27cbea4c2913f81652d319cc52e28559a15ec0b8a8df9dfa39792940c54b"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.RequestRecoveryTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "4c3e50b2c5e94cc94a0e3c82c105b79b7708906c93d18f275302660e369e15ca"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.RustInteropTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "b563a7dc99590aa91084c5f74edd849a402c22b872bc35151960845beeedd5b3"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.SourceScanRecoveryTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "dd6ff9365ba4bc792a3042cb9a226fc66b6e092c4e4abf2ce9c91cef67871c6a"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.SourceScanRestartTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "ba4760f0ad32c335302eaa92ab4046cdd3110f0b0893a8c3ce8f41bce7395cfd"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.VpnReconnectTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d39e879c7dab5bb9025b77143cc601a99270a36f6397fb8cd2a64b1b20e55076"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.protocol.ForegroundProtocolTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "a3e9a036508a0916d1a2b9d1bf99c62d6993be0aee334c36a85daf7ec9f06479"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.protocol.PlaylistSearchProtocolTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "96c38cc834b36d197d6be5e5f51739dbfd058c9c18e0ae8960f5ee9928a170ab"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.protocol.RemoteProtocolTest",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "11dc8b083dc2bd0c9ff58ede00b97bbfc67cce2075ee44640e3d621267b6b607"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.protocol.SelectionTooLargeProtocolTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "7a1aa26673adc1f0762a97d5ef04349ba7cf69b45ce6e7250189994078081596"
+    },
+    {
+      "name": "com.emmah.colordock.remote.mediacenter.protocol.SettingsProtocolTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "cad066c267fb7bc3c4736cc6a43ad20cb8b1548c669b62cc8670ff586f60d65c"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.LgConnectionListenerTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "5015b545c67dbf036d0e86e1d234258a63565cbc6c1d0a77361da1eecaadeafc"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.LgDockChannelTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "80bf8a4899e736136168cefb0ba0ce8de4f15e0b64dff506cc369b02dbf9bdd9"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.LgTvClientTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "00de1f94391b1222b1d2b230535b680987f209aad97a92a8ff0cd3ce4744158a"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.PointerInputClientTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "6c9dd0ec1d1054edd319ec01f67fc406bd8314ab288e0b52caff4d0a5b7f468c"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.TvAppsTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "dc76f0a63a15700d254128774c5838f0d272a75e6146bd830398f868eec19810"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.TvAppsTransportTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "07ad01768e143e6c76866f8af7acae2b7778818ac0b8c56b898150c64a15c0e0"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.TvCatalogTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "365889241790c6c1d0e474ed7d6276ad972ae366a467b924becfc1d514a557bc"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.TvCertificateTrustTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "ea599fdc2241bf387ccda0e9811f4c11e8117de8fe428488e5572830e8986732"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.TvCredentialParsingTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "0df3cfbbbf80c1bd8c181b00f503059704da4bd10019720535581b63b050e27b"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.TvDiscoveryTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "dd756b124717605a023b55e8254baf13a0d81eb52a512806bf3563465282613f"
+    },
+    {
+      "name": "com.emmah.colordock.remote.tv.TvEndpointPolicyTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "428656cd86ec7a4733d29bc911ccab31d37f50b3b3bcc4d531e3b061df123de9"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.CompanionScreensTest",
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "2b90d8aadc9a2c0b3f9d3b376ce8b2e53209d6fc31dfcdf1afbea98e959c3035"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ComposeContractsTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "29e4ab0eec069df1ab3a1df8d676e7122835f4238e9091b0f0cd0c044e6b0206"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ConnectionScreenTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "12e83d892b7b6370f9d7d98075f290d74afc2699c8372dff955dbd1fbd963f26"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ControlTargetLifecycleTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "5799d7133544986f4ec010a3694a81776f8a54a03ca4bdbfc135bcffbe88b862"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ControlTargetTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "c47f53291c3c823932d73e18f313ff677d559fc9d1dcfe76343082f18056a0e0"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ControlTargetViewModelTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "9dd2ff72d6d04a466b6b258b5631352e815244e6e95a6d5139dc003380e1aac9"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.DockViewModelTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "74c98b0ea0baa5ccd3261bdc5a8ec7fb37d23a8d93dd01957d0ed8d8b68de9d1"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ExistingTvRegressionTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "f1d20d848c9529194928793477e5bba884d66eb27eaafd4b9f3c6923dbbb9162"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ImageFileTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "c0d14c32f18a26cc4f6333fb8330bf8a335e1fe40e86b7e9696a25c21102c984"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.LauncherTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "c60952cf94f775d5aad6eb2ef70fd664c658b2075d366821e572da53d82a0420"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.MainRoutesTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "ed12fbcc4cc7a2d4feb0f0304cc4a05f98ded05cb29ea71b878cf02b17ff4e13"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.PictureTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "4be9f749c9aee6aab91ec97388dabe8d2d31a9abe68d271bb2422aa8e0667a34"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.RemoteScreenTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "3f1a55ee7ad6cf0d6274048e67dff1db3ac0ace3aa9a12d96a2a82f35f3710a8"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.RemoteViewModelTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "5f8b09e2b464882da448939dd4810480117fb7816bc21f60d7587dd95e4c0a42"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ThemeSettingsTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d4f86b7c5ae3da750261eea6ec153c20ee61b0cb853ae237bba242f867bbd082"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.ThemeTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "27ab869583ca7042c4a42947cb3c4059a197061bde5b1cc43b9afeb73a3d4c0a"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.TvAppsControllerTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "a9150004927dcfbab5aa4930f08de53dd5a47095d2b43f775e21d5c96adbe744"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.TvAppsScreenTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "fd3963389779ffd349a121d76f9b6b9647ad63c4186bf9eaf58ffd67321f69c7"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.WallpaperViewModelTest",
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "6644da35c5c52fbd8f5f43c14bdf2a80a1b178aa3aef56c7be850175d4ebc501"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.AudioSettingsComposeTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "21b394579db94ab44320bff722979cbfd7d95326de209bc8c0881238ccd8a744"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.AudioSettingsTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "bcfb5d0843d8c53e862f56b4c16e6fe476d00e0b75311398ca0b3277c1e515b7"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.ConfirmationStatusReconcilerTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e60232539f955eeeefa2cefc7c5eb9c8ec1ca8120b943d39a478827b8fe5180b"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.DrivesControllerTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "9ddbc2486531214dd7f6098b6e87e247d7727ccea87f43fec5730173058003ec"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.DrivesScreenTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d38302b472fd1005f6482c0e7224ae8a2afa4385824198ad5c1960e8615b638a"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.FolderBrowserTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "331d38ed6a0ffe015980088748f09defce11ecea9d60a0cb0cb63b0690f33afc"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.FolderControllerTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "798545ee7ce5f4139ff92ae9b7e59c9b706e812bbe68d1b603aa2a3b829920cb"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.LibraryScreenTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "76d802ea655ce58b484d517697f4a6d532ecd61637054c162a4056117ede24d2"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.LibraryViewModelTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d65215c730c729888919cf462011c7dc677cb6a1778a39f276c1cb81625f6291"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.LifetimeSettingsTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "551457c70aea1d8ef557089e838595a444dfd80543644fcd41d9a67213731c8f"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.MediaSessionControllerTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "27f1d9602867fe441e9c7dde3b7e578292c6420833f04701d84317cdab4a9b36"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.MediaSessionMessageTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "2f20d0237a8042f3210f85f468a6ec409275d3dce68b146781948430a5369fcb"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.MediacenterConnectionsTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "abf2a4f5f41d29f84d1cd912a95bcdedd4fe212833a1cad1f9ff0ed5ea997121"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.MediacenterPairingRetryTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "a0c5a48d4921cdc834cbb897ce08e797bbd1dbb110a9cbbb3473034da3c7e3e3"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.MediacenterSetupScreenTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "2e5786b50bfc6645c04ad4f4ef1939a79fc2778fae3a918318d3fd2badc712e0"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.NowPlayingTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "baeee2200adad7ebbf77f5d0bed309c804e104b691911c4c5f39784cdabeb226"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.PhotoControlsTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "36db119c0a1878c3f099837fed60c7da6cae75c44ec4226ace20eff298f4690f"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.QueueTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "a6166c0a2eee553a47aa025186c02440319b2d40f8ee6f31a53d2f8d23a597a1"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.RecoveredDrivesTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "62136e78e2aebf2ea48bb53c1fd21510c8a1952ca5375626054b04d8f2a0a400"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.RecoveredSourceScansTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "a6e3474326d509f1da886457cb3e53682ba5116e37202ac843cc06997817aaf6"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.RendererControllerTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e05d2bb1d883b8c5c403fb8a435b8e663ea77f4fa504e4d88ab9368162acbeb1"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.SettingsScreenTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "7c23738b4bb11f9b82d0428e2ff47708a13c24e137c6f047e8eb550ae59f43a1"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.SourceOperationsTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d4decbcf202839f36f049ff4419a3402e7436e8f6a597841907cd4137aaca0e4"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.SourcesControllerTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "eca72b0559490aa9326abee808a7f57810e906f363c82094d47ebcaf8a091583"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.SourcesScreenTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "042be50c4686b011680f0b07c98567be627dc9f06d6d15f5e8b541131de20dcb"
+    },
+    {
+      "name": "com.emmah.colordock.remote.ui.mediacenter.VpnSettingsTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "6947ba01a444d45a7b43d01e060bc2fb80d9abdf40b8692e18d988e0226a83d2"
+    },
+    {
+      "name": "com.emmah.colordock.remote.weather.LocationSearchTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "968e13a5acc222db91ebbfc738b58b37d51ce004854645ae818add52547ea2f7"
+    }
+  ]
+}

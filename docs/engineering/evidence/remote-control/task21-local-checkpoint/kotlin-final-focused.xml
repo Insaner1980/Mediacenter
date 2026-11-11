@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.emmah.colordock.remote.mediacenter.RustInteropTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-11T14:04:27.537Z" hostname="test-host" time="1.052">
+  <properties/>
+  <testcase name="actualRustEnvelopesDecodeThroughClientCodecForEveryMethod" classname="com.emmah.colordock.remote.mediacenter.RustInteropTest" time="0.964"/>
+  <testcase name="realDispatcherLostResultRecoversSameOperationWithoutRepeatedNativeEffect" classname="com.emmah.colordock.remote.mediacenter.RustInteropTest" time="0.011"/>
+  <testcase name="rustEventBeforeSnapshotIsAppliedAndSequenceGapRequiresResync" classname="com.emmah.colordock.remote.mediacenter.RustInteropTest" time="0.026"/>
+  <testcase name="malformedAndSemanticBoundaryMessagesFailClosedInActualClient" classname="com.emmah.colordock.remote.mediacenter.RustInteropTest" time="0.027"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

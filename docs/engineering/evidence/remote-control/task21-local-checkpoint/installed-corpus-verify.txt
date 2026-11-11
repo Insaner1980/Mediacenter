@@ -1,0 +1,1 @@
+Task21 fresh Rust → installed Kotlin resource verified: 074caea1bc6aaba3bf8be26db1a07765c439068a6ad97a4603fb47fef9f2c437; 88 methods; native effect count 1.

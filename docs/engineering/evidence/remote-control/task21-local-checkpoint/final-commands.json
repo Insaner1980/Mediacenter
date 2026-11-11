@@ -1,0 +1,9 @@
+{
+  "frontend": "source scripts/dev-env.sh && { npm run typecheck && npm run lint && npm test && npm run build && npm run verify:assets && npm run verify:ui-copy && npm run verify:remote-contract -- --remote-root ../Remote && node --test browser-extension/tests/*.test.mjs; } > /tmp/remote-task21-frontend-final.log 2>&1",
+  "nativeTests": "bash /tmp/run-remote-native.sh test --log-label task21-final",
+  "nativeCheck": "bash /tmp/run-remote-native.sh check --log-label task21-final",
+  "nativeStrict": "bash /tmp/run-remote-native.sh clippy --log-label task21-final --all-targets -- -D warnings",
+  "nativeFormat": "bash /tmp/run-remote-native.sh fmt --log-label task21-final --check",
+  "android": "bash /tmp/run-remote-gradle.sh --log /tmp/remote-task21-android-broad.log -Dorg.gradle.java.home=/home/emma/Dev/Mediacenter/.tools/remote-android/jdk17 --warning-mode all :app:detekt :app:ktlintCheck :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:compileDebugAndroidTestKotlin",
+  "browser": "source scripts/dev-env.sh && { env -u NO_COLOR npm run test:e2e && env -u NO_COLOR npm run test:visual; } > /tmp/remote-task21-browser-final.log 2>&1"
+}

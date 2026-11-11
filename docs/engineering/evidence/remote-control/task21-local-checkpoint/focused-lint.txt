@@ -1,0 +1,1 @@
+Focused ESLint emitted no stdout. The complete final lint gate and successful continuation are recorded in frontend-broad.txt; the focused command is recorded in README.md.

@@ -1,0 +1,64 @@
+
+> mediacenter@0.1.6 typecheck
+> tsc --noEmit
+
+
+> mediacenter@0.1.6 lint
+> eslint src tests scripts
+
+
+> mediacenter@0.1.6 test
+> vitest run
+
+
+ RUN  v5.1.0 /home/emma/Dev/Mediacenter
+
+
+ Test Files  31 passed (31)
+      Tests  189 passed (189)
+   Start at  16:21:10
+   Duration  23.07s (tests 45%, environment 42%, setup 7%, import 4%, transform 1%)
+
+Environment  jsdom was created 31 times · 26.71s total, 42% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+
+> mediacenter@0.1.6 build
+> tsc --noEmit && vite build
+
+vite v8.3.6 building client environment for production...
+transforming...
+✓ 94 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.44 kB │ gzip:  0.28 kB
+dist/assets/index-C5DPhkQN.css   30.65 kB │ gzip:  6.78 kB
+dist/assets/index-B8C9og6O.js   332.15 kB │ gzip: 98.74 kB
+
+✓ built in 399ms
+
+> mediacenter@0.1.6 verify:assets
+> node scripts/verify-assets.mjs
+
+Verified 8 official logos and 18 local fonts
+
+> mediacenter@0.1.6 verify:ui-copy
+> node scripts/verify-ui-copy.mjs
+
+No forbidden dot decoration found in application source; visual review is still required
+
+> mediacenter@0.1.6 verify:remote-contract
+> node scripts/verify-remote-contract.mjs --remote-root ../Remote
+
+Remote v1 contracts agree: 88 methods; schema f7231d1864fa77b52ba035dd3418bfae57ec2787924bee9a957e58765695a1a0
+✔ enrollment requires explicit profile and a fresh single-use launch nonce (1.058188ms)
+✔ target generation prevents input after navigation, detach, replacement and restart (1.153591ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 75.212514

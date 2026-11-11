@@ -1,0 +1,7 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 1 test
+test remote::server::tests::lost_reply_reconnect_duplicate_has_one_effect_and_conflicting_id_fails ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 408 filtered out; finished in 0.11s

@@ -1,0 +1,100 @@
+{
+  "status": "PARTIAL: local-media source checkpoint; physical/browser acceptance blocked",
+  "date": "2026-11-11",
+  "baseMediacenter": "5dd0bee09028ab68d258eecffd79015e3edda2c1",
+  "baseRemote": "899edad359f06262061e2345200ef49e48f04657",
+  "environment": {
+    "os": "Linux",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-42-generic",
+    "node": "26.13.0",
+    "browserTransport": "headless Chrome; fixed allowlist Tauri IPC in Playwright, no native effects",
+    "native": "temporary SQLite stores, fake pause effect and fake drive/library backends; isolated loopback TLS",
+    "android": "parent-owned JVM Gradle; API37 SDK. Physical device absent per dispatch; no /dev/kvm; no emulator assumed"
+  },
+  "modifiedMediacenterSha256": {
+    "src-tauri/src/remote/mod.rs": "536150ae55f8e548befbc4f51e5c93085ff7bc2e02cc8ba4e9405dc92e5244e3",
+    "src-tauri/src/remote/interop_tests.rs": "3b10f2f834749a14e595328d507d5267a3577bc6d2fea9919a9d0f924ab53a5c",
+    "scripts/task21-interop.mjs": "f6ab6cb2568118430ee4653ff196e303964eb8a1d01b6650270ad832eba84cb3",
+    "scripts/task21-interop.test.mjs": "24c2619f1b2d2d404b53fa81be61dc8330bbb67b2f0dab377b5603e692a6d7a3",
+    "tests/e2e/remote-control.spec.ts": "d87bc6c9abc7f68afd7f11fe0a50d3a46658a4c018e4eb301b8630da0c26030e"
+  },
+  "androidStage": {
+    "files": [
+      {
+        "path": "app/src/test/java/com/emmah/colordock/remote/mediacenter/RustInteropTest.kt",
+        "baseSha256": "24b15aa2372b983889cabd36f0de6ac67b71cb7b308cea39ac30a363efd5ad0a",
+        "sha256": "24b15aa2372b983889cabd36f0de6ac67b71cb7b308cea39ac30a363efd5ad0a"
+      },
+      {
+        "path": "app/src/test/resources/mediacenter-rust-interop-v1.json",
+        "baseSha256": "c33c0b8c3dde66f95b1c7c2fd04598969c47bd49398062eaf9a09d85f09c79d7",
+        "sha256": "074caea1bc6aaba3bf8be26db1a07765c439068a6ad97a4603fb47fef9f2c437"
+      }
+    ]
+  },
+  "tests": [
+    {
+      "id": "T21-EXPORT",
+      "result": "PASS",
+      "scope": "88 typed requests; 101 replies;44 invalid requests; fake Dispatcher replay/terminal recovery effectCount=1,journalRows=1",
+      "log": "exporter-final-prepare.txt"
+    },
+    {
+      "id": "T21-LOCAL",
+      "result": "PASS_WITH_2_EXPLICIT_IGNORES",
+      "scope": "Task9 28pass/2 real-mpv ignores; drive11pass;library8pass",
+      "log": "native-local.txt"
+    },
+    {
+      "id": "T21-GUARD",
+      "result": "PASS",
+      "scope": "2 isolated-tree tests: matching bytes pass; installed tamper/stale source/missing prepared output fail",
+      "log": "freshness-guard.txt"
+    },
+    {
+      "id": "T21-TLS",
+      "result": "PASS",
+      "scope": "real pinned-loopback TLS/WebSocket lost-reply reconnect idempotency, effectCount=1",
+      "log": "native-tls.txt"
+    },
+    {
+      "id": "T21-DESKTOP",
+      "result": "PASS",
+      "scope": "3 actual production-shell browser UI tests; fake IPC effects",
+      "log": "desktop-focused.txt"
+    },
+    {
+      "id": "T21-KOTLIN",
+      "result": "PASS",
+      "scope": "Actual installed Rust bytes through RemoteJson and RemoteStateReducer; 4tests,0failures,0errors,0skips. Detekt/ktlintCheck/compileDebugAndroidTestKotlin pass/up-to-date; build34s.",
+      "log": "kotlin-final-focused.txt",
+      "junit": "kotlin-final-focused.xml",
+      "verify": "installed-corpus-verify.txt"
+    },
+    {
+      "id": "T21-REGRESSION",
+      "result": "PASS_SOURCE_SCOPE",
+      "scope": "native405+19/4explicitignored; Android418/88; frontend189/31; extension2; E2E17; visual103; strict/build/format gates passed",
+      "log": "final-gates.json"
+    },
+    {
+      "id": "T21-PHYSICAL",
+      "result": "BLOCKED",
+      "scope": "phone/API37 permissions, HDMI/audio, LG/Color Dock, actual LAN latency/reconnect/2h session, OS lifetime/signing upgrade preservation"
+    },
+    {
+      "id": "T21-BROWSER",
+      "result": "BLOCKED",
+      "scope": "Task17 install prerequisite unanswered; Tasks18-19 not started; no browser runtime capability advertised"
+    }
+  ],
+  "authoritativeParentAndroidManifest": {
+    "path": "task-21-android-source-manifest.json",
+    "sha256": "f2bba5d17b1084d36101fc18cd9061522c2804ffae9856b0144083e751b90097"
+  },
+  "sourceCheckpoint": "Implementation and focused checks DONE; final broad gates and independent review parent-owned and pending",
+  "desktopSourceCommit": "4548950bc68ab53eba9cec9d17218e1166e3542f",
+  "androidSourceCommit": "caad0fda0cb682e739ecb521b944a33ed404aabb",
+  "review": "PENDING independent source-checkpoint review"
+}
