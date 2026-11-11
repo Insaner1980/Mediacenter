@@ -2,6 +2,11 @@
 use crate::{app_state::AppState, contracts::AppError, remote::protocol::Id};
 #[derive(Clone)]
 pub struct ControlServices {
+    pub(crate) network:
+        std::sync::Arc<std::sync::Mutex<crate::remote::settings_admin::NetworkObservation>>,
+    pub(crate) admin: Option<std::sync::Arc<crate::remote::settings_admin::RemoteAdmin>>,
+    pub(crate) vpn_version_probe: std::sync::Arc<std::sync::Mutex<Option<std::time::Instant>>>,
+    pub(crate) settings_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
     pub(crate) confirmations: std::sync::Arc<std::sync::Mutex<confirmations::Confirmations>>,
     pub(crate) source_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
     pub(crate) folders: std::sync::Arc<std::sync::Mutex<crate::remote::folders::Folders>>,
@@ -32,6 +37,10 @@ impl ControlServices {
             server_identity.clone(),
         )?;
         Ok(Self {
+            network: Default::default(),
+            admin: None,
+            settings_gate: Default::default(),
+            vpn_version_probe: Default::default(),
             media: Default::default(),
             folders: Default::default(),
             source_gate: Default::default(),
@@ -60,3 +69,6 @@ pub mod audio;
 pub mod library;
 
 pub mod drives;
+
+pub mod settings;
+pub mod settings_devices;

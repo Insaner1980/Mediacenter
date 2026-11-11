@@ -40,7 +40,7 @@ def rust(schema):
                 variant = ''.join(part[:1].upper() + part[1:] for part in re.split(r'[_.]', value))
                 result += [f'    #[serde(rename = "{value}")]', f'    {variant},']
             result += ['}', '']
-        elif definition.get('type') == 'array' and name not in ('IdBatch', 'MediaKinds', 'ScopeSet'):
+        elif definition.get('type') == 'array' and name not in ('IdBatch', 'MediaKinds', 'ScopeSet', 'QrRows'):
             item = definition['items']['$ref'].split('/')[-1]
             result += [f"pub type {name} = BoundedList<{item}, {definition.get('minItems', 0)}, {definition['maxItems']}, false>;", '']
         elif definition.get('type') == 'object':
@@ -140,7 +140,7 @@ def kotlin(schema):
                 value = case['properties'][tag]['const']
                 case_name = ''.join(p[:1].upper()+p[1:] for p in re.split(r'[_.]', value))
                 fields = [f'val {k}: '+('com.emmah.colordock.remote.mediacenter.protocol.' if typename(v["$ref"].split("/")[-1]) == case_name else '')+f'{typename(v["$ref"].split("/")[-1])}'+('' if k in case['required'] else '? = null') for k,v in case['properties'].items() if k != tag]
-                lines += [f'    data class {case_name}('+', '.join(fields)+f') : {name}']
+                lines += [f'    data class {case_name}('+', '.join(fields)+f') : {name}'+ (' { override fun toString(): String = "PairingPreparation([redacted])" }' if name == 'PairingPreparation' else '')]
             lines += ['}', '']
         elif 'enum' in definition:
             lines += [f'enum class {name}(val wire: String) {{']
@@ -249,7 +249,7 @@ def kotlin(schema):
                 for k,v in case['properties'].items():
                     if k == tag: continue
                     expr = f'read{v["$ref"].split("/")[-1]}(source.get("{k}"))'
-                    if k not in case['required']: expr = f'if (source.isNull("{k}")) {{ null }} else {{ {expr} }}'
+                    if k not in case['required']: expr = f'if (source.isNull("{k}")) {{\n null\n }} else {{\n {expr}\n }}'
                     args.append(f'{k} = {expr}')
                 lines += [f'            "{value}" -> {name}.{case_name}('+', '.join(args)+')']
             lines += ['            else -> unsupported()', '        }']
@@ -266,7 +266,7 @@ def kotlin(schema):
                 for field, rule in definition['properties'].items():
                     subtype = rule['$ref'].split('/')[-1]
                     expr = f'read{subtype}(source.get("{field}"))'
-                    if field not in definition['required']:expr = f'if (source.isNull("{field}")) {{ null }} else {{ {expr} }}'
+                    if field not in definition['required']:expr = f'if (source.isNull("{field}")) {{\n null\n }} else {{\n {expr}\n }}'
                     lines += [f'            {field} = {expr},']
                 lines += ['        )']
                 if stale_preview:
@@ -275,6 +275,7 @@ def kotlin(schema):
             subtype = definition['items']['$ref'].split('/')[-1]
             lines += ['        val source = value as? JSONArray ?: invalid()', f'        check(source.length() in {definition.get("minItems", 0)}..{definition["maxItems"]})', f'        val result = (0 until source.length()).map {{ read{subtype}(source.get(it)) }}']
             if definition.get('uniqueItems'):lines += ['        check(result.distinct().size == result.size)']
+            if definition.get('x-validation') == 'square_binary_matrix': lines += ['        check(result.all { it.length == result.size })']
             lines += ['        return result']
         elif definition['type'] == 'string':
             lines += ['        val result = string(value)']
@@ -343,7 +344,7 @@ def kotlin(schema):
     readers = reachable(shared_roots | {'Hello', 'RemoteSnapshot', 'Id', 'MethodName', 'Bool'})
     writers = reachable(shared_roots)
     # Ktlint 1.8 requires consistent explicit blocks once a when branch wraps.
-    branch = re.compile(r'^(\s+(?:MethodName\.\w+|is [\w.]+|"[^"]+"|else)\s*->) ([^{].*)$')
+    branch = re.compile(r'^(\s+(?:MethodName\.\w+|is [\w.]+|"[^"]+"|else)\s*->) ([^{].*)$', re.S)
     lines = [branch.sub(lambda m: m.group(1)+' { '+m.group(2)+' }', line) for line in lines]
     codec = '\n'.join(lines)
     pattern = re.compile(r'^    private fun (read|write)([A-Za-z0-9]+)\([^\n]*\n.*?^    }\n', re.M | re.S)

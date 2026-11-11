@@ -499,6 +499,14 @@ impl super::dispatch::Dispatcher {
                     "confirmations.cancel"
                 } else {
                     match pending.action {
+                        crate::control::confirmations::Action::Vpn(_) => "vpn.confirmChange",
+                        crate::control::confirmations::Action::Admin(action) => {
+                            if action.target.is_some() {
+                                "devices.revoke"
+                            } else {
+                                "pairing.begin"
+                            }
+                        }
                         crate::control::confirmations::Action::Eject(_) => "drives.confirmEject",
                         crate::control::confirmations::Action::Activity { .. } => {
                             "activity.confirm"

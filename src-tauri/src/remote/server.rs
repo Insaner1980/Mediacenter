@@ -74,8 +74,8 @@ fn private_address(ip: IpAddr) -> bool {
 pub struct ServerRuntime {
     identity: Arc<ServerIdentity>,
     pub(super) dispatcher: Dispatcher,
-    auth: AuthManager,
-    pairing: Mutex<PairingManager>,
+    auth: Arc<AuthManager>,
+    pairing: Arc<Mutex<PairingManager>>,
     handshakes: Arc<Semaphore>,
     sockets: Arc<Semaphore>,
     thumbnails: DeviceLimits,
@@ -83,7 +83,7 @@ pub struct ServerRuntime {
 impl ServerRuntime {
     pub fn new(
         identity: Arc<ServerIdentity>,
-        services: ControlServices,
+        mut services: ControlServices,
     ) -> Result<Arc<Self>, RemoteError> {
         if identity.id() != &services.server_identity {
             return Err(RemoteError::new(
@@ -99,8 +99,16 @@ impl ServerRuntime {
                 .map(|_| ())
                 .map_err(dispatch::native_error)
         })?;
-        let auth = AuthManager::new(identity.id(), services.state.event_hub.clone())?;
-        let pairing = Mutex::new(PairingManager::new(&identity));
+        let auth = Arc::new(AuthManager::new(
+            identity.id(),
+            services.state.event_hub.clone(),
+        )?);
+        let pairing = Arc::new(Mutex::new(PairingManager::new(&identity)));
+        services.admin = Some(Arc::new(super::settings_admin::RemoteAdmin::new(
+            auth.clone(),
+            pairing.clone(),
+            &services,
+        )));
         let mut dispatcher = Dispatcher::new(services);
         dispatcher.registration = Some(registration);
         Ok(Arc::new(Self {
@@ -113,16 +121,22 @@ impl ServerRuntime {
             thumbnails: DeviceLimits::default(),
         }))
     }
-    /// Explicit native setup only; pairing.begin remains unavailable remotely.
+    /// Explicit native setup; remote issuance uses its own confirmed admin boundary.
     pub fn begin_pairing(
         &self,
         addresses: LocalAddresses,
         port: Port,
     ) -> Result<PairingReady, RemoteError> {
-        self.pairing
-            .lock()
-            .map_err(|_| dispatch::unavailable())?
-            .begin(addresses, port)
+        let admin = self
+            .dispatcher
+            .services
+            .admin
+            .as_ref()
+            .ok_or_else(dispatch::unavailable)?;
+        let _gate = admin.gate.lock().map_err(|_| dispatch::unavailable())?;
+        let mut pairing = self.pairing.lock().map_err(|_| dispatch::unavailable())?;
+        *admin.issued.lock().map_err(|_| dispatch::unavailable())? = None;
+        pairing.begin(addresses, port)
     }
     pub(super) fn identity(&self) -> &Arc<ServerIdentity> {
         &self.identity
@@ -152,14 +166,12 @@ impl ServerRuntime {
             .map_err(dispatch::native_error)
     }
     pub fn revoke_device(&self, device: &Id) -> Result<(), RemoteError> {
-        let mut db = self
-            .state()
-            .db
-            .lock()
-            .map_err(|_| dispatch::unavailable())?;
-        self.auth
-            .revoke_device(&mut db, device, crate::app_state::now_ms() as i64)?;
-        Ok(())
+        self.dispatcher
+            .services
+            .admin
+            .as_ref()
+            .ok_or_else(dispatch::unavailable)?
+            .revoke(device)
     }
     fn state(&self) -> &crate::app_state::AppState {
         &self.dispatcher.services.state
@@ -223,6 +235,13 @@ impl RemoteServer {
                 }
             });
         }
+        runtime
+            .dispatcher
+            .services
+            .admin
+            .as_ref()
+            .ok_or_else(dispatch::unavailable)?
+            .replace_network(addresses.clone())?;
         *running = Some(RunningServer {
             cancel,
             tasks,
@@ -235,7 +254,13 @@ impl RemoteServer {
         let mut running = self.running.lock().await;
         if let Some(running) = running.take() {
             running.cancel.cancel();
-            running.runtime.pairing.lock().unwrap().close();
+            let _ = running
+                .runtime
+                .dispatcher
+                .services
+                .admin
+                .as_ref()
+                .map(|a| a.replace_network(Vec::new()));
             running.tasks.close();
             running.tasks.wait().await;
         }
@@ -661,6 +686,8 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut transient = TransientRequests::default();
     let input_origin = uuid::Uuid::new_v4().to_string();
+    let socket_live = CancellationToken::new();
+    let _socket_guard = socket_live.clone().drop_guard();
     loop {
         if let Err(error) = events.check_live() {
             if error.code == ErrorCode::ResyncRequired {
@@ -701,6 +728,7 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
                             None=> {
                                 let work=async {
                                     Dispatcher::authorize(&principal,&request)?;
+                                    runtime.dispatcher.services.network.lock().map_err(|_|dispatch::unavailable())?.note(&principal.device_id,socket_live.clone(),revoked.clone(),&input_origin);
                                     if matches!(request.command,RemoteCommand::StateGet(_)) {
                                         let snapshot=super::state::snapshot_on_admitted_subscription(&principal,&runtime.dispatcher.services,&events).await?;
                                         serde_json::to_value(snapshot).map_err(|_|RemoteError::invalid())

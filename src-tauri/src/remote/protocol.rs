@@ -403,3 +403,29 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for RemoteReply<T> {
         }
     }
 }
+
+validated_string!(QrRow, |s: &str| (21..=177).contains(&s.len())
+    && s.bytes().all(|c| c == b'0' || c == b'1'));
+#[derive(Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct QrRows(Vec<QrRow>);
+impl QrRows {
+    pub fn as_slice(&self) -> &[QrRow] {
+        &self.0
+    }
+}
+impl fmt::Debug for QrRows {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("[redacted]")
+    }
+}
+impl<'de> Deserialize<'de> for QrRows {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let rows = Vec::<QrRow>::deserialize(d)?;
+        if !(21..=177).contains(&rows.len()) || rows.iter().any(|r| r.as_str().len() != rows.len())
+        {
+            return Err(D::Error::custom("invalid QR dimensions"));
+        }
+        Ok(Self(rows))
+    }
+}

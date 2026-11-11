@@ -303,3 +303,20 @@ pub fn parse_pair_request(input: &str) -> Result<PairEndpointRequest> {
         Ok(PairEndpointRequest::Qr(checked(strict.0)?))
     }
 }
+
+/// Encode only the newly issued candidate; QR material has the same secret lifetime.
+pub(crate) fn qr_rows(candidate: &PairingCandidate) -> Result<QrRows> {
+    let json = serde_json::to_vec(candidate).map_err(|_| internal())?;
+    let qr = qrcode::QrCode::new(&json).map_err(|_| internal())?;
+    let width = qr.width();
+    checked(
+        qr.into_colors()
+            .chunks(width)
+            .map(|row| {
+                row.iter()
+                    .map(|c| if *c == qrcode::Color::Dark { '1' } else { '0' })
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>(),
+    )
+}

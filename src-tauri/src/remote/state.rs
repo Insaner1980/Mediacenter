@@ -238,9 +238,21 @@ pub(crate) fn vpn_topic(
 ) -> Result<VpnTopic, RemoteError> {
     Ok(VpnTopic {
         revision: revision.into(),
-        state: checked(&home.vpn.state).unwrap_or(VpnState::Unknown),
-        country: home.vpn.country.as_ref().map(checked).transpose()?,
-        kill_switch: checked(&home.vpn.kill_switch).unwrap_or(SwitchState::Unknown),
+        state: if super::vpn::fresh(&home.vpn, crate::app_state::now_ms()) {
+            checked(&home.vpn.state).unwrap_or(VpnState::Unknown)
+        } else {
+            VpnState::Unknown
+        },
+        country: if super::vpn::fresh(&home.vpn, crate::app_state::now_ms()) {
+            home.vpn.country.as_ref().map(checked).transpose()?
+        } else {
+            None
+        },
+        kill_switch: if super::vpn::fresh(&home.vpn, crate::app_state::now_ms()) {
+            checked(&home.vpn.kill_switch).unwrap_or(SwitchState::Unknown)
+        } else {
+            SwitchState::Unknown
+        },
         observed_at_ms: checked(home.vpn.observed_at_ms)?,
     })
 }

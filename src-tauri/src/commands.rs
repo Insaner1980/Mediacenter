@@ -1,8 +1,4 @@
-use crate::{
-    app_state::{now_ms, AppState},
-    contracts::*,
-    events,
-};
+use crate::{app_state::AppState, contracts::*};
 use tauri::{Manager, State};
 pub fn guard(label: &str) -> Result<(), AppError> {
     if label == "main" {
@@ -24,8 +20,7 @@ pub fn get_home_snapshot(
 }
 pub fn save_theme(app: &tauri::AppHandle, theme: Theme) -> Result<Theme, AppError> {
     let state = app.state::<AppState>();
-    state.db.lock().map_err(|_|AppError::new("database_error","The library is unavailable."))?.execute("INSERT INTO settings(key,value_json,updated_at_ms) VALUES('theme',?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at_ms=excluded.updated_at_ms",rusqlite::params![serde_json::to_string(&theme).unwrap(),now_ms() as i64])?;
-    events::publish(app, &state, |home| home.theme = theme)?;
+    crate::control::settings::save_theme(&state, theme)?.emit(app, &state);
     Ok(theme)
 }
 #[tauri::command]
@@ -127,12 +122,7 @@ pub fn set_vpn_requirement(
     required: bool,
 ) -> Result<bool, AppError> {
     guard(window.label())?;
-    state.db.lock().map_err(|_|AppError::new("database_error","The library is unavailable."))?.execute("INSERT INTO service_preferences(service_id,vpn_required) VALUES(?1,?2) ON CONFLICT(service_id) DO UPDATE SET vpn_required=excluded.vpn_required",rusqlite::params![crate::streaming::catalog::key(service_id),required])?;
-    events::publish(&app, &state, |home| {
-        if let Some(service) = home.services.iter_mut().find(|s| s.id == service_id) {
-            service.vpn_required = required;
-        }
-    })?;
+    crate::control::settings::save_requirement(&state, service_id, required)?.emit(&app, &state);
     Ok(required)
 }
 #[cfg(test)]

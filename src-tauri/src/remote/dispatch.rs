@@ -30,7 +30,7 @@ pub(crate) fn unavailable() -> RemoteError {
     )
 }
 pub fn capabilities() -> Capabilities {
-    checked(serde_json::json!({"methods":["state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback","ui.navigate","ui.moveFocus","ui.activate","ui.back","ui.search","drives.list","drives.mount","drives.prepareEject","drives.confirmEject","sources.list","folders.roots","folders.children","folders.prepareAdd","folders.confirmAdd","sources.scan","sources.cancelScan","sources.prepareRemove","sources.confirmRemove","sources.confirmReattachment"],"services":[],"browserBridge":false})).expect("static capabilities")
+    checked(serde_json::json!({"methods":["settings.get","settings.theme.set","vpn.state","vpn.countries","vpn.prepareChange","vpn.confirmChange","vpn.requirement.set","devices.list","devices.revoke","pairing.begin","state.get","capabilities.get","operations.get","operations.cancel","player.pause","library.query","library.item","player.play","player.seek","player.volume","player.mute","player.audioTrack","player.subtitleTrack","player.stop","queue.get","queue.enqueue","queue.remove","queue.move","queue.playEntry","queue.next","queue.previous","queue.shuffle","queue.repeat","playlists.list","playlists.get","playlists.save","playlists.delete","playlists.play","photos.show","photos.slideshow.start","photos.next","photos.previous","photos.pause","photos.interval","photos.shuffle","photos.fit","photos.stop","activity.prepare","activity.confirm","confirmations.get","confirmations.cancel","audio.outputs","audio.prepare","audio.confirm","audio.test","activity.showMenu","activity.showPlayback","ui.navigate","ui.moveFocus","ui.activate","ui.back","ui.search","drives.list","drives.mount","drives.prepareEject","drives.confirmEject","sources.list","folders.roots","folders.children","folders.prepareAdd","folders.confirmAdd","sources.scan","sources.cancelScan","sources.prepareRemove","sources.confirmRemove","sources.confirmReattachment"],"services":[],"browserBridge":false})).expect("static capabilities")
 }
 pub(crate) fn value(value: impl serde::Serialize) -> Result<serde_json::Value, RemoteError> {
     serde_json::to_value(value).map_err(|_| RemoteError::invalid())
@@ -71,7 +71,11 @@ impl Dispatcher {
         Self::authorize(principal, &request)?;
         let confirmations_changed = matches!(
             request.command,
-            RemoteCommand::ActivityPrepare(_)
+            RemoteCommand::VpnPrepareChange(_)
+                | RemoteCommand::VpnConfirmChange(_)
+                | RemoteCommand::DevicesRevoke(_)
+                | RemoteCommand::PairingBegin(_)
+                | RemoteCommand::ActivityPrepare(_)
                 | RemoteCommand::ActivityConfirm(_)
                 | RemoteCommand::AudioPrepare(_)
                 | RemoteCommand::AudioConfirm(_)
@@ -95,6 +99,15 @@ impl Dispatcher {
         principal: &RemotePrincipal,
         request: RemoteRequest,
     ) -> Result<serde_json::Value, RemoteError> {
+        if super::vpn::handles(&request.command) {
+            return super::vpn::dispatch(self, principal, request).await;
+        }
+        if crate::control::settings_devices::handles(&request.command) {
+            return crate::control::settings_devices::dispatch(self, principal, request).await;
+        }
+        if crate::control::settings::handles(&request.command) {
+            return crate::control::settings::dispatch(self, principal, request).await;
+        }
         if crate::control::drives::handles(&request.command) {
             return crate::control::drives::dispatch(self, principal, request).await;
         }
@@ -480,8 +493,7 @@ mod tests {
                 .code,
             ErrorCode::Forbidden
         );
-        let request =
-            parse_request(r#"{"v":1,"id":"read","method":"vpn.state","params":{}}"#).unwrap();
+        let request = parse_request(&serde_json::json!({"v":1,"id":"deferred","method":"settings.startAtLogin.set","params":{"enabled":true},"expected":{"serverEpoch":epoch,"settingsRevision":"1"}}).to_string()).unwrap();
         assert_eq!(
             dispatcher
                 .dispatch(&principal, request)
@@ -574,6 +586,7 @@ impl Dispatcher {
             if matches!(
                 request.command,
                 RemoteCommand::ActivityPrepare(_)
+                    | RemoteCommand::VpnPrepareChange(_)
                     | RemoteCommand::AudioPrepare(_)
                     | RemoteCommand::FoldersPrepareAdd(_)
                     | RemoteCommand::DrivesPrepareEject(_)
@@ -590,6 +603,7 @@ impl Dispatcher {
                     if matches!(
                         request.command,
                         RemoteCommand::AudioPrepare(_)
+                            | RemoteCommand::VpnPrepareChange(_)
                             | RemoteCommand::FoldersPrepareAdd(_)
                             | RemoteCommand::DrivesPrepareEject(_)
                             | RemoteCommand::SourcesPrepareRemove(_)

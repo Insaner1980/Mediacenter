@@ -123,6 +123,16 @@ impl Fixture {
         assert_eq!(
             hello["capabilities"]["methods"],
             serde_json::json!([
+                "settings.get",
+                "settings.theme.set",
+                "vpn.state",
+                "vpn.countries",
+                "vpn.prepareChange",
+                "vpn.confirmChange",
+                "vpn.requirement.set",
+                "devices.list",
+                "devices.revoke",
+                "pairing.begin",
                 "state.get",
                 "capabilities.get",
                 "operations.get",

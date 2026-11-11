@@ -299,6 +299,7 @@ impl RemoteSetup {
             }
             Err(error) => inner.status = error.to_string(),
         }
+        Self::discovery_status(inner).await;
         Ok(())
     }
     async fn replace_listener_locked(
@@ -354,6 +355,23 @@ impl RemoteSetup {
     }
     async fn discovery_status(inner: &mut SetupState) -> bool {
         let status = inner.advertisement.as_mut().map(Advertisement::status);
+        if let Some(runtime) = &inner.runtime {
+            if let Ok(mut net) = runtime.dispatcher.services.network.lock() {
+                net.diagnostics.selected_interface = inner
+                    .config
+                    .as_ref()
+                    .and_then(|c| checked(&c.interface_name).ok());
+                net.diagnostics.discovery = match &status {
+                    Some(Ok(true)) => super::protocol::DiscoveryObservation::Announced,
+                    Some(Ok(false)) => super::protocol::DiscoveryObservation::Pending,
+                    Some(Err(_)) => super::protocol::DiscoveryObservation::Unavailable,
+                    None if net.addresses.is_empty() => {
+                        super::protocol::DiscoveryObservation::Stopped
+                    }
+                    None => super::protocol::DiscoveryObservation::Unavailable,
+                };
+            }
+        }
         match status {
             Some(Ok(true)) => {
                 inner.status = "Remote control is listening on the selected local network.".into();
@@ -484,23 +502,10 @@ impl RemoteSetup {
         )?;
         let attempt = ready.candidate.attempt_id.clone();
         let display = (|| {
-            let json = serde_json::to_vec(&ready.candidate).map_err(|_| unavailable())?;
-            let qr = qrcode::QrCode::new(&json).map_err(|_| unavailable())?;
-            let width = qr.width();
-            let colors = qr.into_colors();
-            let qr_rows = colors
-                .chunks(width)
-                .map(|row| {
-                    row.iter()
-                        .map(|cell| {
-                            if *cell == qrcode::Color::Dark {
-                                '1'
-                            } else {
-                                '0'
-                            }
-                        })
-                        .collect()
-                })
+            let qr_rows = super::pairing::qr_rows(&ready.candidate)?
+                .as_slice()
+                .iter()
+                .map(|r| r.as_str().to_owned())
                 .collect();
             let expires_in_ms = runtime
                 .pairing_status()?

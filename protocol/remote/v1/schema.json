@@ -5875,6 +5875,12 @@
         },
         "startAtLogin": {
           "$ref": "#/$defs/Bool"
+        },
+        "servicePreferences": {
+          "$ref": "#/$defs/ServicePreferences"
+        },
+        "connectionDiagnostics": {
+          "$ref": "#/$defs/ConnectionDiagnostics"
         }
       },
       "required": [
@@ -6852,6 +6858,9 @@
             },
             "candidate": {
               "$ref": "#/$defs/PairingCandidate"
+            },
+            "qrRows": {
+              "$ref": "#/$defs/QrRows"
             }
           },
           "required": [
@@ -6929,6 +6938,86 @@
       "required": [
         "requestId"
       ]
+    },
+    "ServicePreference": {
+      "type": "object",
+      "properties": {
+        "serviceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "vpnRequired": {
+          "$ref": "#/$defs/Bool"
+        }
+      },
+      "required": [
+        "serviceId",
+        "label",
+        "vpnRequired"
+      ]
+    },
+    "ServicePreferences": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ServicePreference"
+      },
+      "maxItems": 32
+    },
+    "ListenerObservation": {
+      "type": "string",
+      "enum": [
+        "listening",
+        "stopped",
+        "unknown"
+      ]
+    },
+    "DiscoveryObservation": {
+      "type": "string",
+      "enum": [
+        "announced",
+        "pending",
+        "unavailable",
+        "stopped",
+        "unknown"
+      ]
+    },
+    "ConnectionDiagnostics": {
+      "type": "object",
+      "properties": {
+        "selectedInterface": {
+          "$ref": "#/$defs/Label"
+        },
+        "listener": {
+          "$ref": "#/$defs/ListenerObservation"
+        },
+        "discovery": {
+          "$ref": "#/$defs/DiscoveryObservation"
+        },
+        "vpnVersion": {
+          "$ref": "#/$defs/Label"
+        }
+      },
+      "required": [
+        "listener",
+        "discovery"
+      ]
+    },
+    "QrRow": {
+      "type": "string",
+      "minLength": 21,
+      "maxLength": 177,
+      "pattern": "^[01]+$"
+    },
+    "QrRows": {
+      "type": "array",
+      "minItems": 21,
+      "maxItems": 177,
+      "items": {
+        "$ref": "#/$defs/QrRow"
+      },
+      "x-validation": "square_binary_matrix"
     }
   },
   "x-methods": [

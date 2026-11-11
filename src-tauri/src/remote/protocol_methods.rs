@@ -1667,6 +1667,10 @@ pub struct SettingsState {
     pub revision: Decimal,
     pub theme: Theme,
     pub start_at_login: Bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_preferences: Option<ServicePreferences>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connection_diagnostics: Option<ConnectionDiagnostics>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2054,6 +2058,9 @@ pub enum PairingPreparation {
         operation_id: Id,
         #[serde(rename = "candidate")]
         candidate: PairingCandidate,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "qrRows")]
+        qr_rows: Option<QrRows>,
     },
     #[serde(rename = "already_issued")]
     AlreadyIssued {
@@ -2087,6 +2094,51 @@ pub struct ManualChallengeResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ForegroundAck {
     pub request_id: Id,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServicePreference {
+    pub service_id: Id,
+    pub label: Label,
+    pub vpn_required: Bool,
+}
+
+pub type ServicePreferences = BoundedList<ServicePreference, 0, 32, false>;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ListenerObservation {
+    #[serde(rename = "listening")]
+    Listening,
+    #[serde(rename = "stopped")]
+    Stopped,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiscoveryObservation {
+    #[serde(rename = "announced")]
+    Announced,
+    #[serde(rename = "pending")]
+    Pending,
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    #[serde(rename = "stopped")]
+    Stopped,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionDiagnostics {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_interface: Option<Label>,
+    pub listener: ListenerObservation,
+    pub discovery: DiscoveryObservation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vpn_version: Option<Label>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

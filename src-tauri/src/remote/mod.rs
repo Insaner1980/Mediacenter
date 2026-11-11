@@ -30,3 +30,5 @@ pub mod renderer;
 pub mod folders;
 
 pub mod drives;
+pub mod settings_admin;
+pub mod vpn;
