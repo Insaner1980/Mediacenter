@@ -1,6 +1,6 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s explicit request on 2026-11-11. Tasks 1–13 have completed source implementation and independent review. Task 13 root-authorization fix `27ae3e6` passed scoped re-review with zero open findings. Task 14 USB source gates passed; independent review is next. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
+Resumed at the user’s explicit request on 2026-11-11. Tasks 1–13 have completed source implementation and independent review. Task 13 root-authorization fix `27ae3e6` passed scoped re-review with zero open findings. Task 14 USB source gates passed, but review found one phone recovery issue; its first fix round passed covering gates and awaits scoped review. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
@@ -115,7 +115,7 @@ Affected native regressions passed 38 library tests, four folder tests and one c
 
 Task 13 is complete. Continue Task 14 using its prepared brief/spec/context/dispatch, now supplemented with the final Task 13 API handoff. The daemon restart during fix1 did not restart implementation: the same agent resumed from surviving files/logs. Chrome manual-install and phone-availability questions were asked asynchronously; no answer has been inferred. Physical acceptance remains Task 21.
 
-## Task 14 source checkpoint — independent review pending
+## Task 14 source checkpoint — one phone recovery fix remains
 
 Desktop source `91f3d13253d902f508f2857a03ab16b608cfad6b`, Android `eff8ad1bc2030ee449d19549570fbd8f9daa6567`. The four existing drive methods implement opaque insertion-bound drive/volume handles, full sibling/owned-use previews, noninteractive normal mount/eject, stale/replug guards and owner-bound confirmation/operation lookup. Native timeout or unconfirmed effect remains `outcome_unknown`; cancellation is requested until native completion. The phone integrates drive Settings through the existing common confirmation owner. No force/deletion/path command, dependency/SDK/schema change or real device effect was introduced.
 
@@ -123,4 +123,12 @@ Frozen source manifests cover14 native and10 Android paths and were verified aft
 
 The observed old cancellation-test scheduling assumption was corrected to accept either an active cancelled token or its already-persisted terminal Cancelled outcome. Existing cancellation/replay assertions remain. First sandbox listener failures were rerun through normal escalation. Restored Android wrapper requires explicit `-Dorg.gradle.java.home=/home/emma/Dev/Mediacenter/.tools/remote-android/jdk17`; JDK25 Detekt failed before analysis. Existing build warnings remain separate.
 
-Next: independent Task14 review of the immutable joint package; fix any Important/Critical finding before Task15. Task15 draft context also records the plan ownership ruling for existing safe Connection methods devices.list/devices.revoke/pairing.begin (normative5.3/5.4/6.3). Do not mark Task14 complete from passing gates alone. Physical USB/phone/HDMI acceptance remains Task21.
+Independent Task14 review is complete: zero Critical, one Important, one Minor (existing build warnings). I1 loses accepted drive-operation tracking when the phone disconnects before terminal completion, so reconnect cannot display the native success/busy/authorization/unknown result or offer running cancellation. Original `/root/task14_drives` is implementing fix round1/5 from the verbatim finding in `task-14-fix1-dispatch.md`; parent owns Android installs/gates/commits. Native source is unchanged. Require actual disconnect-before-terminal RED/GREEN and scoped re-review before Task15. Task15 draft context also records the plan ownership ruling for existing safe Connection methods devices.list/devices.revoke/pairing.begin (normative5.3/5.4/6.3). Do not mark Task14 complete from passing gates alone. Physical USB/phone/HDMI acceptance remains Task21.
+
+## Task 14 fix round 1 — tested, scoped review pending
+
+Android source `fbf9d22f59271e0df28b7eaba39ae65a6af7b854` fixes I1 with closed owner/server/epoch-bound drive-work metadata and authoritative error/status retention. Recovered running cancellation requires a fresh native observation, while native terminal outcomes survive controller reconstruction. The canonical Settings drive view presents the recovered result/cancel once; no mutation is replayed. Native source is unchanged at `91f3d13`.
+
+Actual RED reproduced missing busy result after acceptance→disconnect→repository reconstruction→native lookup. Core/source-scan regression gate passed19 tests; extended recovery/UI gate passed41. After a UI-only extraction/test-format correction, final10 UI/controller tests, Detekt, ktlint, fresh lint, APK and instrumentation compilation passed2m23s. These scoped results are separate from the earlier361-native/365-Android broad snapshot. All13 final source hashes matched `task-14-fix1-android-source-manifest.json`; actual logs/JUnit summaries remain in durable checkpoint evidence.
+
+Next is scoped `task-14-fix1-review.md` against immutable joint fix package, bases MC e6157b8 / Remote eff8ad1. Do not start Task15 or mark Task14 complete until I1 is approved. Chrome manual-install and physical phone/USB/HDMI acceptance remain pending.
