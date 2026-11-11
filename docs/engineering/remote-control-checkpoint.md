@@ -1,6 +1,6 @@
 # Remote control implementation checkpoint
 
-Resumed at the user’s explicit request on 2026-11-11. Tasks 1–13 have completed source implementation and independent review. Task 13 root-authorization fix `27ae3e6` passed scoped re-review with zero open findings. Task 14 USB source gates passed, but review found one phone recovery issue; its first fix round passed covering gates and awaits scoped review. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
+Resumed at the user’s explicit request on 2026-11-11. Tasks 1–13 have completed source implementation and independent review. Task 13 root-authorization fix `27ae3e6` passed scoped re-review with zero open findings. Task 14 USB source gates passed, but review found one phone recovery issue; its first fix round restored outcomes, and the second round passed covering gates and awaits scoped I2 review. Task 17 has a partial Chrome experiment at `3e1588e` with manual test-profile installation pending. Physical acceptance remains outstanding.
 
 Task 11's scoped re-review approved both focus fixes with zero open findings. Desktop source is `afc31cd`, metadata `9d92bdd`, Android `b95505d`. Do not redispatch Task 11. Its report and `task-11-fix1-review.md` contain the verified handoff.
 
@@ -132,3 +132,15 @@ Android source `fbf9d22f59271e0df28b7eaba39ae65a6af7b854` fixes I1 with closed o
 Actual RED reproduced missing busy result after acceptance→disconnect→repository reconstruction→native lookup. Core/source-scan regression gate passed19 tests; extended recovery/UI gate passed41. After a UI-only extraction/test-format correction, final10 UI/controller tests, Detekt, ktlint, fresh lint, APK and instrumentation compilation passed2m23s. These scoped results are separate from the earlier361-native/365-Android broad snapshot. All13 final source hashes matched `task-14-fix1-android-source-manifest.json`; actual logs/JUnit summaries remain in durable checkpoint evidence.
 
 Next is scoped `task-14-fix1-review.md` against immutable joint fix package, bases MC e6157b8 / Remote eff8ad1. Do not start Task15 or mark Task14 complete until I1 is approved. Chrome manual-install and physical phone/USB/HDMI acceptance remain pending.
+
+## Task 14 fix round 2 — message correlation in progress
+
+Scoped fix1 review approved I1 and all13 hashes/recorded gates. It found one new Important I2 in `MediacenterTargetPage`: retaining an older drive result suppresses a newer drive request’s rejection/timeout message without matching its identity. Native and durable recovery remain unchanged. Original `/root/task14_drives` is implementing round2/5 from `task-14-fix2-dispatch.md`, with canonical per-request rendered regression and exact message provenance/deduplication. Bases MC e8c5090 /Remote fbf9d22. Do not restart Task14 or proceed to Task15 until scoped re-review closes I2.
+
+## Task 14 fix round 2 — tested, scoped I2 review pending
+
+Android source `9a6988d7f85c085b9e1eaf73bf94287134cae21c` adds ephemeral native-message provenance and deduplicates only the represented request/operation in Settings. A later admission error, timeout, local send failure and Remote/Library feedback remain visible. Matching terminal recovery replaces stale running text/cancel for that same operation. Active operation tracking is preserved; no native, pending-store, wire, dependency or SDK change occurred.
+
+Actual rendered RED reproduced hidden B busy feedback after completed A. First complete gate passed27 tests and quality/fresh lint/APK/instrumentation in2m4s. A newly reported redundant safe call was removed with one token; final8 rendered tests and the same quality/fresh lint/APK/instrumentation gates passed1m35s with no Kotlin source warnings. Existing Gradle warnings remain. Seven final hashes matched `task-14-fix2-android-source-manifest.json`; both snapshots and actual JUnit/logs remain in checkpoint evidence.
+
+Next: scoped `task-14-fix2-review.md` for I2, from bases MC e8c5090 /Remote fbf9d22. I1 is already addressed; do not restart its implementation or rerun unchanged broad suites. Task15 remains prepared but undispatched until I2 closes.
