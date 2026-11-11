@@ -36,3 +36,6 @@ pub mod vpn;
 pub mod autostart;
 pub mod idle;
 pub mod lifecycle;
+
+#[cfg(test)]
+mod interop_tests;
