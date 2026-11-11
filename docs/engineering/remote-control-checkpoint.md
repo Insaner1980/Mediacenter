@@ -6,7 +6,7 @@ Task 11's scoped re-review approved both focus fixes with zero open findings. De
 
 ## Resume
 
-Continue `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` at Task 14 after reading the latest ledger and Task 13 fix-round handoff below. Task 13 is complete; do not restart Tasks 1–13. Retain the pending **Task 17** browser installation step.
+Continue `docs/superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md` at Task 15 after reading the latest ledger, prepared Task 15 brief/spec/context/dispatch and final Task 14 report/reviews. Tasks 1–14 are complete; do not restart them. Retain the pending **Task 17** browser installation step.
 
 Task 10's scoped re-review approved both fixes with zero open findings. Desktop source is `9cc72f1`, paired metadata `b3c2861`, and Android `fbca8d2`. Read its final report and `task-10-fix1-review.md` for APIs and evidence; do not redispatch its implementation.
 
@@ -16,10 +16,10 @@ Task 10's scoped re-review approved both fixes with zero open findings. Desktop 
 - Task 8 reconnect/resync/uncertain-command recovery is implemented at `3ddeaf8` with reviewed fixes at `44298c2`. No Critical or Important findings remain.
 - Task 9 desktop source is reviewed through `10e2b64`; its Android contract correction is `45e3175`. No Critical or Important findings remain.
 - Task 10 supplies optional audio-only routing and foregrounding of existing mpv, photo and managed-browser windows. Reviewed Task 11 adds five acknowledged renderer methods (52 implemented methods total) and shared confirmation resolution.
-- Continue Tasks 14–16, resume Task 17 after its manual installation gate, then Tasks 18–22. These nine tasks remain unfinished.
+- Continue Tasks 15–16, resume Task 17 after its manual installation gate, then Tasks 18–22. These eight tasks remain unfinished.
 - Task 17 is incomplete: experimental loading did not survive restart; automated normal-UI drag/drop reported “No dragged path.” The disposable Chrome profile was opened for the user's explicit Load unpacked action. Once the user confirms installation and closure, run the reviewed harness with `--installed`. Never interpret the experimental failure as proof normal installation is impossible. Host/broker/input remain unimplemented. Consult `task-17-report.md`; its early source range is `e3e189b..3e1588e`.
 
-Read the durable workspace `.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control/` before resuming: the latest entries of `progress.md`, then `task-14-brief.md`, `task-14-spec-extract.md`, `task-14-context.md` and `task-14-dispatch.md`. Task 13 final report and `task-13-fix1-review.md` are the reviewed source-management handoff. Task 12 final report and `task-12-fix1-review.md` supply the reviewed phone integration handoff; Tasks 9–11 reports supply native/repository/renderer interfaces. Task 17's pending browser handoff is in its brief, context and report. That gitignored workspace remains on disk; do not run `git clean -fdx`.
+Read the durable workspace `.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control/` before resuming: the latest entries of `progress.md`, then `task-15-brief.md`, `task-15-spec-extract.md`, `task-15-context.md` and `task-15-dispatch.md`. Task 14 final report and its two fix reviews are the USB/recovery handoff. Task 13 final report and `task-13-fix1-review.md` are the reviewed source-management handoff. Task 12 final report and `task-12-fix1-review.md` supply the reviewed phone integration handoff; Tasks 9–11 reports supply native/repository/renderer interfaces. Task 17's pending browser handoff is in its brief, context and report. That gitignored workspace remains on disk; do not run `git clean -fdx`.
 
 The user resumed the remaining work with “jatka” after the scope/time explanation. Task 17 remains partial while manual installation is pending. Keep the browser feasibility experiment bounded and continue without another scope confirmation. Do not describe the whole project as complete. The first actual Chrome 157 experiment admitted the extension through experimental CDP loading but did not retain it on restart; the supported installation route is being checked separately. Native host and tab-input acceptance are not yet established.
 
@@ -144,3 +144,11 @@ Android source `9a6988d7f85c085b9e1eaf73bf94287134cae21c` adds ephemeral native-
 Actual rendered RED reproduced hidden B busy feedback after completed A. First complete gate passed27 tests and quality/fresh lint/APK/instrumentation in2m4s. A newly reported redundant safe call was removed with one token; final8 rendered tests and the same quality/fresh lint/APK/instrumentation gates passed1m35s with no Kotlin source warnings. Existing Gradle warnings remain. Seven final hashes matched `task-14-fix2-android-source-manifest.json`; both snapshots and actual JUnit/logs remain in checkpoint evidence.
 
 Next: scoped `task-14-fix2-review.md` for I2, from bases MC e8c5090 /Remote fbf9d22. I1 is already addressed; do not restart its implementation or rerun unchanged broad suites. Task15 remains prepared but undispatched until I2 closes.
+
+## Task 14 approved checkpoint — continue Task 15
+
+`task-14-fix2-review.md` approves I2; original I1 remains approved, with zero Critical/Important findings. Native source is `91f3d13253d902f508f2857a03ab16b608cfad6b`, Android `9a6988d7f85c085b9e1eaf73bf94287134cae21c`. The report and immutable review packages identify every tested snapshot. Task14 is source-complete; do not reimplement it or rerun its unchanged broad suites.
+
+One nonblocking M2 remains: on the busy active-controller cancel-ack branch, generic cancellation-waiting text can temporarily duplicate the matching recovered row. There is one control and no false completion. Task16 owns the focused presentation regression/fix while integrating the canonical target shell; final whole-branch review must triage it. Existing M1 dependency/Gradle warnings remain separately tracked. Physical USB/phone/HDMI acceptance remainsTask21.
+
+Task15 prepared context records native VPN/launch-policy authority, private recovery/message APIs, the ownership ruling for existing trusted-phone device/revoke/additional-pairing methods and the concrete bounded read-DTO gap. Its implementer must propose exact optional pre-release contract fields after native API inspection before modifying the shared schema. No Task15 source implementation has started yet.

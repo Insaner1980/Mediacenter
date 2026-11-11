@@ -3,7 +3,7 @@
   "desktopBaseCommit": "89dd3589c3750edb9e1461d07811758f4631a750",
   "androidBaseCommit": "f10d9ea91d738eef44595a8cab923056862a63dd",
   "androidSdkMajor": 37,
-  "note": "These paired sources use the tested shared contract including optional playlist search and existing folder/source/drive methods. Phone media, current-root authorization, recoverable scans, USB controls with reconnect outcomes and correlated status messages, and renderer navigation have source-level evidence recorded separately. USB message scoped review, target-shell integration and physical acceptance remain pending; this is not a fully integrated remote-control release.",
+  "note": "These paired sources use the tested shared contract including optional playlist search and existing folder/source/drive methods. Phone media, current-root authorization, recoverable scans, USB controls with reconnect outcomes and correlated status messages, and renderer navigation have reviewed source-level evidence recorded separately. Target-shell integration and physical acceptance remain pending; this is not a fully integrated remote-control release.",
   "desktopSourceCommit": "91f3d13253d902f508f2857a03ab16b608cfad6b",
   "androidSourceCommit": "9a6988d7f85c085b9e1eaf73bf94287134cae21c",
   "schemaSha256": "bfd145ef3eac74d3ca23e1ca26234ef4384a4f466d5759c2efef3f68eec7e2ae",
