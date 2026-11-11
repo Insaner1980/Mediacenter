@@ -3,6 +3,7 @@ use super::activity::Identity;
 use crate::remote::protocol::*;
 #[derive(Clone)]
 pub enum Action {
+    Eject(crate::remote::drives::EjectAction),
     Library(super::library::LibraryAction),
     Activity {
         target: ActivityPrepareParams,

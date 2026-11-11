@@ -23,6 +23,8 @@ fn number(props: &Props, key: &str) -> u64 {
 }
 #[derive(Clone, Debug)]
 pub struct Drive {
+    /// UDisks hardware identity plus insertion timestamps; never exposed remotely.
+    pub connection_id: String,
     pub safe_to_remove: bool,
     pub id: String,
     pub path: String,
@@ -61,11 +63,21 @@ async fn read() -> Result<Devices, zbus::Error> {
             .map(|key| string(props, key))
             .find(|value| !value.is_empty())
             .unwrap_or_default();
-        hardware_ids.insert(path.to_string(), hardware);
+        hardware_ids.insert(path.to_string(), hardware.clone());
         let name = format!("{} {}", string(props, "Vendor"), string(props, "Model"))
             .trim()
             .to_string();
         result.drives.push(Drive {
+            connection_id: if number(props, "TimeDetected") == 0 {
+                String::new()
+            } else {
+                format!(
+                    "{}:{}:{}",
+                    hardware,
+                    number(props, "TimeDetected"),
+                    number(props, "TimeMediaDetected")
+                )
+            },
             safe_to_remove: true,
             id,
             path: path.to_string(),

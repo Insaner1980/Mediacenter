@@ -28,3 +28,5 @@ pub mod media;
 pub mod renderer;
 
 pub mod folders;
+
+pub mod drives;

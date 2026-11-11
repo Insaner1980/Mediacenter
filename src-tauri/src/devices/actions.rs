@@ -58,7 +58,10 @@ fn protected_mount(volume: &Volume) -> bool {
                 .any(|root| mount.starts_with(root))
     })
 }
-fn group(devices: &Devices, drive_id: &str) -> Result<(Vec<Drive>, Vec<Volume>), AppError> {
+pub(crate) fn group(
+    devices: &Devices,
+    drive_id: &str,
+) -> Result<(Vec<Drive>, Vec<Volume>), AppError> {
     let selected = devices
         .drives
         .iter()
@@ -88,14 +91,18 @@ fn group(devices: &Devices, drive_id: &str) -> Result<(Vec<Drive>, Vec<Volume>),
     }
     Ok((drives, volumes))
 }
-fn same_group(before: &(Vec<Drive>, Vec<Volume>), after: &(Vec<Drive>, Vec<Volume>)) -> bool {
+pub(crate) fn same_group(
+    before: &(Vec<Drive>, Vec<Volume>),
+    after: &(Vec<Drive>, Vec<Volume>),
+) -> bool {
     before.0.len() == after.0.len()
         && before.1.len() == after.1.len()
-        && before
-            .0
-            .iter()
-            .zip(&after.0)
-            .all(|(a, b)| a.id == b.id && a.path == b.path && a.sibling_id == b.sibling_id)
+        && before.0.iter().zip(&after.0).all(|(a, b)| {
+            a.id == b.id
+                && a.path == b.path
+                && a.sibling_id == b.sibling_id
+                && a.connection_id == b.connection_id
+        })
         && before.1.iter().zip(&after.1).all(|(a, b)| {
             a.id == b.id
                 && a.path == b.path
@@ -145,6 +152,20 @@ pub async fn eject_drive<B: DeviceBackend, L: SourceLifecycle>(
     if confirmed != ids {
         return Err(changed());
     }
+    eject_group(backend, lifecycle, drive_id, &initial).await
+}
+/// Execute only the exact physical identity retained by a remote preview.
+pub(crate) async fn eject_group<B: DeviceBackend, L: SourceLifecycle>(
+    backend: &B,
+    lifecycle: &L,
+    drive_id: &str,
+    confirmed: &(Vec<Drive>, Vec<Volume>),
+) -> Result<EjectOutcome, AppError> {
+    let initial = group(&backend.discover().await?, drive_id)?;
+    if !same_group(confirmed, &initial) {
+        return Err(changed());
+    }
+    let ids = initial.0.iter().map(|d| d.id.clone()).collect();
     let _guard = lifecycle.quiesce(&initial.1).await?;
     let fresh = group(&backend.discover().await?, drive_id)?;
     if !same_group(&initial, &fresh) {
@@ -195,12 +216,36 @@ pub async fn mount_volume<B: DeviceBackend>(
                 "The selected volume is no longer connected.",
             )
         })?;
-    // Mount is also restricted to supported removable storage; no frontend object paths or options.
-    group(&devices, &volume.drive_id)?;
+    let confirmed = group(&devices, &volume.drive_id)?;
+    mount_group(backend, volume_id, &confirmed).await
+}
+pub(crate) async fn mount_group<B: DeviceBackend>(
+    backend: &B,
+    volume_id: &str,
+    confirmed: &(Vec<Drive>, Vec<Volume>),
+) -> Result<MountOutcome, AppError> {
+    let expected = confirmed
+        .1
+        .iter()
+        .find(|v| v.id == volume_id)
+        .ok_or_else(changed)?;
+    let devices = backend.discover().await?;
+    let current = group(&devices, &expected.drive_id)?;
+    if !same_group(confirmed, &current) {
+        return Err(changed());
+    }
+    let volume = current
+        .1
+        .iter()
+        .find(|v| v.id == volume_id)
+        .ok_or_else(changed)?;
     if volume.mounts.is_empty() {
         backend.mount(volume).await?;
     }
     let observed = backend.discover().await?;
+    if !same_group(&current, &group(&observed, &volume.drive_id)?) {
+        return Err(changed());
+    }
     if !observed.volumes.iter().any(|v| {
         v.id == volume.id
             && v.path == volume.path
@@ -231,11 +276,28 @@ fn os_error(error: zbus::Error) -> AppError {
         AppError::new("device_operation_failed", "The operating system could not complete the drive operation. Refresh drives before trying again; safe removal has not been confirmed.")
     }
 }
-async fn mutate(path: &str, interface: &str, method: &str) -> Result<(), AppError> {
+fn operation_options(
+    interactive: bool,
+) -> std::collections::HashMap<&'static str, zbus::zvariant::Value<'static>> {
+    let mut options = std::collections::HashMap::new();
+    if !interactive {
+        options.insert(
+            "auth.no_user_interaction",
+            zbus::zvariant::Value::Bool(true),
+        );
+    }
+    options
+}
+async fn mutate(
+    path: &str,
+    interface: &str,
+    method: &str,
+    interactive: bool,
+) -> Result<(), AppError> {
     tokio::time::timeout(std::time::Duration::from_secs(30),async {
         let connection = zbus::Connection::system().await?;
         let proxy = zbus::Proxy::new(&connection,"org.freedesktop.UDisks2",path,interface).await?;
-        let options:std::collections::HashMap<&str,zbus::zvariant::Value<'_>> = std::collections::HashMap::new();
+        let options = operation_options(interactive);
         if method == "Mount" { let _: String = proxy.call(method,&(options,)).await?; }
         else { let _: () = proxy.call(method,&(options,)).await?; }
         Ok::<(),zbus::Error>(())
@@ -246,18 +308,67 @@ impl DeviceBackend for UDisksBackend {
         super::udisks::discover().await
     }
     async fn mount(&self, volume: &Volume) -> Result<(), AppError> {
-        mutate(&volume.path, "org.freedesktop.UDisks2.Filesystem", "Mount").await
+        mutate(
+            &volume.path,
+            "org.freedesktop.UDisks2.Filesystem",
+            "Mount",
+            true,
+        )
+        .await
     }
     async fn unmount(&self, volume: &Volume) -> Result<(), AppError> {
         mutate(
             &volume.path,
             "org.freedesktop.UDisks2.Filesystem",
             "Unmount",
+            true,
         )
         .await
     }
     async fn power_off(&self, drive: &Drive) -> Result<(), AppError> {
-        mutate(&drive.path, "org.freedesktop.UDisks2.Drive", "PowerOff").await
+        mutate(
+            &drive.path,
+            "org.freedesktop.UDisks2.Drive",
+            "PowerOff",
+            true,
+        )
+        .await
+    }
+}
+
+/// Remote requests must return authorization failures without opening an OS password dialog.
+#[derive(Clone)]
+pub struct RemoteUDisksBackend;
+impl DeviceBackend for RemoteUDisksBackend {
+    async fn discover(&self) -> Result<Devices, AppError> {
+        super::udisks::discover().await
+    }
+    async fn mount(&self, volume: &Volume) -> Result<(), AppError> {
+        mutate(
+            &volume.path,
+            "org.freedesktop.UDisks2.Filesystem",
+            "Mount",
+            false,
+        )
+        .await
+    }
+    async fn unmount(&self, volume: &Volume) -> Result<(), AppError> {
+        mutate(
+            &volume.path,
+            "org.freedesktop.UDisks2.Filesystem",
+            "Unmount",
+            false,
+        )
+        .await
+    }
+    async fn power_off(&self, drive: &Drive) -> Result<(), AppError> {
+        mutate(
+            &drive.path,
+            "org.freedesktop.UDisks2.Drive",
+            "PowerOff",
+            false,
+        )
+        .await
     }
 }
 
@@ -276,6 +387,7 @@ mod tests {
             Self {
                 devices: Mutex::new(Devices {
                     drives: vec![Drive {
+                        connection_id: "usb-insertion-1".into(),
                         id: "drive:usb".into(),
                         path: "/drive/usb".into(),
                         name: "USB".into(),
@@ -365,6 +477,28 @@ mod tests {
     }
     async fn remove(fake: &Fake, lifecycle: &Lifecycle) -> Result<EjectOutcome, AppError> {
         eject_drive(fake, lifecycle, "drive:usb", &["drive:usb".into()]).await
+    }
+    #[test]
+    fn remote_os_options_disable_prompts_and_have_no_force_option() {
+        let options = operation_options(false);
+        assert_eq!(options.len(), 1);
+        assert_eq!(
+            options.get("auth.no_user_interaction"),
+            Some(&zbus::zvariant::Value::Bool(true))
+        );
+        assert!(!options.contains_key("force"));
+        assert!(operation_options(true).is_empty());
+    }
+    #[test]
+    fn preview_identity_rejects_same_drive_replug() {
+        let fake = Fake::new();
+        let before = group(&fake.devices.lock().unwrap(), "drive:usb").unwrap();
+        fake.devices.lock().unwrap().drives[0].connection_id = "usb-insertion-2".into();
+        let after = group(&fake.devices.lock().unwrap(), "drive:usb").unwrap();
+        assert!(
+            !same_group(&before, &after),
+            "a replug must invalidate the preview"
+        );
     }
     #[tokio::test]
     async fn whole_drive_removal_drains_every_volume_then_unmounts_and_powers_off() {

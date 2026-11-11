@@ -110,15 +110,29 @@ async fn durable_cancellation_ack_replays_without_target_lookup_or_repeated_effe
         .await
         .unwrap();
     assert_eq!(result, serde_json::json!({"cancellationRequested":true}));
-    assert!(dispatcher
+    let active_cancelled = dispatcher
         .services
         .state
         .operations
         .lock()
         .unwrap()
         .get(target.as_str())
-        .unwrap()
-        .is_cancelled());
+        .map(tokio_util::sync::CancellationToken::is_cancelled);
+    if let Some(cancelled) = active_cancelled {
+        assert!(cancelled);
+    } else {
+        // A fast pre-effect cancellation may already have persisted its terminal outcome.
+        assert_eq!(
+            dispatcher
+                .services
+                .operations()
+                .lookup(&principal, &target)
+                .unwrap()
+                .unwrap()
+                .status,
+            OperationStatus::Cancelled
+        );
+    }
     drop(player);
     settled(&dispatcher).await;
     dispatcher

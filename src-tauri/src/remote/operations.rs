@@ -458,6 +458,7 @@ impl OperationRegistry {
             let status = match &result {
                 Ok(()) => OperationStatus::Succeeded,
                 Err(error) if error.code == "cancelled" => OperationStatus::Cancelled,
+                Err(error) if error.code == "outcome_unknown" => OperationStatus::OutcomeUnknown,
                 Err(_) => OperationStatus::Failed,
             };
             let error_code = result

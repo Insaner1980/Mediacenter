@@ -58,3 +58,5 @@ pub mod playback;
 pub mod audio;
 
 pub mod library;
+
+pub mod drives;

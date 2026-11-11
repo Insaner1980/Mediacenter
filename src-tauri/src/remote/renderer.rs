@@ -499,6 +499,7 @@ impl super::dispatch::Dispatcher {
                     "confirmations.cancel"
                 } else {
                     match pending.action {
+                        crate::control::confirmations::Action::Eject(_) => "drives.confirmEject",
                         crate::control::confirmations::Action::Activity { .. } => {
                             "activity.confirm"
                         }

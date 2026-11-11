@@ -96,6 +96,13 @@ struct Publication {
     home: Option<crate::events::HomePublication>,
 }
 impl State {
+    pub(crate) fn affected_session(&self, sources: &[String]) -> Option<String> {
+        self.session
+            .as_ref()
+            .filter(|session| session.sources.iter().any(|id| sources.contains(id)))
+            .map(|session| session.id.clone())
+    }
+
     fn select(
         &mut self,
         selection: &str,
@@ -719,11 +726,7 @@ pub async fn control_session(
 }
 pub async fn stop_source(app: &tauri::AppHandle, state: &AppState, source_id: &str) {
     let mut photos = state.photos.lock().await;
-    if photos
-        .session
-        .as_ref()
-        .is_some_and(|s| s.sources.iter().any(|id| id == source_id))
-    {
+    if photos.affected_session(&[source_id.into()]).is_some() {
         photos.stop(Some(
             "The photo source was removed. Reconnect it before starting again.".into(),
         ));
@@ -900,6 +903,24 @@ pub(crate) async fn seed_test_session(state: &AppState, id: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn task14_drive_impact_tracks_only_owned_photo_source_and_stable_session() {
+        let mut photos = State {
+            session: Some(session()),
+            ..Default::default()
+        };
+        assert_eq!(photos.affected_session(&["unrelated-source".into()]), None);
+        assert_eq!(
+            photos.snapshot().session_id.as_deref(),
+            Some("test-session")
+        );
+        let before = photos.affected_session(&["source".into()]);
+        assert_eq!(before.as_deref(), Some("test-session"));
+        photos.select("selected-order", "c", true, 5, None).unwrap();
+        assert_eq!(photos.snapshot().media_id.as_deref(), Some("c"));
+        assert_eq!(photos.affected_session(&["source".into()]), before);
+    }
+
     #[test]
     fn task9_still_photo_selection_keeps_session_and_pauses_before_publication() {
         let mut state = State {
