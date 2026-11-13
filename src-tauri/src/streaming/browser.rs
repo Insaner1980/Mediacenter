@@ -35,11 +35,15 @@ pub fn prepare_profile(data: &Path, service: ServiceId) -> Result<PathBuf, AppEr
     Ok(profile)
 }
 pub fn arguments(profile: &Path, service: ServiceId) -> Vec<OsString> {
+    app_arguments(profile, super::catalog::url(service))
+}
+
+pub(crate) fn app_arguments(profile: &Path, url: &str) -> Vec<OsString> {
     let mut profile_arg = OsString::from("--user-data-dir=");
     profile_arg.push(profile);
     vec![
         profile_arg,
-        format!("--app={}", super::catalog::url(service)).into(),
+        format!("--app={url}").into(),
         "--no-first-run".into(),
         "--no-default-browser-check".into(),
     ]

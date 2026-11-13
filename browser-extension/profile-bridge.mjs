@@ -102,6 +102,19 @@ export class ProfileBridge {
     }
   }
 
+  wake(nonce, tabId) {
+    return this.serialize(async () => {
+      const enrollment = await this.savedEnrollment();
+      if (enrollment?.kind !== 'managed' || !isUuid(nonce) || !Number.isInteger(tabId)) {
+        throw Error('invalid_profile');
+      }
+      await this.connectSaved();
+      if (!this.port) throw Error('bridge_unavailable');
+      this.wakePage = { nonce, tabId };
+      this.post(this.port, { type: 'wake', nonce });
+    });
+  }
+
   receive(port, enrollment, message) {
     if (this.port !== port) return;
     if (message?.type === 'welcome') {
@@ -111,7 +124,14 @@ export class ProfileBridge {
     if (!this.connected || !isUuid(message?.id) || !message.command) return;
     const { id, command } = message;
     this.session.command(command, enrollment).then(
-      () => this.post(port, { type: 'reply', id, ok: true }),
+      () => {
+        this.post(port, { type: 'reply', id, ok: true });
+        const page = this.wakePage;
+        if (command.type === 'launch' && page?.nonce === command.nonce) {
+          this.wakePage = null;
+          this.chrome.tabs.remove(page.tabId).catch(() => {});
+        }
+      },
       failure => this.post(port, {
         type: 'reply', id, ok: false,
         error: knownErrors.has(failure.message) ? failure.message : 'bridge_unavailable',

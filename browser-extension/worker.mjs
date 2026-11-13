@@ -156,8 +156,14 @@ async function handle(message) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
-  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('enroll.html')) return false;
+  if (sender.id !== chrome.runtime.id) return false;
   if (!message || typeof message !== 'object') return false;
+  if (message.type === 'remoteWake' && typeof message.nonce === 'string'
+    && sender.url === `${chrome.runtime.getURL('launch.html')}#${message.nonce}`) {
+    profileBridge.wake(message.nonce, sender.tab?.id).then(() => reply({ sent: true }), () => reply({ sent: false }));
+    return true;
+  }
+  if (sender.url !== chrome.runtime.getURL('enroll.html')) return false;
   handle(message).then(reply, error => {
     const known = ['native_host_not_found', 'native_host_no_reply', 'invalid_catalog', 'catalog_timeout', 'debugger_attach_failed', 'stale_target', 'stale_viewport', 'stale_launch', 'profile_required', 'tab_closed'];
     reply({ error: (known.includes(error.message) || /^proof_(storage|grant|tab_create|tab_load|attach)$/.test(error.message)) ? error.message : 'bridge_unavailable' });

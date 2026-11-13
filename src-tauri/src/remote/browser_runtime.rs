@@ -6,7 +6,8 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     io,
-    path::Path,
+    path::{Path, PathBuf},
+    process::Stdio,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -54,6 +55,9 @@ enum Incoming {
         ok: bool,
         error: Option<String>,
     },
+    Wake {
+        nonce: uuid::Uuid,
+    },
 }
 
 #[derive(Serialize)]
@@ -93,6 +97,19 @@ pub struct Session {
 struct Inner {
     profiles: HashMap<String, Profile>,
     session: Option<Session>,
+    wake: Option<Wake>,
+}
+
+struct Wake {
+    nonce: uuid::Uuid,
+    service: ServiceId,
+    requested: String,
+    reply: oneshot::Sender<Id>,
+}
+
+pub struct ReadyProfile {
+    id: String,
+    nonce: uuid::Uuid,
 }
 
 #[derive(Clone, Default)]
@@ -170,13 +187,7 @@ impl Runtime {
     pub fn profile(&self, service: ServiceId, requested: &str) -> Result<String, RemoteError> {
         let inner = self.inner.lock().map_err(|_| unavailable())?;
         let mut matches = inner.profiles.values().filter(|profile| {
-            !profile.commands.is_closed()
-                && (requested == "auto" || requested == profile.id.as_str())
-                && if service == ServiceId::HboMax {
-                    profile.kind == ProfileKind::Ordinary
-                } else {
-                    profile.kind == ProfileKind::Managed && profile.service == Some(service)
-                }
+            !profile.commands.is_closed() && profile_matches(profile, service, requested)
         });
         let profile = matches.next().ok_or_else(bridge_error)?;
         if matches.next().is_some() {
@@ -194,6 +205,55 @@ impl Runtime {
             .is_ok_and(|inner| inner.profiles.values().any(|p| !p.commands.is_closed()))
     }
 
+    pub fn launchable(&self, data: &Path, service: ServiceId, requested: &str) -> bool {
+        self.profile(service, requested).is_ok() || managed_profile(data, service).is_some()
+    }
+
+    pub async fn prepare_profile(
+        &self,
+        data: &Path,
+        service: ServiceId,
+        requested: &str,
+        cancel: &CancellationToken,
+    ) -> Result<ReadyProfile, RemoteError> {
+        let nonce = uuid::Uuid::new_v4();
+        if let Ok(id) = self.profile(service, requested) {
+            return Ok(ReadyProfile { id, nonce });
+        }
+        let path = managed_profile(data, service).ok_or_else(bridge_error)?;
+        if cancel.is_cancelled() {
+            return Err(RemoteError::new(
+                ErrorCode::Cancelled,
+                "Browser activity cancelled.",
+            ));
+        }
+        let (reply, response) = oneshot::channel();
+        {
+            let mut inner = self.inner.lock().map_err(|_| unavailable())?;
+            if inner.wake.is_some() {
+                return Err(RemoteError::new(
+                    ErrorCode::Busy,
+                    "Chrome is already starting.",
+                ));
+            }
+            inner.wake = Some(Wake {
+                nonce,
+                service,
+                requested: requested.into(),
+                reply,
+            });
+        }
+        let result = wake_chrome(&path, nonce, response, cancel).await;
+        if let Ok(mut inner) = self.inner.lock() {
+            if inner.wake.as_ref().is_some_and(|wake| wake.nonce == nonce) {
+                inner.wake = None;
+            }
+        }
+        let id = result?;
+        let id = self.profile(service, id.as_str())?;
+        Ok(ReadyProfile { id, nonce })
+    }
+
     pub fn session(&self) -> Option<Session> {
         self.inner.lock().ok()?.session.clone()
     }
@@ -202,7 +262,7 @@ impl Runtime {
         &self,
         owner: Id,
         service: ServiceId,
-        profile: &str,
+        profile: &ReadyProfile,
         cancel: &CancellationToken,
     ) -> Result<Session, RemoteError> {
         let session = {
@@ -215,8 +275,8 @@ impl Runtime {
             }
             let profile = inner
                 .profiles
-                .get(profile)
-                .filter(|p| !p.commands.is_closed())
+                .get(&profile.id)
+                .filter(|p| !p.commands.is_closed() && profile_matches(p, service, &profile.id))
                 .ok_or_else(bridge_error)?;
             let session = Session {
                 id: checked(uuid::Uuid::new_v4().to_string())?,
@@ -233,7 +293,7 @@ impl Runtime {
             inner.session = Some(session.clone());
             session
         };
-        let result = self.send(&session, serde_json::json!({"type":"launch","url":catalog::url(service),"session":session.id,"nonce":uuid::Uuid::new_v4()}), Duration::from_secs(8), cancel).await;
+        let result = self.send(&session, serde_json::json!({"type":"launch","url":catalog::url(service),"session":session.id,"nonce":profile.nonce}), Duration::from_secs(8), cancel).await;
         if let Err(error) = result {
             // A timed-out launch can still have created a tab. Retire the port to
             // prevent subsequent commands targeting an uncertain browser state.
@@ -410,6 +470,18 @@ impl Runtime {
         current.pending_origin = pending.map(str::to_owned);
     }
 
+    fn redeem_wake(&self, profile: &Profile, nonce: uuid::Uuid) {
+        let Ok(mut inner) = self.inner.lock() else {
+            return;
+        };
+        let matches = inner.wake.as_ref().is_some_and(|wake| {
+            wake.nonce == nonce && profile_matches(profile, wake.service, &wake.requested)
+        });
+        if let Some(wake) = matches.then(|| inner.wake.take()).flatten() {
+            let _ = wake.reply.send(profile.id.clone());
+        }
+    }
+
     async fn serve(&self, mut stream: UnixStream) -> io::Result<()> {
         let hello =
             tokio::time::timeout(Duration::from_secs(2), read_message(&mut stream)).await??;
@@ -456,6 +528,7 @@ impl Runtime {
             loop {
                 match read_message(&mut reader).await? {
                     state @ Incoming::State { .. } => self.update(&profile, state),
+                    Incoming::Wake { nonce } => self.redeem_wake(&profile, nonce),
                     Incoming::Reply { id, ok, error } => {
                         if let Some(reply) = pending
                             .lock()
@@ -488,6 +561,73 @@ impl Runtime {
         let id: Id = checked(uuid::Uuid::new_v4().to_string()).unwrap();
         self.register(id.clone(), kind, service, sender).unwrap();
         (id.as_str().into(), receiver)
+    }
+}
+
+fn profile_matches(profile: &Profile, service: ServiceId, requested: &str) -> bool {
+    (requested == "auto" || requested == profile.id.as_str())
+        && if service == ServiceId::HboMax {
+            profile.kind == ProfileKind::Ordinary
+        } else {
+            profile.kind == ProfileKind::Managed && profile.service == Some(service)
+        }
+}
+
+fn managed_profile(data: &Path, service: ServiceId) -> Option<PathBuf> {
+    use std::os::unix::fs::MetadataExt;
+    if service == ServiceId::HboMax {
+        return None;
+    }
+    let parent = data.join("browser-profiles");
+    let profile = parent.join(catalog::key(service));
+    let manifests = profile.join("NativeMessagingHosts");
+    for path in [&parent, &profile, &manifests] {
+        let metadata = path.symlink_metadata().ok()?;
+        if !metadata.is_dir() || metadata.uid() != browser_bridge::owner() {
+            return None;
+        }
+    }
+    let registration = manifests.join("io.emma.mediacenter.browser.json");
+    let metadata = registration.symlink_metadata().ok()?;
+    if !metadata.is_file() || metadata.uid() != browser_bridge::owner() || metadata.len() > 8192 {
+        return None;
+    }
+    let manifest: Value = serde_json::from_slice(&std::fs::read(registration).ok()?).ok()?;
+    (manifest["name"] == "io.emma.mediacenter.browser"
+        && manifest["type"] == "stdio"
+        && manifest["allowed_origins"]
+            == serde_json::json!([super::browser_protocol::EXTENSION_ORIGIN]))
+    .then_some(profile)
+}
+
+async fn wake_chrome(
+    path: &Path,
+    nonce: uuid::Uuid,
+    response: oneshot::Receiver<Id>,
+    cancel: &CancellationToken,
+) -> Result<Id, RemoteError> {
+    let url = format!(
+        "{}launch.html#{nonce}",
+        super::browser_protocol::EXTENSION_ORIGIN
+    );
+    let mut chrome = tokio::process::Command::new("/usr/bin/google-chrome")
+        .args(crate::streaming::browser::app_arguments(path, &url))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|_| bridge_error())?;
+    // Chrome may hand off to an already running instance and exit before that
+    // instance connects. Reap only this launcher without touching any windows.
+    tokio::spawn(async move {
+        let _ = chrome.wait().await;
+    });
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => Err(RemoteError::new(ErrorCode::Cancelled, "Browser activity cancelled.")),
+        result = tokio::time::timeout(Duration::from_secs(8), response) => {
+            result.ok().and_then(Result::ok).ok_or_else(bridge_error)
+        }
     }
 }
 
@@ -571,8 +711,11 @@ mod tests {
             let runtime = runtime.clone();
             async move { runtime.serve(server).await }
         });
-        let profile = uuid::Uuid::new_v4().to_string();
-        emit(&mut extension, serde_json::json!({"type":"hello","profile":profile,"kind":"managed","service":"youtube"})).await;
+        let profile = ReadyProfile {
+            id: uuid::Uuid::new_v4().to_string(),
+            nonce: uuid::Uuid::new_v4(),
+        };
+        emit(&mut extension, serde_json::json!({"type":"hello","profile":profile.id,"kind":"managed","service":"youtube"})).await;
         assert_eq!(receive(&mut extension).await["type"], "welcome");
         let cancel = CancellationToken::new();
         let launching = runtime.launch(
@@ -584,6 +727,7 @@ mod tests {
         let fixture = async {
             let launch = receive(&mut extension).await;
             assert_eq!(launch["command"]["url"], catalog::url(ServiceId::Youtube));
+            assert_eq!(launch["command"]["nonce"], profile.nonce.to_string());
             let session = &launch["command"]["session"];
             emit(&mut extension, serde_json::json!({"type":"state","session":session,"generation":"1","origin":"https://www.youtube.com","ready":true})).await;
             emit(
@@ -619,5 +763,42 @@ mod tests {
         assert!(serving.await.unwrap().is_err());
         assert!(!runtime.available());
         assert!(runtime.session().is_none());
+    }
+
+    #[test]
+    fn managed_wake_accepts_the_grant_once_from_the_selected_profile() {
+        let runtime = Runtime::default();
+        let (sender, _receiver) = mpsc::channel(1);
+        let registered = |id, service| {
+            runtime
+                .register(
+                    checked(id).unwrap(),
+                    ProfileKind::Managed,
+                    Some(service),
+                    sender.clone(),
+                )
+                .unwrap()
+        };
+        let selected = registered("selected", ServiceId::Youtube);
+        let other = registered("other", ServiceId::Youtube);
+        let unrelated = registered("unrelated", ServiceId::Netflix);
+        let (reply, mut response) = oneshot::channel();
+        let nonce = uuid::Uuid::new_v4();
+        runtime.inner.lock().unwrap().wake = Some(Wake {
+            nonce,
+            service: ServiceId::Youtube,
+            requested: "selected".into(),
+            reply,
+        });
+        runtime.redeem_wake(&selected, uuid::Uuid::new_v4());
+        runtime.redeem_wake(&other, nonce);
+        runtime.redeem_wake(&unrelated, nonce);
+        assert!(matches!(
+            response.try_recv(),
+            Err(oneshot::error::TryRecvError::Empty)
+        ));
+        runtime.redeem_wake(&selected, nonce);
+        assert_eq!(response.try_recv().unwrap(), selected.id);
+        assert!(runtime.inner.lock().unwrap().wake.is_none());
     }
 }

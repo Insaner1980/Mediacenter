@@ -10,7 +10,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const base = path.resolve('.tools/browser-feasibility');
 const id = (await readFile('browser-extension/extension-id.txt', 'utf8')).trim();
 const runtime = await mkdtemp('/tmp/mc-runtime-smoke-');
-const profile = path.join(runtime, 'profile');
+const profile = path.join(runtime, 'browser-profiles', 'youtube');
 const env = { ...process.env, XDG_RUNTIME_DIR: runtime, XDG_CONFIG_HOME: path.join(runtime, 'config') };
 const host = 'io.emma.mediacenter.browser';
 const catalog = 'https://www.youtube.com/';
@@ -18,6 +18,7 @@ const binary = path.resolve('src-tauri/target/debug/mediacenter-browser-host');
 const brokerBinary = path.resolve('src-tauri/target/debug/examples/browser-runtime-smoke');
 let browser;
 let broker;
+let coldBroker;
 let browserExit;
 let brokerExit;
 let call;
@@ -76,6 +77,7 @@ try {
   const source = path.join(base, 'profile');
   const profileLock = await import('node:fs/promises').then(fs => fs.lstat(path.join(source, 'SingletonLock')).catch(() => null));
   assert.ok(!profileLock, 'Close the disposable Chrome profile first');
+  await mkdir(path.dirname(profile), { recursive: true });
   await cp(source, profile, { recursive: true });
   await mkdir(path.join(profile, 'NativeMessagingHosts'), { recursive: true });
   await writeFile(path.join(profile, 'NativeMessagingHosts', `${host}.json`), JSON.stringify({
@@ -154,6 +156,16 @@ try {
   assert.ok(output.includes('closed'));
   await waitFor(async () => !(await call('Target.getTargets')).targetInfos.some(target => target.url === catalog), 'target tab closure');
   result.ownedTabClosed = true;
+  await call('Browser.close');
+  await browserExit;
+
+  coldBroker = spawn(brokerBinary, [runtime], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  let coldOutput = '';
+  coldBroker.stdout.on('data', chunk => { coldOutput += chunk; });
+  coldBroker.stderr.on('data', chunk => { coldOutput += chunk; });
+  assert.deepEqual(await once(coldBroker, 'exit'), [0, null], coldOutput);
+  assert.match(coldOutput, /managed profile connected from cold start/);
+  result.managedColdStart = true;
   result.passed = true;
 } catch (error) {
   result.error = error.message;
@@ -161,6 +173,9 @@ try {
   await writeFile(path.join(base, 'production-runtime-stderr.log'), chromeLog, { mode: 0o600 });
   process.exitCode = 1;
 } finally {
+  if (coldBroker?.pid) {
+    try { process.kill(-coldBroker.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  }
   if (broker?.exitCode === null && broker.signalCode === null) broker.kill();
   if (browser?.exitCode === null && browser.signalCode === null) {
     await call?.('Browser.close').catch(() => browser.kill());

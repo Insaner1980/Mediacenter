@@ -14,6 +14,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = Runtime::default();
     runtime.start(&directory)?;
     println!("listening");
+    let cancel = CancellationToken::new();
+    if let Some(data) = std::env::args_os().nth(1) {
+        let data = PathBuf::from(data);
+        assert!(runtime.profile(ServiceId::Youtube, "auto").is_err());
+        runtime
+            .prepare_profile(&data, ServiceId::Youtube, "auto", &cancel)
+            .await?;
+        println!("managed profile connected from cold start");
+        return Ok(());
+    }
     let profile = tokio::time::timeout(Duration::from_secs(15), async {
         loop {
             if let Ok(profile) = runtime.profile(ServiceId::Youtube, "auto") {
@@ -24,7 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     })
     .await?;
     let owner: Id = serde_json::from_value(serde_json::json!("smoke-phone"))?;
-    let cancel = CancellationToken::new();
+    let profile = runtime
+        .prepare_profile(&directory, ServiceId::Youtube, &profile, &cancel)
+        .await?;
     let session = runtime
         .launch(owner, ServiceId::Youtube, &profile, &cancel)
         .await?;

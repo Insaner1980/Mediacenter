@@ -156,6 +156,8 @@ def verify_debian_package(path, version, extension):
         PACKAGED_SUPPORT / "remote-release.py",
         extension_directory / extension["action"]["default_popup"],
         extension_directory / extension["background"]["service_worker"],
+        extension_directory / "launch.html",
+        extension_directory / "launch.mjs",
     }
     packaged_host = PurePosixPath(str(PACKAGED_HOST).lstrip("/"))
     with subprocess.Popen(["dpkg-deb", "--fsys-tarfile", path], stdout=subprocess.PIPE) as package:

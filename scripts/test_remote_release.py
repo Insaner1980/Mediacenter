@@ -185,6 +185,8 @@ class RemoteReleaseTest(unittest.TestCase):
         packaged_extension.write_text(json.dumps(extension))
         (packaged_extension.parent / extension["action"]["default_popup"]).touch()
         (packaged_extension.parent / extension["background"]["service_worker"]).touch()
+        (packaged_extension.parent / "launch.html").touch()
+        (packaged_extension.parent / "launch.mjs").touch()
         packaged_helper = packaged_extension.parent.parent / "remote-release.py"
         packaged_helper.touch()
         subprocess.run(["dpkg-deb", "--build", package, deb], check=True, capture_output=True)

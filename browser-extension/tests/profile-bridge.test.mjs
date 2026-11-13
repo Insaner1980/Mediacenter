@@ -13,6 +13,7 @@ test('production enrollment is explicit, survives a worker restart and retires o
   const { ProfileBridge } = await import('../profile-bridge.mjs');
   const storage = { profile: 'task-17-proof' };
   const ports = [];
+  const removed = [];
   const onAlarm = event();
   const chrome = {
     runtime: {
@@ -37,9 +38,10 @@ test('production enrollment is explicit, survives a worker restart and retires o
       },
     },
     alarms: { onAlarm, async get() {}, async create() {}, async clear() {} },
+    tabs: { async remove(id) { removed.push(id); } },
   };
   let disconnected = 0;
-  const session = { disconnect() { disconnected += 1; } };
+  const session = { async command() {}, disconnect() { disconnected += 1; } };
   const initial = new ProfileBridge(chrome, session);
   await initial.connect();
   assert.equal(ports.length, 0);
@@ -51,6 +53,16 @@ test('production enrollment is explicit, survives a worker restart and retires o
   assert.match(hello.profile, /^[a-f0-9-]{36}$/);
   first.onMessage.emit({ type: 'welcome' });
   assert.equal((await initial.status()).connected, true);
+  const nonce = crypto.randomUUID();
+  await initial.wake(nonce, 17);
+  assert.deepEqual(first.messages.at(-1), { type: 'wake', nonce });
+  const reply = command => first.onMessage.emit({ id: crypto.randomUUID(), command });
+  reply({ type: 'launch', nonce: crypto.randomUUID() });
+  await Promise.resolve();
+  assert.deepEqual(removed, []);
+  reply({ type: 'launch', nonce });
+  await Promise.resolve();
+  assert.deepEqual(removed, [17]);
   first.disconnect();
   assert.equal((await initial.status()).connected, false);
   assert.equal(disconnected, 1);

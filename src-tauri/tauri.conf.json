@@ -55,6 +55,8 @@
           "/usr/share/mediacenter/browser-extension/extension-id.txt": "../browser-extension/extension-id.txt",
           "/usr/share/mediacenter/browser-extension/input-proof.mjs": "../browser-extension/input-proof.mjs",
           "/usr/share/mediacenter/browser-extension/input.mjs": "../browser-extension/input.mjs",
+          "/usr/share/mediacenter/browser-extension/launch.html": "../browser-extension/launch.html",
+          "/usr/share/mediacenter/browser-extension/launch.mjs": "../browser-extension/launch.mjs",
           "/usr/share/mediacenter/browser-extension/manifest.json": "../browser-extension/manifest.json",
           "/usr/share/mediacenter/browser-extension/profile-bridge.mjs": "../browser-extension/profile-bridge.mjs",
           "/usr/share/mediacenter/browser-extension/service-catalog.mjs": "../browser-extension/service-catalog.mjs",

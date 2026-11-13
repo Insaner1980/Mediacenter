@@ -62,24 +62,26 @@ pub fn capabilities(mut base: Capabilities, state: &AppState) -> Capabilities {
             .map(|name| checked(name).expect("browser method")),
     );
     base.methods = checked(methods).expect("bounded methods");
-    base.browser_bridge = state.browser_runtime.available();
     base.services = checked(
         catalog::entries()
             .into_iter()
             .map(|entry| {
-                let live = state.browser_runtime.profile(entry.id, "auto").is_ok();
+                let launchable =
+                    state
+                        .browser_runtime
+                        .launchable(&state.data_dir, entry.id, "auto");
                 ServiceCapability {
                     service_id: checked(catalog::key(entry.id)).expect("catalog key"),
-                    support: if live {
+                    support: if launchable {
                         SupportedState::Partial
                     } else {
                         SupportedState::Unsupported
                     },
-                    browser: controls(live),
-                    limitation: checked(if live {
+                    browser: controls(launchable),
+                    limitation: checked(if launchable {
                         "Website controls only. Provider playback and HDMI audio need verification."
                     } else {
-                        "Open the Chrome profile enrolled for this service."
+                        "Set up the Chrome profile for this service."
                     })
                     .ok(),
                 }
@@ -87,6 +89,11 @@ pub fn capabilities(mut base: Capabilities, state: &AppState) -> Capabilities {
             .collect::<Vec<_>>(),
     )
     .expect("bounded catalog");
+    base.browser_bridge = base
+        .services
+        .as_slice()
+        .iter()
+        .any(|service| service.support == SupportedState::Partial);
     base
 }
 
@@ -292,9 +299,19 @@ async fn open(
                     "This streaming service is unavailable.",
                 )
             })?;
-        let profile = state
-            .browser_runtime
-            .profile(entry.id, requested.as_str())?;
+        let profile = match state.browser_runtime.profile(entry.id, requested.as_str()) {
+            Ok(profile) => profile,
+            Err(error)
+                if !state.browser_runtime.launchable(
+                    &state.data_dir,
+                    entry.id,
+                    requested.as_str(),
+                ) =>
+            {
+                return Err(error)
+            }
+            Err(_) => requested.as_str().to_owned(),
+        };
         preflight(d, entry.id).await?;
         authorize_effect(&d.services, owner).map_err(native_error)?;
         let mut labels = vec![entry.name];
@@ -374,11 +391,12 @@ async fn open(
             match action {
                 BrowserApproval::Launch { service, profile } => {
                     let d = Dispatcher::new(services.clone());
-                    state
-                        .browser_runtime
-                        .profile(service, &profile)
-                        .map_err(app_error)?;
                     preflight(&d, service).await.map_err(app_error)?;
+                    let profile = state
+                        .browser_runtime
+                        .prepare_profile(&state.data_dir, service, &profile, &cancel)
+                        .await
+                        .map_err(app_error)?;
                     if cancel.is_cancelled() {
                         return Err(AppError::new("cancelled", "Browser activity cancelled."));
                     }
