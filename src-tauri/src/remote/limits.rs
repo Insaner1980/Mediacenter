@@ -16,17 +16,28 @@ pub const THUMBNAIL_BYTES: usize = 512 * 1024;
 pub struct CommandRate {
     at: Instant,
     tokens: f64,
+    per_second: f64,
+    burst: f64,
 }
 impl CommandRate {
     pub fn new(now: Instant) -> Self {
+        Self::with_rate(now, 20.0, 40.0)
+    }
+    pub fn motion(now: Instant) -> Self {
+        Self::with_rate(now, 30.0, 3.0)
+    }
+    fn with_rate(at: Instant, per_second: f64, burst: f64) -> Self {
         Self {
-            at: now,
-            tokens: 40.0,
+            at,
+            tokens: burst,
+            per_second,
+            burst,
         }
     }
     pub fn admit(&mut self, now: Instant) -> bool {
-        self.tokens =
-            (self.tokens + now.saturating_duration_since(self.at).as_secs_f64() * 20.0).min(40.0);
+        self.tokens = (self.tokens
+            + now.saturating_duration_since(self.at).as_secs_f64() * self.per_second)
+            .min(self.burst);
         self.at = now;
         if self.tokens < 1.0 {
             return false;

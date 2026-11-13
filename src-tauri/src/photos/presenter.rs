@@ -565,7 +565,7 @@ pub(crate) async fn start_in_session(
             return Ok(value);
         }
     }
-    if state.browser.lock().await.is_some()
+    if state.browser_active().await
         || state
             .player
             .lock()

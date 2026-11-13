@@ -208,7 +208,7 @@ pub(crate) async fn play_in_transition(
     if !allow_replace {
         let active = state.player.lock().await.as_ref().map(|p| p.media.kind);
         if active.is_some_and(|kind| kind != crate::contracts::MediaKind::Audio)
-            || state.browser.lock().await.is_some()
+            || state.browser_active().await
             || crate::photos::presenter::snapshot(&state)
                 .await
                 .session_id
@@ -303,7 +303,7 @@ async fn adopt_confirmed_player(
         .await
         .session_id
         .is_some()
-        || state.browser.lock().await.is_some()
+        || state.browser_active().await
     {
         return Err(AppError::new(
             "session_switch_required",
@@ -433,7 +433,7 @@ async fn control_inner(
                     .await
                     .session_id
                     .is_some()
-                || state.browser.lock().await.is_some()
+                || state.browser_active().await
             {
                 return Err(AppError::new(
                     "session_switch_required",

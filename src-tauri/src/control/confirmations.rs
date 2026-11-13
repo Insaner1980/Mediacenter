@@ -3,6 +3,7 @@ use super::activity::Identity;
 use crate::remote::protocol::*;
 #[derive(Clone)]
 pub enum Action {
+    Browser(crate::remote::browser_input::BrowserApproval),
     EndSession(crate::remote::lifecycle::EndSession),
     Vpn(crate::remote::vpn::VpnChange),
     Admin(super::settings_devices::AdminAction),

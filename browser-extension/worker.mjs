@@ -1,6 +1,12 @@
+import { BrowserSession } from './browser-session.mjs';
 import { readViewport, requireSameViewport } from './input.mjs';
 import { runInputProof } from './input-proof.mjs';
+import { ProfileBridge } from './profile-bridge.mjs';
 import { TargetRegistry } from './target-registry.mjs';
+
+const browserSession = new BrowserSession(chrome, state => profileBridge.publish(state));
+const profileBridge = new ProfileBridge(chrome, browserSession);
+profileBridge.connect().catch(() => {});
 
 const registry = new TargetRegistry();
 const worker = crypto.randomUUID();
@@ -96,6 +102,18 @@ async function prepare(nonce) {
 
 async function handle(message) {
   switch (message.type) {
+    case 'remoteStatus': {
+      const status = await profileBridge.status();
+      return { ...status, canAdoptPopup: status.connected && await browserSession.canAdoptActivePopup() };
+    }
+    case 'remoteEnroll':
+      return profileBridge.enroll(message.kind, message.service);
+    case 'remoteUnenroll':
+      return profileBridge.unenroll();
+    case 'remoteAdoptPopup':
+      if (!profileBridge.connected) throw Error('bridge_unavailable');
+      await browserSession.adoptActivePopup();
+      return profileBridge.status();
     case 'enroll': {
       if (preparing || registry.target) throw Error('target_busy');
       const profile = crypto.randomUUID();

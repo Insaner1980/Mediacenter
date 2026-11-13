@@ -200,9 +200,20 @@ impl Fixture {
                 "sources.cancelScan",
                 "sources.prepareRemove",
                 "sources.confirmRemove",
-                "sources.confirmReattachment"
+                "sources.confirmReattachment",
+                "browser.open",
+                "browser.state",
+                "browser.pointer",
+                "browser.click",
+                "browser.scroll",
+                "browser.key",
+                "browser.text",
+                "browser.back",
+                "browser.reload",
+                "browser.close"
             ])
         );
+        assert_eq!(hello["capabilities"]["browserBridge"], false);
         let snapshot = next_json(&mut socket).await;
         assert_eq!(snapshot["type"], "snapshot");
         assert_eq!(snapshot["ui"]["available"], false);

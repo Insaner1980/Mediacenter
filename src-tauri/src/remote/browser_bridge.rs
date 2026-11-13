@@ -80,6 +80,16 @@ impl Broker {
         })
     }
 
+    pub(crate) fn async_listener(&self) -> io::Result<UnixListener> {
+        let listener = self.listener.try_clone()?;
+        listener.set_nonblocking(true)?;
+        Ok(listener)
+    }
+
+    pub(crate) fn broker_secret(&self) -> [u8; SECRET_BYTES] {
+        self.secret
+    }
+
     pub fn issue(&mut self, request: LaunchRequest, grant: LaunchGrant, lifetime: Duration) {
         self.pending = Some((request, grant, Instant::now() + lifetime));
     }
@@ -121,7 +131,42 @@ fn remove_broker_files(directory: &Path) {
     let _ = fs::remove_dir(directory);
 }
 
-pub fn redeem(directory: &Path, launch: LaunchRequest) -> io::Result<LaunchGrant> {
+pub(crate) fn bind_runtime(root: &Path, name: &str) -> io::Result<(Broker, File)> {
+    check_directory(root, owner())?;
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+        .open(root.join(format!("{name}.lock")))?;
+    let metadata = lock.metadata()?;
+    if !metadata.is_file() || metadata.uid() != owner() || metadata.mode() & 0o777 != 0o600 {
+        return Err(denied());
+    }
+    lock.try_lock()
+        .map_err(|error| io::Error::other(error.to_string()))?;
+    let directory = root.join(name);
+    if directory.symlink_metadata().is_ok() {
+        check_directory(&directory, owner())?;
+        let socket = directory.join("broker.sock");
+        match UnixStream::connect(&socket) {
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
+                ) =>
+            {
+                remove_broker_files(&directory)
+            }
+            _ => return Err(denied()),
+        }
+    }
+    Ok((Broker::bind(&directory)?, lock))
+}
+
+fn connect(directory: &Path) -> io::Result<(UnixStream, [u8; SECRET_BYTES])> {
     let owner = owner();
     check_directory(directory, owner)?;
     let secret_file = OpenOptions::new()
@@ -137,14 +182,25 @@ pub fn redeem(directory: &Path, launch: LaunchRequest) -> io::Result<LaunchGrant
     {
         return Err(denied());
     }
-    let mut stream = UnixStream::connect(socket)?;
+    let stream = UnixStream::connect(socket)?;
     check_peer(&stream, owner)?;
+    Ok((stream, secret))
+}
+
+pub fn connect_runtime(directory: &Path) -> io::Result<UnixStream> {
+    let (mut stream, secret) = connect(directory)?;
+    stream.write_all(&secret)?;
+    Ok(stream)
+}
+
+pub fn redeem(directory: &Path, launch: LaunchRequest) -> io::Result<LaunchGrant> {
+    let (mut stream, secret) = connect(directory)?;
     configure(&stream)?;
     write_message(&mut stream, &BrokerRequest { secret, launch })?;
     read_message(&mut stream)
 }
 
-fn owner() -> u32 {
+pub(crate) fn owner() -> u32 {
     // SAFETY: geteuid has no arguments and no memory preconditions.
     unsafe { nix::libc::geteuid() }
 }
@@ -286,5 +342,23 @@ mod tests {
             server.join().unwrap();
         });
         assert!(!directory.exists());
+    }
+}
+
+#[cfg(test)]
+mod runtime_regressions {
+    use super::super::browser_runtime::{ProfileKind, Runtime};
+
+    #[test]
+    fn select_only_the_live_profile_designated_for_the_catalog_service() {
+        use crate::contracts::ServiceId::*;
+        let runtime = Runtime::default();
+        let (_ordinary, _ordinary_commands) = runtime.test_profile(ProfileKind::Ordinary, None);
+        let (netflix, netflix_commands) = runtime.test_profile(ProfileKind::Managed, Some(Netflix));
+        assert_eq!(runtime.profile(Netflix, "auto").unwrap(), netflix);
+        assert!(runtime.profile(Youtube, "auto").is_err());
+        assert!(runtime.profile(HboMax, &netflix).is_err());
+        drop(netflix_commands);
+        assert!(runtime.profile(Netflix, "auto").is_err());
     }
 }

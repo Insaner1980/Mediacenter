@@ -14,6 +14,12 @@ pub async fn open(
         .session_gate
         .try_lock()
         .map_err(|_| AppError::new("session_busy", "Another playback session is starting."))?;
+    if state.browser_runtime.session().is_some() {
+        return Err(AppError::new(
+            "session_switch_required",
+            "Close the remote browser tab before opening another service.",
+        ));
+    }
     if crate::photos::presenter::snapshot(&state)
         .await
         .session_id
@@ -115,6 +121,13 @@ pub async fn focus(
     state: &crate::app_state::AppState,
     id: &str,
 ) -> Result<(), crate::contracts::AppError> {
+    if state
+        .browser_runtime
+        .session()
+        .is_some_and(|s| s.id.as_str() == id)
+    {
+        return crate::remote::browser_input::focus(state, id).await;
+    }
     let browser = state.browser.lock().await;
     let current = browser
         .as_ref()
@@ -132,6 +145,13 @@ pub async fn close(
     state: &crate::app_state::AppState,
     id: &str,
 ) -> Result<(), crate::contracts::AppError> {
+    if state
+        .browser_runtime
+        .session()
+        .is_some_and(|s| s.id.as_str() == id)
+    {
+        return crate::remote::browser_input::close(app, state, id).await;
+    }
     let mut browser = state.browser.lock().await;
     let current = browser
         .as_mut()
@@ -152,9 +172,31 @@ pub async fn close(
     })
 }
 pub async fn reconcile(app: &tauri::AppHandle, state: &crate::app_state::AppState) {
+    // Retire disconnected or locally closed extension sessions from the main activity.
+    let Ok(_session) = state.session_gate.try_lock() else {
+        return;
+    };
+    let bridged = state.browser_runtime.session().map(|session| session.id);
     let Ok(mut registry) = state.browser.try_lock() else {
         return;
     };
+    let native = registry.as_ref().map(|session| session.session.id.as_str());
+    let is_live = |id: &str| {
+        native == Some(id)
+            || bridged
+                .as_ref()
+                .is_some_and(|session| session.as_str() == id)
+    };
+    if state.snapshot().is_ok_and(|home| {
+        home.sessions
+            .iter()
+            .any(|s| s.kind == "streaming" && !is_live(&s.id))
+    }) {
+        let _ = crate::events::publish(app, state, |home| {
+            home.sessions
+                .retain(|session| session.kind != "streaming" || is_live(&session.id))
+        });
+    }
     let Some(browser) = registry.as_mut() else {
         return;
     };

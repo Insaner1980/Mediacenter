@@ -658,7 +658,7 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
         server_epoch: runtime.state().event_hub.epoch(),
         device_id: runtime.identity.id().clone(),
         version: checked(env!("CARGO_PKG_VERSION")).unwrap(),
-        capabilities: dispatch::capabilities(),
+        capabilities: super::browser_input::capabilities(dispatch::capabilities(), runtime.state()),
         snapshot_sequence: initial.initial.snapshot.sequence.clone(),
     };
     let mut events = initial.events;
@@ -681,6 +681,7 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
         events.mark_delivered(event);
     }
     let mut rate = CommandRate::new(Instant::now());
+    let mut motion_rate = CommandRate::motion(Instant::now());
     let mut heartbeat =
         tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -711,10 +712,10 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
                         // One elapsed-time budget includes parsing, native state
                         // capture/dispatch, serialization and response delivery.
                         let acknowledgement_deadline=tokio::time::Instant::now()+ACK_TIMEOUT;
-                        if !rate.admit(Instant::now()) { close_until(&mut socket,"rate_limited",&cancel,&revoked,acknowledgement_deadline).await; return; }
                         let request=match parse_request(&text) {
                             Ok(request)=>request,
                             Err(error)=> {
+                                if !rate.admit(Instant::now()) { close_until(&mut socket,"rate_limited",&cancel,&revoked,acknowledgement_deadline).await; return; }
                                 let id=super::protocol::validate_document(&text,MAX_REQUEST_BYTES).ok().and_then(|v|v.get("id").cloned()).and_then(|v|checked::<Id,_>(v).ok());
                                 let Some(id)=id else { close_until(&mut socket,"invalid_request",&cancel,&revoked,acknowledgement_deadline).await;return };
                                 let reply=RemoteReply::<serde_json::Value>::Failure{id,error};
@@ -723,6 +724,17 @@ async fn websocket_session<S: AsyncRead + AsyncWrite + Unpin>(
                             }
                         };
                         let id=request.id.clone();
+                        if super::browser_input::motion(&request.command) {
+                            if !motion_rate.admit(Instant::now()) {
+                                let error = RemoteError::new(ErrorCode::Busy, "Browser motion was superseded.");
+                                let Ok(message)=control_message(RemoteReply::<serde_json::Value>::Failure{id,error}) else { return };
+                                if send_until(&mut socket,message,&cancel,&revoked,acknowledgement_deadline).await.is_err() { return; }
+                                continue;
+                            }
+                        } else if !rate.admit(Instant::now()) {
+                            close_until(&mut socket,"rate_limited",&cancel,&revoked,acknowledgement_deadline).await;
+                            return;
+                        }
                         let result=match transient.lookup(&request) {
                             Some(result)=>result,
                             None=> {

@@ -95,7 +95,7 @@ pub async fn exit_status(state: &AppState) -> ExitStatus {
             .await
             .session_id
             .is_some();
-    let streaming_active = state.browser.lock().await.is_some();
+    let streaming_active = state.browser_active().await;
     let background_active = state
         .operations
         .lock()
@@ -217,7 +217,13 @@ pub async fn exit(
             .lock()
             .await
             .as_ref()
-            .map(|b| b.session.id.clone());
+            .map(|b| b.session.id.clone())
+            .or_else(|| {
+                state
+                    .browser_runtime
+                    .session()
+                    .map(|s| s.id.as_str().into())
+            });
         if let Some(id) = id {
             crate::streaming::sessions::close(app, state, &id).await?;
         }

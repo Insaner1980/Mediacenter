@@ -96,6 +96,9 @@ pub fn run() {
             let mut state = app_state::AppState::open(app.path().app_data_dir()?)
                 .map_err(|error| std::io::Error::other(error.message))?;
             state.cache_dir = app.path().app_cache_dir()?;
+            if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
+                let _ = state.browser_runtime.start(std::path::Path::new(&runtime));
+            }
             let server = std::sync::Arc::new(remote::server::RemoteServer::default());
             let namespace = if cfg!(debug_assertions) {
                 remote::tls::IdentityNamespace::Development
@@ -203,12 +206,14 @@ pub fn run() {
             let idle_state = state.inner().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
-                    let active = idle_state
-                        .player
-                        .lock()
-                        .await
-                        .as_ref()
-                        .is_some_and(|p| !p.snapshot.paused && p.snapshot.phase == "playing");
+                    let active =
+                        idle_state
+                            .browser_runtime
+                            .session()
+                            .is_some_and(|session| session.ready)
+                            || idle_state.player.lock().await.as_ref().is_some_and(|p| {
+                                !p.snapshot.paused && p.snapshot.phase == "playing"
+                            });
                     let photos = photos::presenter::snapshot(&idle_state).await;
                     idle_state
                         .idle

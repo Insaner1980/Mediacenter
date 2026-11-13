@@ -511,6 +511,7 @@ impl super::dispatch::Dispatcher {
                     "confirmations.cancel"
                 } else {
                     match pending.action {
+                        crate::control::confirmations::Action::Browser(_) => "browser.open",
                         crate::control::confirmations::Action::EndSession(_) => {
                             "settings.endSession"
                         }

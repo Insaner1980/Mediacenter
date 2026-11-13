@@ -125,6 +125,9 @@ impl Dispatcher {
         if crate::control::library::handles(&request.command) {
             return crate::control::library::dispatch(self, principal, request).await;
         }
+        if super::browser_input::handles(&request.command) {
+            return super::browser_input::dispatch(self, principal, request).await;
+        }
         match &request.command {
             RemoteCommand::UiNavigate(_)
             | RemoteCommand::UiMoveFocus(_)
@@ -134,7 +137,10 @@ impl Dispatcher {
                 self.renderer_input(principal, request, principal.device_id.as_str())
                     .await
             }
-            RemoteCommand::CapabilitiesGet(_) => value(capabilities()),
+            RemoteCommand::CapabilitiesGet(_) => value(super::browser_input::capabilities(
+                capabilities(),
+                &self.services.state,
+            )),
             RemoteCommand::AudioOutputs(_)
             | RemoteCommand::AudioPrepare(_)
             | RemoteCommand::AudioConfirm(_)
@@ -156,6 +162,21 @@ impl Dispatcher {
                         self.services.app().ok_or_else(unavailable)?,
                     )
                     .map_err(native_error)?,
+                    _ if self
+                        .services
+                        .state
+                        .browser_runtime
+                        .session()
+                        .is_some_and(|session| {
+                            Some(&session.id) == expected.session_id.as_ref()
+                                && session.owner != principal.device_id
+                        }) =>
+                    {
+                        return Err(RemoteError::new(
+                            ErrorCode::Forbidden,
+                            "This browser activity belongs to another phone.",
+                        ))
+                    }
                     _ => crate::control::activity::show_playback(
                         self.services.app(),
                         &self.services.state,
@@ -509,7 +530,7 @@ mod tests {
         assert!(!state.exit_pending.load(std::sync::atomic::Ordering::SeqCst));
     }
     #[tokio::test]
-    async fn missing_scope_and_future_methods_do_not_create_journal_intents() {
+    async fn missing_scope_and_browser_state_do_not_create_journal_intents() {
         let dir = tempfile::tempdir().unwrap();
         let state = crate::app_state::AppState::open(dir.path().into()).unwrap();
         let services = ControlServices::native(state.clone(), checked("server").unwrap()).unwrap();
@@ -533,14 +554,9 @@ mod tests {
                 .to_string(),
         )
         .unwrap();
-        assert_eq!(
-            dispatcher
-                .dispatch(&principal, request)
-                .await
-                .unwrap_err()
-                .code,
-            ErrorCode::Unsupported
-        );
+        let reply = dispatcher.dispatch(&principal, request).await.unwrap();
+        assert_eq!(reply["enrolled"], false);
+        assert_eq!(reply["capabilities"]["text"], false);
         let count: i64 = state
             .db
             .lock()

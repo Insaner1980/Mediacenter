@@ -334,7 +334,7 @@ pub(crate) async fn play_in_session(
     resume: bool,
     cancel: CancellationToken,
 ) -> Result<(), AppError> {
-    if state.browser.lock().await.is_some() {
+    if state.browser_active().await {
         return Err(AppError::new(
             "session_switch_required",
             "Close the current service before playing local media.",

@@ -35,7 +35,13 @@ pub async fn identity(state: &AppState) -> Identity {
             .lock()
             .await
             .as_ref()
-            .map(|b| b.session.id.clone()),
+            .map(|b| b.session.id.clone())
+            .or_else(|| {
+                state
+                    .browser_runtime
+                    .session()
+                    .map(|s| s.id.as_str().into())
+            }),
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -309,6 +315,13 @@ where
     drop(player);
     if crate::photos::presenter::foreground_session(state, expected, photo).await? {
         return Ok(());
+    }
+    if state
+        .browser_runtime
+        .session()
+        .is_some_and(|session| session.id.as_str() == expected)
+    {
+        return crate::remote::browser_input::focus(state, expected).await;
     }
     let browser = state.browser.lock().await;
     let browser = browser

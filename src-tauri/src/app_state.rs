@@ -32,6 +32,7 @@ pub struct AppState {
     pub scans: Arc<Mutex<HashMap<String, CancellationToken>>>,
     pub probes: Arc<tokio::sync::Semaphore>,
     pub grants: Arc<Mutex<crate::library::sources::Grants>>,
+    pub browser_runtime: crate::remote::browser_runtime::Runtime,
     pub browser: Arc<tokio::sync::Mutex<Option<crate::streaming::browser::BrowserSession>>>,
     pub data_dir: PathBuf,
     pub db: Arc<Mutex<Connection>>,
@@ -143,6 +144,7 @@ impl AppState {
             scans: Arc::new(Mutex::new(HashMap::new())),
             probes: Arc::new(tokio::sync::Semaphore::new(2)),
             grants: Arc::new(Mutex::new(crate::library::sources::Grants::default())),
+            browser_runtime: Default::default(),
             browser: Arc::new(tokio::sync::Mutex::new(None)),
             data_dir,
             db: Arc::new(Mutex::new(db)),
@@ -150,6 +152,9 @@ impl AppState {
             operations: Arc::new(Mutex::new(HashMap::new())),
             vpn_gate: Arc::new(tokio::sync::Mutex::new(())),
         })
+    }
+    pub async fn browser_active(&self) -> bool {
+        self.browser_runtime.session().is_some() || self.browser.lock().await.is_some()
     }
     pub fn snapshot(&self) -> Result<HomeSnapshot, AppError> {
         self.home.lock().map(|h| h.clone()).map_err(|_| {

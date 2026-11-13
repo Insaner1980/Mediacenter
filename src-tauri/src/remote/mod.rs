@@ -22,7 +22,9 @@ pub mod network;
 pub mod setup;
 
 pub mod browser_bridge;
+pub mod browser_input;
 pub mod browser_protocol;
+pub mod browser_runtime;
 
 pub mod media;
 

@@ -9,12 +9,13 @@ license = "MIT"
 [features]
 browser-proof = []
 
-[[bin]]
-name = "mediacenter-browser-host"
-required-features = ["browser-proof"]
 
 [[example]]
 name = "browser-broker-proof"
+required-features = ["browser-proof"]
+
+[[example]]
+name = "browser-runtime-smoke"
 required-features = ["browser-proof"]
 
 [lib]
