@@ -1,18 +1,58 @@
-# Remote control implementation checkpoint
+# Mediacenter Remote – jatkomuistio
 
-Resumed at the user’s explicit request on 2026-11-13. Tasks 1–16 and 20 are source-complete and independently reviewed. The Task 21 local-media source checkpoint is also approved; full Task 21 remains PARTIAL. Reviewed source pair: desktop `4548950bc68ab53eba9cec9d17218e1166e3542f`, Android `caad0fda0cb682e739ecb521b944a33ed404aabb`; desktop checkpoint HEAD before this resume is `9264836`. Do not restart completed source work or its unchanged full test suites.
+**Tilanne 13.11.2026 ennen koneen sammutusta.** Työpöydän ja Androidin kauko-ohjaus sekä Chrome-silta on toteutettu. Yhteensopiva testipakettipari on rakennettu ja tarkistettu. Jatka **Task 21:n laitetestistä**, kun kone, TV ja puhelin ovat käytettävissä. Task 22:ssa Linuxin paketointi on tarkistettu eristetyssä ympäristössä. Molempien laitteiden yhteinen hyväksyntä ja asennetun Remoten päivitys ovat kesken.
 
-## Resume
+## Aloita tästä käynnistyksen jälkeen
 
-Continue with final candidate verification and remaining physical acceptance in [the sofa control plan](../superpowers/plans/2026-11-09-remote-mediacenter-sofa-control.md). The browser bridge and Android controls are implemented. Actual provider playback, HDMI, full sofa acceptance and a signed upgrade still require the target setup.
+1. Avaa `/home/emma/Dev/Mediacenter`. Android-lähdekoodi on hakemistossa `/home/emma/Dev/Remote`. Tarkista pakettiparin SHA-256-tiivisteet sekä TV:n ja puhelimen tila alla olevilla komennoilla.
+2. Viimeisessä tarkistuksessa `HDMI-1` oli irti, ainoa ääniulostulo oli analoginen ja ADB:n laitelista oli tyhjä. Kytke tai pyydä käyttäjää kytkemään TV HDMI:llä ja Pixel USB:llä, jos ne puuttuvat edelleen. Käytä nykyistä peilausta. Varmista TV:n kuva ja kuuluva HDMI-ääni ennen sohvatestiä. ADB:n udev-paketti asennettiin jo ja Pixel 9 (Android 17, API 37) näkyi aiemmin valtuutettuna. USB-virheenkorjauspyyntö hyväksytään puhelimesta, jos se ilmestyy.
+3. Käytä tämän muistion paketteja ja [asennusohjetta](remote-control-setup.md). Asennettu Linux-Mediacenter ilmoittaa myös version 0.1.6, joten versionumero yksin ei tunnista uutta testipakettia. Tuotantoasennus on vielä tekemättä. Ota Mediacenterin koko sovellusdatahakemistosta yhteensopiva varmuuskopio sovelluksen ollessa suljettuna ennen varsinaista päivitystä.
+4. Ratkaise Android-testiasennus heti, kun Pixel näkyy. Asennetun `com.emmah.colordock.remote`-sovelluksen allekirjoitus poikkeaa debug-APK:sta. Käytä päivitystestiin asennetun sovelluksen avaimella allekirjoitettua APK:ta ja tarkista varmenne ennen asennusta. Säilytä nykyinen Remote, sen tiedot ja paritukset. Jos allekirjoitettua päivitystä ei ole käytettävissä, jatka laitetestejä erillisellä testipaketilla ja jätä paikallaan päivitys avoimeksi. Aiemman testin `com.emmah.colordock.remote.task7fixture` ja `.test` asennettiin jo Pixeliin. Ne ovat vanhemmasta versiosta, joten kokoa eristetty testipaketti lopullisesta Android-lähteestä ennen uusien ominaisuuksien testaamista. [Keystore- ja allekirjoitustulokset](evidence/remote-control/task21-device-keystore.md)
+5. Parita puhelin testiasennukseen. Aloita paikallisella videolla ja TV:n äänellä. Kokeile taukoa ja paluuta valikkoon, sitten yhtä suoratoistopalvelua. Paketin Chrome-laajennus rekisteröidään käyttöön kussakin käytettävässä profiilissa. Testiprofiilin käsin asennus tehtiin jo ja todettiin toimivaksi. Tavallisen Chrome-profiilin HBO Max -istunto edellyttää, että rekisteröity profiili on auki. Hallitun, rekisteröidyn palveluprofiilin voi käynnistää puhelimesta.
 
-- Chrome `157.0.8103.78` retained the manually installed extension and test enrollment across restart. The native host was found in the disposable profile. Actual Unicode, Enter and click reached only the catalog in the final active, background and external-focus runs. Chrome took focus in the external-focus case. An earlier inactive-at-creation fixture acknowledged commands without delivering them. A fresh broker grant reconnected after worker reload. The `--app` fixture opened the catalog in a separate window from the original app. See [browser feasibility](evidence/remote-control/browser-feasibility.md).
-- Tasks 18–19 add the production Native Messaging broker, browser session lifetime, 30 Hz motion, session-specific origin approval and the Android browser controls. The production smoke used the real Chrome and native host with an intercepted synthetic service page. It also started a closed, enrolled managed profile. HBO Max requires its enrolled ordinary Chrome profile to be open. [Production browser evidence](evidence/remote-control/task21-22-acceptance.md#browser-production-path)
-- USB ADB now works after installing the Ubuntu Android udev rules and reconnecting the test Pixel (API 37). Installed Remote `1.0.0` and the debug candidate have different signing certificates. An in-place upgrade needs a candidate signed with the installed app's key. Preserve the installed app and data.
-- Task 21 isolated Android Keystore acceptance passed on the phone, including the write/force-stop/read sequence. The test app and runner use `com.emmah.colordock.remote.task7fixture` and `.test`. The two test packages are installed. See [device evidence](evidence/remote-control/task21-device-keystore.md).
-- The reviewed local-media source candidates remain in `releases/remote-local-source-4548950/`. The streaming test candidates are in `releases/remote-streaming-candidate/`. A private X11/D-Bus package test verified that a normal launch restored the original background process's window. The active Linux installation was kept in place.
+```bash
+cd /home/emma/Dev/Mediacenter
+(cd releases/remote-streaming-candidate && sha256sum -c SHA256SUMS)
+xrandr --query
+pactl list short sinks
+.tools/remote-android/sdk/platform-tools/adb devices
+```
 
-Read the current Task 17 entries in `.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control/progress.md`. Earlier sections below are historical. The reviewed source gates and candidate inspections remain in [Task 21 source evidence](evidence/remote-control/task21-local-checkpoint/README.md). The browser and connected-phone tests above do not close the remaining paired phone/computer/HDMI/audio, OS lifetime, performance or upgrade checks.
+Jos käytät erillistä Android-testipakettia, aja Mediacenterin hakemistosta seuraava käännös. Tarkista käännöksen APK:n sovellustunnus SDK:n `aapt2 dump badging` -komennolla ennen asennusta. Odotettu tunnus on `com.emmah.colordock.remote.task7fixture`. Säilytä jakeluhakemiston `Remote-debug.apk` erillään Gradlen ylikirjoittamasta käännöshakemistosta.
+
+```bash
+checkpoint="$PWD/.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control"
+bash "$checkpoint/resume-tools/run-remote-gradle.sh" \
+  --init-script "$checkpoint/task-7-isolated-device.init.gradle" :app:assembleDebug
+```
+
+## Käytettävät testipaketit
+
+Hakemisto `/home/emma/Dev/Mediacenter/releases/remote-streaming-candidate/` on paikallinen ja Gitin ohittama. Sen `compatibility-manifest.json` sisältää lähdeversiot, protokollan ja laajennustunnisteen. `SHA256SUMS` kattaa molemmat paketit ja manifestin.
+
+| Paketti | Rakennettu lähde | SHA-256 |
+| --- | --- | --- |
+| `Mediacenter_0.1.6_amd64.deb` | `525184a80aca337b033f289367b1c66f9d18b0d6` | `6b4f70be76261eaeaccee53757bd84856a6a89ca06e35d8d9bfd78c29de9faae` |
+| `Remote-debug.apk` (1.0.0, versionCode 1, SDK 37) | `137fdd1454e321bdcf2037a2bbc5ffc4e4c83083` | `565710adaecf6c74ec2757c49fd67921d7fa61ba118ec3f323479204f48fcf24` |
+
+Mediacenterin myöhemmät commitit `525184a`:n jälkeen päivittävät dokumentaatiota. Vanhempi `releases/remote-local-source-4548950/` on aiempi paikallismedian testipari. Käytä suoratoistotestissä yllä nimettyä pakettiparia. Työpöydän komentoja varten lataa `source scripts/dev-env.sh`. Androidin työkalut ovat `.tools/remote-android/`-hakemistossa. Gradle-ajuri ja aiemman eristetyn laitestestin työkalut löytyvät polusta `.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control/resume-tools/`. Käynnistyksen jälkeen tämä muistio ja versionhallinnassa olevat tulokset riittävät jatkamiseen.
+
+## Valmis ja todennettu
+
+- Tehtävien 1–16 ja 20 lähdekoodi sekä Task 21:n paikallismedian lähdetason rajapintatesti on katselmoitu. Rustin palvelin ja Kotlinin asiakas käyttävät samaa 88 menetelmän protokollaa. [Aiempi hyväksytty katselmointi](evidence/remote-control/task21-local-checkpoint/README.md)
+- Task 17:n Chrome-testi ja Tasks 18–19:n toteutus ovat valmiit. Chrome 157.0.8103.78 käytti oikeaa Native Messaging -isäntää. Testi varmisti erillisen välilehden, Unicode-syötön ja välilehden sulkemisen synteettisellä palvelusivulla sekä suljetun hallitun profiilin käynnistymisen. Varsinaiset palvelut tilauksineen, DRM ja HDMI-ääni kuuluvat laitetestiin. [Chrome-testi](evidence/remote-control/browser-production-runtime-result.json)
+- Pakettien lähteillä läpäistiin 429 Rust-testiä (neljä ennestään ohitettua), 189 käyttöliittymän yksikkötestiä, 17 selain-E2E-testiä, 18 laajennustestiä, kahdeksan paketointitestiä ja 428 Android-testiä. Käännökset, lintit, APK:n debug-allekirjoitus ja Androidin instrumentointitestien käännös tarkistettiin. Pixeliin aiemmin asennetulla erillisellä testisovelluksella läpäistiin Keystore-testi ja kirjoitus → prosessin pysäytys → luku.
+- Lopullisen Debian-paketin asennus, 0.1.5 → 0.1.6 -päivitys ja poisto läpäisivät eristetyn testin. Testidata säilyi skeemapäivityksessä ja vanha sovellus hylkäsi uudemman skeeman ja avasi yhteensopivan varmuuskopion. Laajennuksen isäntärekisteröinti voitiin lisätä, todentaa ja poistaa. Uusi käynnistys palautti saman taustaprosessin ikkunan yksityisessä X11/D-Bus-istunnossa. [Pakettitestien tulokset](evidence/remote-control/task21-22-acceptance.md#candidate-verification)
+
+## Vielä tehtävä
+
+- Suorita Task 21:n laitetestit. Testaa QR- ja manuaaliparitus, API 37:n verkkoluvat ja yhteyden palautuminen, paikalliset videot, musiikki, soittolistat ja kuvat, kansiot ja testi-USB, LG/Mediacenter-vaihto ja HDMI-kuva sekä ääni. Testaa kaikki saatavilla olevat palvelut oikeilla tileillä. Tarkista kirjautuminen, tekstinsyöttö, toisto, tauko, tekstitys, ääni ja paluu. Kirjaa jokainen tietokoneella tarvittu toimenpide. Varmenna kirjautumisesta käynnistys, lukitus ja joutokäynti, HDMI:n irrotus ja TV:n uudelleenkäynnistys. Mittaa LAN-viive, jälleenyhteys ja kahden tunnin käyttö. Testaa VPN-vaihto sovitussa testiympäristössä. [Laitetestitaulukko](evidence/remote-control/task21-22-acceptance.md#acceptance-run)
+- Testaa Task 22:n yhteinen puhdas asennus ja allekirjoitettu päivitys. Tarkista säilyneet paritukset, identiteetti, kirjastot ja LG-asetukset, parituksen peruminen, poistot sekä palautuksen toiminta puhelimen kanssa. Kirjaa palvelu- ja laitekohtaiset tulokset, käytetyt pakettitiivisteet ja avoimet kohdat. Merkitse julkaisu hyväksytyksi vain testatulle laajuudelle.
+- Laajennus käyttää palvelun omia toistosäätimiä. Selain- tai käyttöjärjestelmän dialogi voi vaatia tietokonetta. HBO Max käyttää tavallista Chromea ja tarvitsee HDMI-äänen kertamäärityksen työpöydällä. Säilytä muut Chrome-välilehdet sekä käyttäjän alkuperäinen media ja asetukset testeissä. Säilytä myös työpuun aiemmat muutokset tiedostossa `docs/engineering/streaming-compatibility.md`, design-kansiossa, Viaplay-evidenssissä ja lisäämättömässä suunnitelmatiedostossa.
+
+## Aiemmat tarkistuspisteet
+
+Alla oleva englanninkielinen historia kuvaa aiempia lähdeversioita ja niiden silloista työjärjestystä. Käynnistyksen jälkeinen työ alkaa tämän muistion alusta.
 
 ## Verified baseline
 
@@ -252,7 +292,7 @@ Next: independent review of the labelled local-media SOURCE CHECKPOINT from MC5d
 
 Parent now prepares an explicitly labelled local-media source candidate for later Task21 hardware acceptance using the existing locked build configuration. Preserve older packages, inspect new archive/checksums/dependencies without installing or changing user data. No Task22 accepted release, browser bridge support, version/dependency/configuration change or actual device acceptance is implied. Native helper/source/stage are idle and parent-owned; all independent implementation/review work is complete at this checkpoint.
 
-## Current resume point — reviewed source and candidates ready
+## Historical resume point — local-media candidates before Chrome work
 
 Tasks 13–16 and 20 are source-complete; the permitted Task 21 LOCAL-MEDIA SOURCE CHECKPOINT is independently approved with no blocking findings. Full Task 21 remains PARTIAL. Final source pair: desktop 4548950bc68ab53eba9cec9d17218e1166e3542f  / Android caad0fda0cb682e739ecb521b944a33ed404aabb, schema f7231d1864fa77b52ba035dd3418bfae57ec2787924bee9a957e58765695a1a0. Final gates and review are committed under evidence/remote-control/task21-local-checkpoint. Do not repeat completed implementation or its unchanged full suites. Baseline toolchain warnings and Task 1 formal-schema minor remain explicit final-review debt.
 
