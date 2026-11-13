@@ -15,7 +15,7 @@ const host = path.resolve('src-tauri/target/debug/mediacenter-browser-host');
 const broker = path.resolve('src-tauri/target/debug/examples/browser-broker-proof');
 const args = [`--user-data-dir=${root}/profile`, '--no-first-run', '--no-default-browser-check', '--remote-debugging-pipe'];
 const mode = process.argv[2] ?? '--background-tab';
-assert.ok(['--active-catalog', '--background-tab', '--external-focus'].includes(mode));
+assert.ok(['--active-catalog', '--background-tab', '--external-focus', '--resize'].includes(mode));
 if (mode === '--external-focus') {
   assert.equal(process.env.MEDIACENTER_PRIVATE_DISPLAY, process.env.DISPLAY, 'Use a private Xvfb display');
   assert.ok(/^:[1-9][0-9]{2}$/.test(process.env.DISPLAY ?? ''), 'Require a dedicated Xvfb display');
@@ -154,13 +154,13 @@ try {
   let extension = await openExtension();
   const readProfile = () => waitFor(() => evalPage(extension, 'globalThis.chrome?.storage?.local.get("profile").then(s => s.profile)'));
   const profile = await readProfile();
-  if ((await send(extension, { type: 'probe' }))?.proofRevision !== 5) {
+  if ((await send(extension, { type: 'probe' }))?.proofRevision !== 7) {
     await evalPage(extension, 'setTimeout(() => chrome.runtime.reload(), 0)');
     await delay(400);
     extension = await openExtension();
     assert.equal(await readProfile(), profile);
   }
-  assert.equal((await send(extension, { type: 'probe' }))?.proofRevision, 5, 'Current extension worker was loaded');
+  assert.equal((await send(extension, { type: 'probe' }))?.proofRevision, 7, 'Current extension worker was loaded');
   if (mode === '--external-focus') {
     const pingTarget = (await cdp('Target.createTarget', { url: unrelated })).targetId;
     const ping = await session(pingTarget);
@@ -202,58 +202,70 @@ try {
     await waitFor(externalFocused, 'external app focus');
     result.externalWindowFocusedBefore = true;
   }
-  assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { submitted: true });
-  await delay(500);
-  const after = await state(catalogSession);
-  const otherAfter = await state(other);
-  if (mode === '--external-focus') {
-    result.externalWindowFocusedAfter = Boolean(externalFocused());
-    result.externalEntryStillOpen = external.exitCode === null;
-    result.externalEntryUnchanged = (await readFile(externalText, 'utf8')) === '';
-    result.externalEntryReceivedEnter = await readFile(path.join(directory, 'external-entry.enter')).then(() => true, error => {
-      if (error.code === 'ENOENT') return false;
-      throw error;
-    });
-  }
-  result.focusBefore = { catalog: catalogBefore.focused, unrelated: before.focused };
-  result.focusAfter = { catalog: after.focused, unrelated: otherAfter.focused };
-  result.catalogInput = { correctText: after.text === syntheticText, keys: after.keys, clicks: after.clicks };
-  result.unrelatedInput = { emptyText: !otherAfter.text, keys: otherAfter.keys, clicks: otherAfter.clicks };
-  assert.deepEqual({ text: after.text, keys: after.keys, clicks: after.clicks },
-    { text: syntheticText, keys: 1, clicks: 1 }, 'Catalog input');
-  assert.deepEqual({ text: otherAfter.text, keys: otherAfter.keys, clicks: otherAfter.clicks },
-    { text: before.text, keys: before.keys, clicks: before.clicks }, 'Unrelated input');
-  result.tabScopedTextKeyAndClick = true;
-  result.unrelatedTabUnchanged = true;
-  if (result.managedAppWindowOpened) {
-    const app = (await cdp('Target.getTargets')).targetInfos.find(info => info.url === `http://127.0.0.1:${port}/app`);
-    const appWindow = await cdp('Browser.getWindowForTarget', { targetId: app.targetId });
-    const catalogWindow = await cdp('Browser.getWindowForTarget', { targetId: catalogTarget.targetId });
-    result.catalogInOriginalAppWindow = appWindow.windowId === catalogWindow.windowId;
-    const appState = await state(await session(app.targetId));
-    result.originalAppWindowUnchanged = !appState.text && appState.keys === 0 && appState.clicks === 0;
-    assert.ok(result.originalAppWindowUnchanged);
-  }
-  await cdp('Page.navigate', { url: `${catalog}/different` }, catalogSession);
-  await waitFor(() => evalPage(catalogSession, `location.pathname === '/catalog/different' && document.readyState === 'complete'`));
-  assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { error: 'stale_target' });
-  result.navigationInvalidated = true;
-  const workerBefore = (await send(extension, { type: 'probe' })).worker;
-  await evalPage(extension, 'setTimeout(() => chrome.runtime.reload(), 0)');
-  await delay(400);
-  extension = await openExtension();
-  assert.equal(await readProfile(), profile);
-  assert.notEqual((await send(extension, { type: 'probe' })).worker, workerBefore);
-  assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { error: 'stale_target' });
-  result.workerRestartRetiredTarget = true;
-  const reconnected = await requestTarget(extension, profile);
-  assert.notEqual(reconnected.tabId, target.tabId);
-  assert.notEqual(reconnected.generation, target.generation);
-  assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { error: 'stale_target' });
-  result.nativeHostReconnectedAfterWorkerReload = true;
-  if (mode === '--external-focus') {
-    assert.ok(result.externalEntryStillOpen && result.externalEntryUnchanged && !result.externalEntryReceivedEnter,
-      'External entry must receive no text or Enter');
+  if (mode === '--resize') {
+    assert.deepEqual(await send(extension, { ...target, type: 'measureProof' }), { measured: true });
+    const previous = await evalPage(catalogSession, 'innerWidth');
+    const width = previous > 850 ? 700 : 970;
+    await cdp('Emulation.setDeviceMetricsOverride', { width, height: 620, deviceScaleFactor: 1, mobile: false }, catalogSession);
+    await waitFor(() => evalPage(catalogSession, `innerWidth !== ${previous}`), 'resized catalog CSS viewport');
+    assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { error: 'stale_viewport' });
+    const after = await state(catalogSession);
+    assert.deepEqual({ text: after.text, keys: after.keys, clicks: after.clicks }, { text: '', keys: 0, clicks: 0 });
+    result.resizedViewportRejectedOldCoordinates = true;
+  } else {
+    assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { submitted: true });
+    await delay(500);
+    const after = await state(catalogSession);
+    const otherAfter = await state(other);
+    if (mode === '--external-focus') {
+      result.externalWindowFocusedAfter = Boolean(externalFocused());
+      result.externalEntryStillOpen = external.exitCode === null;
+      result.externalEntryUnchanged = (await readFile(externalText, 'utf8')) === '';
+      result.externalEntryReceivedEnter = await readFile(path.join(directory, 'external-entry.enter')).then(() => true, error => {
+        if (error.code === 'ENOENT') return false;
+        throw error;
+      });
+    }
+    result.focusBefore = { catalog: catalogBefore.focused, unrelated: before.focused };
+    result.focusAfter = { catalog: after.focused, unrelated: otherAfter.focused };
+    result.catalogInput = { correctText: after.text === syntheticText, keys: after.keys, clicks: after.clicks };
+    result.unrelatedInput = { emptyText: !otherAfter.text, keys: otherAfter.keys, clicks: otherAfter.clicks };
+    assert.deepEqual({ text: after.text, keys: after.keys, clicks: after.clicks },
+      { text: syntheticText, keys: 1, clicks: 1 }, 'Catalog input');
+    assert.deepEqual({ text: otherAfter.text, keys: otherAfter.keys, clicks: otherAfter.clicks },
+      { text: before.text, keys: before.keys, clicks: before.clicks }, 'Unrelated input');
+    result.tabScopedTextKeyAndClick = true;
+    result.unrelatedTabUnchanged = true;
+    if (result.managedAppWindowOpened) {
+      const app = (await cdp('Target.getTargets')).targetInfos.find(info => info.url === `http://127.0.0.1:${port}/app`);
+      const appWindow = await cdp('Browser.getWindowForTarget', { targetId: app.targetId });
+      const catalogWindow = await cdp('Browser.getWindowForTarget', { targetId: catalogTarget.targetId });
+      result.catalogInOriginalAppWindow = appWindow.windowId === catalogWindow.windowId;
+      const appState = await state(await session(app.targetId));
+      result.originalAppWindowUnchanged = !appState.text && appState.keys === 0 && appState.clicks === 0;
+      assert.ok(result.originalAppWindowUnchanged);
+    }
+    await cdp('Page.navigate', { url: `${catalog}/different` }, catalogSession);
+    await waitFor(() => evalPage(catalogSession, `location.pathname === '/catalog/different' && document.readyState === 'complete'`));
+    assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { error: 'stale_target' });
+    result.navigationInvalidated = true;
+    const workerBefore = (await send(extension, { type: 'probe' })).worker;
+    await evalPage(extension, 'setTimeout(() => chrome.runtime.reload(), 0)');
+    await delay(400);
+    extension = await openExtension();
+    assert.equal(await readProfile(), profile);
+    assert.notEqual((await send(extension, { type: 'probe' })).worker, workerBefore);
+    assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { error: 'stale_target' });
+    result.workerRestartRetiredTarget = true;
+    const reconnected = await requestTarget(extension, profile);
+    assert.notEqual(reconnected.tabId, target.tabId);
+    assert.notEqual(reconnected.generation, target.generation);
+    assert.deepEqual(await send(extension, { ...target, type: 'inputProof' }), { error: 'stale_target' });
+    result.nativeHostReconnectedAfterWorkerReload = true;
+    if (mode === '--external-focus') {
+      assert.ok(result.externalEntryStillOpen && result.externalEntryUnchanged && !result.externalEntryReceivedEnter,
+        'External entry must receive no text or Enter');
+    }
   }
   result.passed = true;
 } catch (error) {

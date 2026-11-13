@@ -36,6 +36,11 @@ export async function readViewport(debuggerApi, tabId, generation, validate) {
   return { width, height, generation };
 }
 
+export async function requireSameViewport(debuggerApi, tabId, measured, validate) {
+  const current = await readViewport(debuggerApi, tabId, measured.generation, validate);
+  if (current.width !== measured.width || current.height !== measured.height) throw Error('stale_viewport');
+}
+
 export async function dispatchBrowserInput(debuggerApi, tabId, request, viewport, validate) {
   if (!request || typeof request !== 'object') throw Error('invalid_browser_input');
   const send = (method, params) => {

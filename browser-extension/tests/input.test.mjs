@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dispatchBrowserInput, readViewport } from '../input.mjs';
+import { dispatchBrowserInput, readViewport, requireSameViewport } from '../input.mjs';
 
 const viewport = { width: 800, height: 450, generation: '4' };
 
@@ -78,4 +78,15 @@ test('does not retry committed text when Chrome rejects or loses its response', 
   } };
   await assert.rejects(dispatchBrowserInput(debuggerApi, 23, { type: 'text', text: 'synthetic' }, null, () => {}), /disconnected/);
   assert.equal(calls, 1);
+});
+
+test('blocks queued input when the CSS viewport changes after coordinates were measured', async () => {
+  let width = 800;
+  const debuggerApi = { async sendCommand() {
+    return { cssLayoutViewport: { clientWidth: width, clientHeight: 450 } };
+  } };
+  const previous = await readViewport(debuggerApi, 23, '4', () => {});
+  await requireSameViewport(debuggerApi, 23, previous, () => {});
+  width = 640;
+  await assert.rejects(requireSameViewport(debuggerApi, 23, previous, () => {}), /stale_viewport/);
 });

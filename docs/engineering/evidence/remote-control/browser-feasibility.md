@@ -66,3 +66,7 @@ bash browser-extension/harness/external-focus.sh
 - Chrome displayed its debugger warning with a Cancel button when the attached catalog tab was active. [Warning screenshot](browser-native-input-warning.png)
 
 See [native-input results](browser-native-input-result.json) for the four scenarios. The private-display runner uses the local Xvfb build and Metacity. The Xvfb fixture needed a Chrome process without a session-bus portal connection for loopback page loads. This was a fixture adjustment only. Task 18 must account for focus changes and the difference between command submission and observed delivery. Task 19 still needs provider-specific app-window and login behavior. Production streaming readiness remains pending.
+
+## Task 18 viewport check
+
+`node browser-extension/harness/native-input.mjs --resize` passed on Chrome `157.0.8103.78`. The fixture measured the enrolled page, changed its CSS viewport using Chrome's test emulation command, then tried the old input. The extension returned `stale_viewport` and the page observed no text, key or click. A subsequent active-catalog run also passed. Production viewport generation updates and Android input flow remain to be integrated.

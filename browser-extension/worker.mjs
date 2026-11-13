@@ -1,9 +1,10 @@
+import { readViewport, requireSameViewport } from './input.mjs';
 import { runInputProof } from './input-proof.mjs';
 import { TargetRegistry } from './target-registry.mjs';
 
 const registry = new TargetRegistry();
 const worker = crypto.randomUUID();
-const proofRevision = 5;
+const proofRevision = 7;
 const host = 'io.emma.mediacenter.browser_proof';
 let preparing = false;
 let inputGrant;
@@ -106,8 +107,16 @@ async function handle(message) {
       return { admitted: true, extensionId: chrome.runtime.id, worker, proofRevision };
     case 'prepareProof': {
       const { text, ...target } = await prepare(message.nonce);
-      inputGrant = text;
+      inputGrant = { text, viewport: undefined };
       return target;
+    }
+    case 'measureProof': {
+      const { session, generation, tabId } = message;
+      const validate = () => registry.validate(session, generation, tabId);
+      const viewport = await readViewport(chrome.debugger, tabId, generation, validate);
+      if (!inputGrant) throw Error('grant_consumed');
+      inputGrant.viewport = viewport;
+      return { measured: true };
     }
     case 'inputProof': {
       const { session, generation, tabId } = message;
@@ -116,10 +125,11 @@ async function handle(message) {
       const tab = await chrome.tabs.get(tabId);
       if (tab.status !== 'complete' || new URL(tab.url).origin !== target.origin) throw Error('stale_target');
       validate();
-      const text = inputGrant;
-      if (typeof text !== 'string') throw Error('grant_consumed');
+      const grant = inputGrant;
+      if (!grant) throw Error('grant_consumed');
       inputGrant = undefined;
-      await runInputProof(chrome.debugger, tabId, text, { x: 80, y: 58 }, validate);
+      if (grant.viewport) await requireSameViewport(chrome.debugger, tabId, grant.viewport, validate);
+      await runInputProof(chrome.debugger, tabId, grant.text, { x: 80, y: 58 }, validate);
       return { submitted: true };
     }
     default:
@@ -131,7 +141,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('enroll.html')) return false;
   if (!message || typeof message !== 'object') return false;
   handle(message).then(reply, error => {
-    const known = ['native_host_not_found', 'native_host_no_reply', 'invalid_catalog', 'catalog_timeout', 'debugger_attach_failed', 'stale_target', 'stale_launch', 'profile_required', 'tab_closed'];
+    const known = ['native_host_not_found', 'native_host_no_reply', 'invalid_catalog', 'catalog_timeout', 'debugger_attach_failed', 'stale_target', 'stale_viewport', 'stale_launch', 'profile_required', 'tab_closed'];
     reply({ error: (known.includes(error.message) || /^proof_(storage|grant|tab_create|tab_load|attach)$/.test(error.message)) ? error.message : 'bridge_unavailable' });
   });
   return true;
