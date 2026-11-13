@@ -154,13 +154,13 @@ try {
   let extension = await openExtension();
   const readProfile = () => waitFor(() => evalPage(extension, 'globalThis.chrome?.storage?.local.get("profile").then(s => s.profile)'));
   const profile = await readProfile();
-  if ((await send(extension, { type: 'probe' }))?.proofRevision !== 3) {
+  if ((await send(extension, { type: 'probe' }))?.proofRevision !== 5) {
     await evalPage(extension, 'setTimeout(() => chrome.runtime.reload(), 0)');
     await delay(400);
     extension = await openExtension();
     assert.equal(await readProfile(), profile);
   }
-  assert.equal((await send(extension, { type: 'probe' }))?.proofRevision, 3, 'Current extension worker was loaded');
+  assert.equal((await send(extension, { type: 'probe' }))?.proofRevision, 5, 'Current extension worker was loaded');
   if (mode === '--external-focus') {
     const pingTarget = (await cdp('Target.createTarget', { url: unrelated })).targetId;
     const ping = await session(pingTarget);

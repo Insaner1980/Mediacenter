@@ -9,10 +9,11 @@ test('proof binds fixed input to the enrolled tab and stops on generation loss',
     assert.deepEqual(target, { tabId: 42 });
     commands.push([method, params]);
     if (method === 'Input.dispatchKeyEvent') current = false;
+    if (method === 'Page.getLayoutMetrics') return { cssLayoutViewport: { clientWidth: 800, clientHeight: 450 } };
   } };
   await assert.rejects(runInputProof(debuggerApi, 42, 'café 🦊', { x: 80, y: 20 }, () => {
     if (!current) throw Error('stale_target');
   }), /stale_target/);
-  assert.deepEqual(commands.map(([method]) => method), ['Input.insertText', 'Input.dispatchKeyEvent']);
-  assert.equal(commands[0][1].text, 'café 🦊');
+  assert.deepEqual(commands.map(([method]) => method), ['Page.getLayoutMetrics', 'Input.insertText', 'Input.dispatchKeyEvent']);
+  assert.equal(commands[1][1].text, 'café 🦊');
 });

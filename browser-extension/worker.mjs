@@ -3,7 +3,7 @@ import { TargetRegistry } from './target-registry.mjs';
 
 const registry = new TargetRegistry();
 const worker = crypto.randomUUID();
-const proofRevision = 3;
+const proofRevision = 5;
 const host = 'io.emma.mediacenter.browser_proof';
 let preparing = false;
 let inputGrant;
