@@ -21,6 +21,7 @@ pub mod discovery;
 pub mod network;
 pub mod setup;
 
+pub mod browser_bridge;
 pub mod browser_protocol;
 
 pub mod media;

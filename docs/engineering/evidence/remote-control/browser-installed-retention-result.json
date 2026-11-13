@@ -1,0 +1,17 @@
+{
+  "command": "source scripts/dev-env.sh && node browser-extension/harness/admission.mjs --installed",
+  "installation": "Manual Developer mode / Load unpacked in the isolated profile",
+  "extensionId": "njhbcllpkbihpkioegopblabopnkhndk",
+  "version": "Chrome/157.0.8103.78",
+  "chromeArguments": [
+    "--user-data-dir=<disposable profile>",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--remote-debugging-pipe"
+  ],
+  "sameArgumentsAfterRestart": true,
+  "admissionPassed": true,
+  "retentionPassed": true,
+  "sameSyntheticEnrollmentAfterRestart": true,
+  "exitCode": 0
+}

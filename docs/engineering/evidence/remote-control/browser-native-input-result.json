@@ -1,0 +1,133 @@
+{
+  "activeCatalog": {
+    "extensionId": "njhbcllpkbihpkioegopblabopnkhndk",
+    "mode": "--active-catalog",
+    "passed": true,
+    "chrome": "Chrome/157.0.8103.78",
+    "nativeHostInvoked": true,
+    "focusBefore": {
+      "catalog": false,
+      "unrelated": true
+    },
+    "focusAfter": {
+      "catalog": true,
+      "unrelated": false
+    },
+    "catalogInput": {
+      "correctText": true,
+      "keys": 1,
+      "clicks": 1
+    },
+    "unrelatedInput": {
+      "emptyText": true,
+      "keys": 0,
+      "clicks": 0
+    },
+    "tabScopedTextKeyAndClick": true,
+    "unrelatedTabUnchanged": true,
+    "navigationInvalidated": true,
+    "workerRestartRetiredTarget": true,
+    "nativeHostReconnectedAfterWorkerReload": true
+  },
+  "backgroundTab": {
+    "extensionId": "njhbcllpkbihpkioegopblabopnkhndk",
+    "mode": "--background-tab",
+    "passed": true,
+    "chrome": "Chrome/157.0.8103.78",
+    "nativeHostInvoked": true,
+    "focusBefore": {
+      "catalog": false,
+      "unrelated": true
+    },
+    "focusAfter": {
+      "catalog": true,
+      "unrelated": true
+    },
+    "catalogInput": {
+      "correctText": true,
+      "keys": 1,
+      "clicks": 1
+    },
+    "unrelatedInput": {
+      "emptyText": true,
+      "keys": 0,
+      "clicks": 0
+    },
+    "tabScopedTextKeyAndClick": true,
+    "unrelatedTabUnchanged": true,
+    "navigationInvalidated": true,
+    "workerRestartRetiredTarget": true,
+    "nativeHostReconnectedAfterWorkerReload": true
+  },
+  "externalFocus": {
+    "extensionId": "njhbcllpkbihpkioegopblabopnkhndk",
+    "mode": "--external-focus",
+    "passed": true,
+    "chrome": "Chrome/157.0.8103.78",
+    "nativeHostInvoked": true,
+    "externalWindowFocusedBefore": true,
+    "externalWindowFocusedAfter": false,
+    "externalEntryStillOpen": true,
+    "externalEntryUnchanged": true,
+    "externalEntryReceivedEnter": false,
+    "focusBefore": {
+      "catalog": false,
+      "unrelated": true
+    },
+    "focusAfter": {
+      "catalog": true,
+      "unrelated": false
+    },
+    "catalogInput": {
+      "correctText": true,
+      "keys": 1,
+      "clicks": 1
+    },
+    "unrelatedInput": {
+      "emptyText": true,
+      "keys": 0,
+      "clicks": 0
+    },
+    "tabScopedTextKeyAndClick": true,
+    "unrelatedTabUnchanged": true,
+    "navigationInvalidated": true,
+    "workerRestartRetiredTarget": true,
+    "nativeHostReconnectedAfterWorkerReload": true
+  },
+  "appWindow": {
+    "extensionId": "njhbcllpkbihpkioegopblabopnkhndk",
+    "mode": "--active-catalog",
+    "passed": true,
+    "chrome": "Chrome/157.0.8103.78",
+    "managedAppWindowOpened": true,
+    "nativeHostInvoked": true,
+    "focusBefore": {
+      "catalog": false,
+      "unrelated": true
+    },
+    "focusAfter": {
+      "catalog": true,
+      "unrelated": false
+    },
+    "catalogInput": {
+      "correctText": true,
+      "keys": 1,
+      "clicks": 1
+    },
+    "unrelatedInput": {
+      "emptyText": true,
+      "keys": 0,
+      "clicks": 0
+    },
+    "tabScopedTextKeyAndClick": true,
+    "unrelatedTabUnchanged": true,
+    "catalogInOriginalAppWindow": false,
+    "originalAppWindowUnchanged": true,
+    "navigationInvalidated": true,
+    "workerRestartRetiredTarget": true,
+    "nativeHostReconnectedAfterWorkerReload": true
+  },
+  "debuggerBannerObserved": true,
+  "hostManifestInDisposableUserDataDir": true,
+  "temporaryHostManifestRemoved": true
+}

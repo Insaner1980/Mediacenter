@@ -1,6 +1,6 @@
 # Browser feasibility gate
 
-Status: **early retention gate failed; streaming is not ready**. Local-media operation does not depend on this extension.
+Status: **Task 17 feasibility passed on the disposable Chrome profile. Chrome can take focus during input.** Local-media operation is independent of this extension.
 
 The disposable admission harness uses the actual `/opt/google/chrome/google-chrome`. It stores a new profile under `.tools/browser-feasibility/profile` and redirects `XDG_CONFIG_HOME` to `.tools/browser-feasibility/config`. It never opens existing profiles or reads cookies. The extension ID is `njhbcllpkbihpkioegopblabopnkhndk` (public manifest key only).
 
@@ -39,3 +39,30 @@ XDG_CONFIG_HOME=/home/emma/Dev/Mediacenter/.tools/browser-feasibility/config /op
 In that disposable profile, choose **Load unpacked** and select `/home/emma/Dev/Mediacenter/browser-extension`. Then close/relaunch and verify retention before native-host/broker investment. Do not repeat the experimental loader as a substitute. This manual step is pending.
 
 After the manual installation and closing the disposable Chrome process, parent can review/run `source scripts/dev-env.sh && node browser-extension/harness/admission.mjs --installed`. This mode never loads an extension, modifies install preferences, or uses unsafe-extension-debugging flags. It verifies the already installed extension page, enrolls a synthetic profile identifier, closes Chrome, and checks that same extension and identifier after relaunch. Result: `.tools/browser-feasibility/installed-retention-result.json`.
+
+## Supported retention and native messaging — 2026-11-13
+
+The user installed the extension through Developer mode → Load unpacked in the disposable profile and closed Chrome. The `--installed` probe then passed on Chrome `157.0.8103.78`. Two launches used the same isolated profile and inherited debugging pipe. The expected extension and synthetic enrollment survived the restart. Neither launch used an extension-loading or unsafe-debugging flag. See [retention result](browser-installed-retention-result.json).
+
+The native-input fixture starts a one-use broker in a private runtime directory. Chrome discovers its native host through the exact-origin manifest in the disposable user-data directory's `NativeMessagingHosts` subdirectory. The fixture removes that manifest after each run. The broker checks both Unix peer UID and a random secret and rejects expired, stale and reused grants. The native host and broker example build with `--features browser-proof`. The Mediacenter runtime does not start the fixture.
+
+Run from the repository root:
+
+```sh
+source scripts/dev-env.sh
+cargo build --locked --manifest-path src-tauri/Cargo.toml --features browser-proof --bin mediacenter-browser-host --example browser-broker-proof
+MEDIACENTER_BROWSER_HOST="$PWD/src-tauri/target/debug/mediacenter-browser-host" node --test browser-extension/tests/*.test.mjs
+node browser-extension/harness/native-input.mjs --active-catalog
+node browser-extension/harness/native-input.mjs --background-tab
+MEDIACENTER_BROWSER_APP_WINDOW=1 node browser-extension/harness/native-input.mjs --active-catalog
+bash browser-extension/harness/external-focus.sh
+```
+
+- Active catalog tab: Unicode text, one Enter and one click reached the catalog page. The unrelated tab's input and event counters stayed unchanged. A stale generation was rejected, and navigation and worker reload both retired the previous target.
+- Background catalog tab: the final fixture creates the catalog active, then activates the unrelated tab before sending input. Unicode, Enter and click reached the catalog. The unrelated tab stayed unchanged. An earlier fixture with a catalog created inactive observed no events after Chrome acknowledged the calls. A command acknowledgment alone cannot establish delivery.
+- External focus: on a private Xvfb/Metacity display, an unrelated GTK text entry had focus before the probe. The catalog received all three inputs. The entry stayed empty, received no Enter, and remained open. Chrome took focus.
+- Managed `--app` launch: the original app window remained open and unchanged. The catalog target opened in a separate browser window. This tests tab creation in the same profile with a pre-existing app window.
+- Worker reload: the old generation remained invalid. A fresh one-use grant connected to the host and created a new target after reload.
+- Chrome displayed its debugger warning with a Cancel button when the attached catalog tab was active. [Warning screenshot](browser-native-input-warning.png)
+
+See [native-input results](browser-native-input-result.json) for the four scenarios. The private-display runner uses the local Xvfb build and Metacity. The Xvfb fixture needed a Chrome process without a session-bus portal connection for loopback page loads. This was a fixture adjustment only. Task 18 must account for focus changes and the difference between command submission and observed delivery. Task 19 still needs provider-specific app-window and login behavior. Production streaming readiness remains pending.

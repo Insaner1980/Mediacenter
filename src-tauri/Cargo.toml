@@ -6,6 +6,17 @@ default-run = "mediacenter"
 description = "Personal Linux desktop media center"
 license = "MIT"
 
+[features]
+browser-proof = []
+
+[[bin]]
+name = "mediacenter-browser-host"
+required-features = ["browser-proof"]
+
+[[example]]
+name = "browser-broker-proof"
+required-features = ["browser-proof"]
+
 [lib]
 name = "mediacenter_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
