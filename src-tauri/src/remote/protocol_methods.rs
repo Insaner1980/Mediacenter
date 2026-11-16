@@ -1634,7 +1634,7 @@ pub struct VpnCountry {
     pub label: DisplayText,
 }
 
-pub type VpnCountries = BoundedList<VpnCountry, 0, 100, false>;
+pub type VpnCountries = BoundedList<VpnCountry, 0, 250, false>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

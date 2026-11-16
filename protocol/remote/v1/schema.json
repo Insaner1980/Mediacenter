@@ -5818,7 +5818,7 @@
       "items": {
         "$ref": "#/$defs/VpnCountry"
       },
-      "maxItems": 100
+      "maxItems": 250
     },
     "VpnCountryList": {
       "type": "object",

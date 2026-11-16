@@ -9,6 +9,7 @@ use std::sync::{
 };
 #[derive(Clone)]
 struct Fake {
+    country_catalog: Vec<CountryOption>,
     observed: Arc<Mutex<VpnSnapshot>>,
     calls: Arc<AtomicUsize>,
     uncertain: bool,
@@ -18,6 +19,16 @@ struct Fake {
 impl Fake {
     fn new() -> Self {
         Self {
+            country_catalog: vec![
+                CountryOption {
+                    id: "Finland".into(),
+                    name: "Finland".into(),
+                },
+                CountryOption {
+                    id: "Sweden".into(),
+                    name: "Sweden".into(),
+                },
+            ],
             observed: Arc::new(Mutex::new(VpnSnapshot {
                 revision: 1,
                 state: "connected".into(),
@@ -42,16 +53,7 @@ impl VpnBackend for Fake {
         Ok(v)
     }
     async fn countries(&self) -> Result<Vec<CountryOption>, AppError> {
-        Ok(vec![
-            CountryOption {
-                id: "Finland".into(),
-                name: "Finland".into(),
-            },
-            CountryOption {
-                id: "Sweden".into(),
-                name: "Sweden".into(),
-            },
-        ])
+        Ok(self.country_catalog.clone())
     }
     async fn change(
         &self,
@@ -114,6 +116,50 @@ fn fixture() -> (tempfile::TempDir, Dispatcher, RemotePrincipal, Fake) {
 }
 fn request(d: &Dispatcher, id: &str, method: &str, params: serde_json::Value) -> RemoteRequest {
     parse_request(&serde_json::json!({"v":1,"id":id,"method":method,"params":params,"expected":{"serverEpoch":d.services.state.event_hub.epoch(),"settingsRevision":crate::control::settings::read(d).unwrap().revision}}).to_string()).unwrap()
+}
+
+#[tokio::test]
+async fn country_catalog_larger_than_one_hundred_is_complete_and_still_bounded() {
+    let (_dir, d, owner, mut backend) = fixture();
+    backend.country_catalog = (0..150)
+        .map(|i| CountryOption {
+            id: format!("Country_{i}"),
+            name: format!("Country {i}"),
+        })
+        .collect();
+    let result = dispatch_with(
+        &d,
+        &owner,
+        request(&d, "countries", "vpn.countries", serde_json::json!({})),
+        backend.clone(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(result["items"].as_array().unwrap().len(), 150);
+    assert_eq!(
+        backend.calls.load(Ordering::SeqCst),
+        0,
+        "reading the catalog never changes VPN"
+    );
+    backend.country_catalog = (0..251)
+        .map(|i| CountryOption {
+            id: format!("Country_{i}"),
+            name: format!("Country {i}"),
+        })
+        .collect();
+    assert!(dispatch_with(
+        &d,
+        &owner,
+        request(
+            &d,
+            "too-many-countries",
+            "vpn.countries",
+            serde_json::json!({})
+        ),
+        backend
+    )
+    .await
+    .is_err());
 }
 async fn prepare(d: &Dispatcher, o: &RemotePrincipal, b: &Fake) -> ConfirmationPreview {
     let v = dispatch_with(
