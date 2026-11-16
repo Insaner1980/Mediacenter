@@ -304,7 +304,10 @@ mod tests {
         let home = state.snapshot().unwrap();
         let topic = crate::remote::state::outputs_topic(&state, &home, 4).unwrap();
         assert!(!topic.unavailable);
-        assert_eq!(topic.requested_output_id.unwrap().as_str(), "hdmi");
+        assert_eq!(
+            topic.requested_output_id.unwrap(),
+            crate::remote::adapters::audio_output_id("hdmi")
+        );
         assert!(topic.effective_output_id.is_none());
     }
 }

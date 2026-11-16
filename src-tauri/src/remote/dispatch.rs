@@ -1019,9 +1019,8 @@ impl Dispatcher {
         let observed = audio::sessions(&self.services.state).await;
         match &request.command {
             RemoteCommand::AudioPrepare(params) => {
-                let output = audio::validate_output(&inventory, params.output_id.as_str())
-                    .map_err(native_error)?
-                    .clone();
+                let output =
+                    super::adapters::resolve_audio_output(&inventory, &params.output_id)?.clone();
                 let preview = self.audio_preview(owner, &output, &observed)?;
                 let pending = Pending {
                     preview: preview.clone(),
@@ -1149,9 +1148,9 @@ impl Dispatcher {
                 })
             }
             RemoteCommand::AudioTest(params) => {
-                audio::validate_output(&inventory, params.output_id.as_str())
-                    .map_err(native_error)?;
-                let output = params.output_id.as_str().to_string();
+                let output = super::adapters::resolve_audio_output(&inventory, &params.output_id)?
+                    .id
+                    .clone();
                 let state = self.services.state.clone();
                 let registration = self.registration.clone();
                 let outcome = self

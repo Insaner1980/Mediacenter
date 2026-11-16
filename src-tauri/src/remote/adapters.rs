@@ -10,6 +10,28 @@ pub(crate) fn checked<T: DeserializeOwned, S: serde::Serialize>(
         .map_err(|_| RemoteError::invalid())
 }
 
+/// Native PulseAudio names are backend arguments, never wire identifiers.
+pub(crate) fn audio_output_id(native_id: &str) -> Id {
+    use sha2::{Digest, Sha256};
+    checked(format!("audio-{:x}", Sha256::digest(native_id.as_bytes())))
+        .expect("fixed-length hexadecimal audio identifier")
+}
+
+pub(crate) fn resolve_audio_output<'a>(
+    inventory: &'a [native::AudioSinkDescriptor],
+    id: &Id,
+) -> Result<&'a native::AudioSinkDescriptor, RemoteError> {
+    inventory
+        .iter()
+        .find(|output| output.available && audio_output_id(&output.id) == *id)
+        .ok_or_else(|| {
+            RemoteError::new(
+                ErrorCode::AudioOutputUnavailable,
+                "Audio output unavailable.",
+            )
+        })
+}
+
 impl From<native::MediaKind> for MediaKind {
     fn from(kind: native::MediaKind) -> Self {
         match kind {
@@ -204,4 +226,33 @@ pub fn slideshow_topic(
         shuffle: snapshot.shuffle,
         fit: checked(&snapshot.fit)?,
     })
+}
+
+#[cfg(test)]
+mod audio_tests {
+    use super::*;
+    #[test]
+    fn opaque_audio_ids_resolve_only_to_the_current_available_native_sink() {
+        let native_id = "alsa_output.pci-0000_00_1f.3.hdmi-stereo";
+        let mut sinks = vec![native::AudioSinkDescriptor {
+            id: native_id.into(),
+            backend_name: native_id.into(),
+            name: "TV HDMI".into(),
+            available: true,
+        }];
+        let wire_id = audio_output_id(native_id);
+        assert_eq!(
+            resolve_audio_output(&sinks, &wire_id).unwrap().id,
+            native_id
+        );
+        assert!(resolve_audio_output(&sinks, &checked("unknown-output").unwrap()).is_err());
+        assert!(resolve_audio_output(&sinks, &audio_output_id("other-native-sink")).is_err());
+        sinks[0].available = false;
+        assert_eq!(
+            resolve_audio_output(&sinks, &wire_id).unwrap_err().code,
+            ErrorCode::AudioOutputUnavailable
+        );
+        assert!(resolve_audio_output(&[], &wire_id).is_err());
+        assert_ne!(audio_output_id(wire_id.as_str()), wire_id);
+    }
 }

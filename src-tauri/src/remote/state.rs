@@ -206,7 +206,7 @@ pub(crate) fn outputs_topic(
         .take(100)
         .map(|sink| {
             Ok(AudioOutput {
-                id: checked(&sink.id)?,
+                id: adapters::audio_output_id(&sink.id),
                 name: checked(sink.name.chars().take(200).collect::<String>())?,
                 available: sink.available,
             })
@@ -219,15 +219,13 @@ pub(crate) fn outputs_topic(
             .desired
             .audio_sink_id
             .as_ref()
-            .map(checked)
-            .transpose()?,
+            .map(|id| adapters::audio_output_id(id)),
         effective_output_id: home
             .outputs
             .effective
             .audio_sink_id
             .as_ref()
-            .map(checked)
-            .transpose()?,
+            .map(|id| adapters::audio_output_id(id)),
         unavailable,
         outputs: checked(outputs)?,
     })
@@ -402,6 +400,35 @@ mod tests {
         checked(serde_json::json!({"deviceId":"phone","scopes":["browse"]})).unwrap()
     }
     #[tokio::test]
+    async fn snapshot_projects_real_pulse_sink_names_as_opaque_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        let native_id = "alsa_output.pci-0000_00_1f.3.hdmi-stereo";
+        outputs_discovered(
+            &state,
+            vec![native::AudioSinkDescriptor {
+                id: native_id.into(),
+                backend_name: native_id.into(),
+                name: "TV HDMI".into(),
+                available: true,
+            }],
+        );
+        {
+            let mut home = state.home.lock().unwrap();
+            home.outputs.desired.audio_sink_id = Some(native_id.into());
+            home.outputs.effective.audio_sink_id = Some(native_id.into());
+        }
+        let services = ControlServices::native(state, checked("server").unwrap()).unwrap();
+        let value = snapshot(&principal(), &services).await.unwrap();
+        let wire = value.outputs.outputs.as_slice()[0].id.clone();
+        assert_ne!(wire.as_str(), native_id);
+        assert_eq!(value.outputs.requested_output_id, Some(wire.clone()));
+        assert_eq!(value.outputs.effective_output_id, Some(wire));
+        let json = serde_json::to_string(&value).unwrap();
+        assert!(!json.contains(native_id));
+        serde_json::from_str::<RemoteSnapshot>(&json).unwrap();
+    }
+    #[tokio::test]
     async fn revoked_admission_before_or_during_snapshot_never_resubscribes() {
         use crate::remote::{
             auth::AuthManager,
@@ -532,7 +559,10 @@ mod tests {
             }],
         );
         let after = snapshot(&principal(), &services).await.unwrap();
-        assert_eq!(after.outputs.outputs.as_slice()[0].id.as_str(), "hdmi");
+        assert_eq!(
+            after.outputs.outputs.as_slice()[0].id,
+            adapters::audio_output_id("hdmi")
+        );
         assert!(after.outputs.effective_output_id.is_none());
     }
     #[test]
