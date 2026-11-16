@@ -1,0 +1,63 @@
+{
+  "unitTests": {
+    "tests": 440,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "pixelRenderedTests": 15,
+  "pixelRun": "pass",
+  "originalApplicationUpdatedInPlace": true,
+  "apkSha256": "9b9ab80a0464388c5ac6e58a73a4e3a2601cee3bc08d86ce965166ee5087e5b1",
+  "actualUserFontScaleRetained": true,
+  "bothTargetsConnected": true,
+  "testRunnerRemoved": true,
+  "normalScreenTimeoutRestored": true,
+  "styleUnificationExcludedByUser": true,
+  "fullTask21And22": "partial; this is scoped phone UI acceptance",
+  "install-verification": {
+    "applicationId": "com.emmah.colordock.remote",
+    "launcherLabel": "Remote",
+    "updatedInPlace": true,
+    "matchingInstalledSigner": true,
+    "bothEncryptedCredentialsAndOriginalPreferencesByteIdenticalAfterUpdate": true,
+    "apkSha256": "9b9ab80a0464388c5ac6e58a73a4e3a2601cee3bc08d86ce965166ee5087e5b1"
+  },
+  "lg-visual-verification": {
+    "originalApp": true,
+    "noBulletSeparators": true,
+    "changeDeviceVisible": true,
+    "kind": "lg",
+    "iconOnlyShortcutStrip": true,
+    "fullSquareIconTileVisible": true,
+    "firstTileWidth": 189,
+    "firstTileHeight": 189,
+    "titleNotClippedVisually": true
+  },
+  "mc-visual-verification": {
+    "originalApp": true,
+    "noBulletSeparators": true,
+    "changeDeviceVisible": true,
+    "kind": "mc",
+    "centeredDirectionPad": true,
+    "idleBrowseActionVisible": true,
+    "selectedNavigationMarked": true,
+    "fullStreamingButtonVisible": true,
+    "streamingButtonHeight": 126,
+    "titleNotClippedVisually": true
+  },
+  "live-library-verification": {
+    "browseLibraryOpenedRealLibrary": true,
+    "visibleMediaRows": 8,
+    "privateNamesExcluded": true
+  },
+  "final-live-targets": {
+    "lgTvConnected": true,
+    "mediacenterConnected": true,
+    "bothConnectedInOriginalApp": true
+  },
+  "androidRevision": "f7ed5a2f68abebd229f78db8f1b9dcb86d94295a",
+  "desktopRevision": "1df215629696fdb31a88d38129449b2a3d435b51",
+  "schemaSha256": "03b59eb6974e08f24f93e355deeae0b70e67e9ef835a0ceb1ea933514fbaa0c2",
+  "sourceHashesVerified": true
+}

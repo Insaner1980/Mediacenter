@@ -37,7 +37,7 @@
   "fullTask21And22": "partial",
   "productionColdBackupComplete": true,
   "matchingRollbackDebBackedUp": true,
-  "androidRevision": "0b8a2335905967b33bdd98fc0feab79f7177124e",
+  "androidRevision": "f7ed5a2f68abebd229f78db8f1b9dcb86d94295a",
   "schemaSha256": "03b59eb6974e08f24f93e355deeae0b70e67e9ef835a0ceb1ea933514fbaa0c2",
   "productionDataPreserved": {
     "mediaItems": 1198,
@@ -66,5 +66,14 @@
   "browser": {
     "ordinaryProfileNativeHostRegisteredAndVerified": true,
     "ordinaryProfileExtensionEnrollment": "not completed: browser access host unavailable"
+  },
+  "phoneUiUpdate": {
+    "sourceRevision": "f7ed5a2f68abebd229f78db8f1b9dcb86d94295a",
+    "verifiedUnitTests": 440,
+    "verifiedPhysicalUiTests": 15,
+    "bothScreensInspected": true,
+    "sameSignerInPlaceUpdate": true,
+    "savedCredentialsPreserved": true,
+    "onlyOriginalRemoteRemains": true
   }
 }
