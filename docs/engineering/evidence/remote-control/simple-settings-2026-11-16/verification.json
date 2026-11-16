@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-16",
+  "androidRevision": "b9c4d3747969700c761c49b76c14178056f3cb99",
+  "nativeRevision": "1df215629696fdb31a88d38129449b2a3d435b51",
+  "apkSha256": "9554178699156afe19e0c04f01b6b08e31ab5a03864254cce858106341acd8ec",
+  "applicationId": "com.emmah.colordock.remote",
+  "label": "Remote",
+  "installedInPlaceWithSameSigner": true,
+  "encryptedCredentialsAndPreferencesByteIdenticalBeforeFirstLaunch": true,
+  "appUid": 10450,
+  "unitTests": {
+    "tests": 447,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "quality": {
+    "detekt": "pass",
+    "ktlint": "pass",
+    "androidLint": "pass",
+    "androidLintErrors": 0,
+    "androidLintWarnings": 4,
+    "apkBuild": "pass",
+    "instrumentationApkBuild": "pass"
+  },
+  "sourceReview": "two Important feedback findings reproduced RED and fixed GREEN; no Critical findings",
+  "physicalTestsThisRevision": 0,
+  "physicalVisualAcceptance": "pending-phone-unlock",
+  "previousPhysicalResultsDoNotCertifyThisRevision": true,
+  "fontScalePreserved": 1.15,
+  "stayAwakeRestored": 0,
+  "originalRemoteOnly": true,
+  "desktopHdmiAudioVpnUnchanged": true,
+  "archive": "releases/remote-device-20261116/simple-settings-b9c4d37"
+}

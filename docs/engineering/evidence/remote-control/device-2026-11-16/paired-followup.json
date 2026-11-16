@@ -37,7 +37,7 @@
   "fullTask21And22": "partial",
   "productionColdBackupComplete": true,
   "matchingRollbackDebBackedUp": true,
-  "androidRevision": "f7ed5a2f68abebd229f78db8f1b9dcb86d94295a",
+  "androidRevision": "b9c4d3747969700c761c49b76c14178056f3cb99",
   "schemaSha256": "03b59eb6974e08f24f93e355deeae0b70e67e9ef835a0ceb1ea933514fbaa0c2",
   "productionDataPreserved": {
     "mediaItems": 1198,
@@ -75,5 +75,15 @@
     "sameSignerInPlaceUpdate": true,
     "savedCredentialsPreserved": true,
     "onlyOriginalRemoteRemains": true
+  },
+  "selectedSettingsUpdate": {
+    "sourceRevision": "b9c4d3747969700c761c49b76c14178056f3cb99",
+    "apkSha256": "9554178699156afe19e0c04f01b6b08e31ab5a03864254cce858106341acd8ec",
+    "verifiedUnitTests": 447,
+    "verifiedPhysicalUiTests": 0,
+    "sameSignerInPlaceUpdate": true,
+    "savedCredentialsPreserved": true,
+    "physicalVisualAcceptance": "pending-phone-unlock",
+    "evidence": "../simple-settings-2026-11-16/README.md"
   }
 }
