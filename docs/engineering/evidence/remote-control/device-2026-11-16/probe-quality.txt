@@ -1,0 +1,68 @@
+> Task :app:loadKtlintReporters UP-TO-DATE
+> Task :app:runKtlintFormatOverKotlinScripts UP-TO-DATE
+> Task :app:runKtlintFormatOverAndroidTestDebugSourceSet NO-SOURCE
+> Task :app:ktlintAndroidTestDebugSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverAndroidTestReleaseSourceSet NO-SOURCE
+> Task :app:ktlintAndroidTestReleaseSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverDebugSourceSet UP-TO-DATE
+> Task :app:ktlintDebugSourceSetFormat UP-TO-DATE
+> Task :app:ktlintKotlinScriptFormat UP-TO-DATE
+> Task :app:runKtlintFormatOverMainSourceSet
+> Task :app:ktlintMainSourceSetFormat
+> Task :app:runKtlintFormatOverReleaseSourceSet NO-SOURCE
+> Task :app:ktlintReleaseSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestDebugSourceSet NO-SOURCE
+> Task :app:ktlintTestDebugSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestFixturesDebugSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesDebugSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestFixturesReleaseSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesReleaseSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestFixturesSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestReleaseSourceSet NO-SOURCE
+> Task :app:ktlintTestReleaseSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestSourceSet UP-TO-DATE
+> Task :app:ktlintTestSourceSetFormat UP-TO-DATE
+> Task :app:runKtlintFormatOverAndroidTestSourceSet
+> Task :app:detekt
+> Task :app:runKtlintCheckOverAndroidTestDebugSourceSet NO-SOURCE
+> Task :app:ktlintAndroidTestDebugSourceSetCheck SKIPPED
+> Task :app:runKtlintCheckOverAndroidTestReleaseSourceSet NO-SOURCE
+> Task :app:ktlintAndroidTestReleaseSourceSetCheck SKIPPED
+> Task :app:ktlintAndroidTestSourceSetFormat
+> Task :app:ktlintFormat
+> Task :app:runKtlintCheckOverDebugSourceSet UP-TO-DATE
+> Task :app:ktlintDebugSourceSetCheck UP-TO-DATE
+> Task :app:runKtlintCheckOverKotlinScripts UP-TO-DATE
+> Task :app:ktlintKotlinScriptCheck UP-TO-DATE
+> Task :app:runKtlintCheckOverMainSourceSet UP-TO-DATE
+> Task :app:ktlintMainSourceSetCheck UP-TO-DATE
+> Task :app:runKtlintCheckOverReleaseSourceSet NO-SOURCE
+> Task :app:ktlintReleaseSourceSetCheck SKIPPED
+> Task :app:runKtlintCheckOverTestDebugSourceSet NO-SOURCE
+> Task :app:ktlintTestDebugSourceSetCheck SKIPPED
+> Task :app:runKtlintCheckOverTestFixturesDebugSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesDebugSourceSetCheck SKIPPED
+> Task :app:runKtlintCheckOverTestFixturesReleaseSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesReleaseSourceSetCheck SKIPPED
+> Task :app:runKtlintCheckOverTestFixturesSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesSourceSetCheck SKIPPED
+> Task :app:runKtlintCheckOverTestReleaseSourceSet NO-SOURCE
+> Task :app:ktlintTestReleaseSourceSetCheck SKIPPED
+> Task :app:runKtlintCheckOverTestSourceSet UP-TO-DATE
+> Task :app:ktlintTestSourceSetCheck UP-TO-DATE
+> Task :app:runKtlintCheckOverAndroidTestSourceSet
+> Task :app:ktlintAndroidTestSourceSetCheck
+> Task :app:ktlintCheck
+
+[Incubating] Problems report is available at: file:///home/emma/Dev/Remote/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 28s
+22 actionable tasks: 7 executed, 15 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.2/userguide/configuration_cache_enabling.html

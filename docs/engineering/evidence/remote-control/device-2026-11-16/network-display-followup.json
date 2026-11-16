@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-16",
+  "userAuthorizedLinuxLanDiscoveryAndMirror": true,
+  "linuxLanDiscovery": "enabled",
+  "linuxVpnAndKillSwitchChanged": false,
+  "mirror": {
+    "width": 1920,
+    "height": 1080,
+    "logicalMonitors": 1,
+    "connectors": [
+      "eDP-1",
+      "HDMI-1"
+    ],
+    "persistedInCinnamonConfiguration": true,
+    "reloginTested": false
+  },
+  "firewall": {
+    "ruleAddedWithAdministrativeAuthorization": true,
+    "scope": "only the current test phone, selected Wi-Fi interface and desktop TCP port 47831"
+  },
+  "phoneShellTcpAfterFirewallRule": "pass",
+  "phoneAppProbe": "failed: Android Network.bindSocket EPERM before TLS",
+  "phoneVpn": {
+    "activePackage": "com.nordvpn.android",
+    "bypassable": false,
+    "settingsChanged": false,
+    "exceptionPermission": "pending"
+  },
+  "hdmiTonePlaybackCommand": "pass",
+  "audibleTvAndPictureConfirmation": "pending",
+  "physicalProbeAndroidRevision": "98b82ba",
+  "physicalProbeQuality": "Detekt/ktlint/build passed; actual device probe failed as recorded"
+}
