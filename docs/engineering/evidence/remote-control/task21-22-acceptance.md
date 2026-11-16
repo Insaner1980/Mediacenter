@@ -1,5 +1,11 @@
 # Remote control acceptance
 
+## Device continuation, 2026-11-16
+
+The authorized Pixel 9/API 37 is connected and the latest isolated fixture has been installed without replacing production Remote. HDMI detects the TV in extended layout; the HDMI audio endpoint is now available after selecting the card's HDMI profile. Mirror setup and audible output remain unconfirmed.
+
+Physical testing found and corrected the phone Mediacenter page's missing system-bar padding and theme content color. Android `36302ec` passed 431 unit/Compose tests, quality/build checks and seven tests on the Pixel. The actual corrected page was visually checked. Manual pairing is still blocked: a phone-side TCP connect to the real desktop listener times out. Permission for a NordVPN LAN Discovery change is pending; no VPN connection or protection setting was changed. Full T21-PAIR/T21-LOCAL and Task 22 acceptance remain open. [Detailed run, packages and evidence](device-2026-11-16/README.md)
+
 ## Read-only inventory, 2026-11-13
 
 | Prerequisite | Observation | Status |

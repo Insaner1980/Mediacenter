@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-16",
+  "androidBase": "137fdd1454e321bdcf2037a2bbc5ffc4e4c83083",
+  "unitTests": {
+    "tests": 431,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "deviceTests": {
+    "tests": 7,
+    "failures": 0,
+    "skipped": 0,
+    "evidence": "device-ui.txt"
+  },
+  "sourceSha256": {
+    "app/src/main/java/com/emmah/colordock/remote/ui/RemoteTab.kt": "94f21022c6fc1181f5176e0a2dc4579be52599d95ba02ee81d99383a1be635a7",
+    "app/src/sharedTest/java/com/emmah/colordock/remote/ui/TargetAppShellTest.kt": "dc9fe88a8d0934ac7737871884c41154428e8554df1b36e66722d5d181bc1626"
+  },
+  "isolatedApkSha256": "d13cc64e0fc61dc97bdcf7a639b6888b0292c25871fb5e228636486305681a2a",
+  "scope": "UI correction and physical setup only; no successful LAN pairing, sofa, audible HDMI or service acceptance",
+  "androidRevision": "36302eca473306905913a1e6ec978e2b055c811d"
+}

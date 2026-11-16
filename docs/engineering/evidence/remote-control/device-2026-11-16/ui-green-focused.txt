@@ -1,0 +1,86 @@
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:generateDebugRFile UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :app:generateDebugJacocoPropertiesFile UP-TO-DATE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :app:mergeDebugUnitTestManifest UP-TO-DATE
+> Task :app:processDebugUnitTestManifest UP-TO-DATE
+> Task :app:loadKtlintReporters UP-TO-DATE
+> Task :app:runKtlintFormatOverKotlinScripts UP-TO-DATE
+> Task :app:runKtlintFormatOverAndroidTestDebugSourceSet NO-SOURCE
+> Task :app:ktlintAndroidTestDebugSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverAndroidTestReleaseSourceSet NO-SOURCE
+> Task :app:ktlintAndroidTestReleaseSourceSetFormat SKIPPED
+> Task :app:compileDebugKotlin
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.jetbrains.kotlin.com.intellij.util.containers.Unsafe (file:/home/emma/Dev/Mediacenter/.tools/remote-android/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-compiler-embeddable/2.2.21/b13aed5cf8412f9ee9d1e4db21bdcfebcc24f606/kotlin-compiler-embeddable-2.2.21.jar)
+WARNING: Please consider reporting this to the maintainers of class org.jetbrains.kotlin.com.intellij.util.containers.Unsafe
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+> Task :app:compileDebugUnitTestKotlin UP-TO-DATE
+> Task :app:compileDebugUnitTestJavaWithJavac UP-TO-DATE
+> Task :app:compressDebugJavaRes UP-TO-DATE
+> Task :app:compressDebugUnitTestJavaRes UP-TO-DATE
+> Task :app:extractDebugUnitTestJavaRes UP-TO-DATE
+> Task :app:generateDebugUnitTestConfig UP-TO-DATE
+> Task :app:runKtlintFormatOverAndroidTestSourceSet
+11-16 09:44:46.502 19234 19312 I HWUI    : Using FreeType backend (prop=Auto)
+> Task :app:testDebugUnitTest
+> Task :app:runKtlintFormatOverDebugSourceSet UP-TO-DATE
+> Task :app:ktlintDebugSourceSetFormat UP-TO-DATE
+> Task :app:ktlintKotlinScriptFormat UP-TO-DATE
+> Task :app:ktlintAndroidTestSourceSetFormat
+> Task :app:runKtlintFormatOverReleaseSourceSet NO-SOURCE
+> Task :app:ktlintReleaseSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestDebugSourceSet NO-SOURCE
+> Task :app:ktlintTestDebugSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestFixturesDebugSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesDebugSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestFixturesReleaseSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesReleaseSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestFixturesSourceSet NO-SOURCE
+> Task :app:ktlintTestFixturesSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverTestReleaseSourceSet NO-SOURCE
+> Task :app:ktlintTestReleaseSourceSetFormat SKIPPED
+> Task :app:runKtlintFormatOverMainSourceSet
+> Task :app:ktlintMainSourceSetFormat
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.jetbrains.kotlin.com.intellij.util.containers.Unsafe (file:/home/emma/Dev/Mediacenter/.tools/remote-android/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-compiler-embeddable/2.2.21/b13aed5cf8412f9ee9d1e4db21bdcfebcc24f606/kotlin-compiler-embeddable-2.2.21.jar)
+WARNING: Please consider reporting this to the maintainers of class org.jetbrains.kotlin.com.intellij.util.containers.Unsafe
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+> Task :app:runKtlintFormatOverTestSourceSet
+> Task :app:ktlintTestSourceSetFormat
+> Task :app:ktlintFormat
+
+[Incubating] Problems report is available at: file:///home/emma/Dev/Remote/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 43s
+43 actionable tasks: 10 executed, 33 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.2/userguide/configuration_cache_enabling.html
