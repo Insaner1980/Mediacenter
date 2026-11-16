@@ -1,0 +1,29 @@
+    Blocking waiting for file lock on build directory
+   Compiling mediacenter v0.1.6 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 24s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 5 tests
+test remote::network::tests::defaults_exclude_loopback_tunnels_containers_and_public_addresses ... ok
+test remote::network::tests::epoch_ignores_unused_socket_storage_bytes ... ok
+test remote::network::tests::epoch_tracks_real_address_flags_and_vpn_changes_independent_of_order ... ok
+test remote::network::tests::epoch_detects_recreated_interface_with_same_name_flags_and_mac ... FAILED
+test remote::network::tests::selected_interface_never_falls_back_and_scopes_ipv6_link_local ... ok
+
+failures:
+
+---- remote::network::tests::epoch_detects_recreated_interface_with_same_name_flags_and_mac stdout ----
+
+thread 'remote::network::tests::epoch_detects_recreated_interface_with_same_name_flags_and_mac' (892) panicked at src/remote/network.rs:252:9:
+assertion `left != right` failed
+  left: 16202398852313093556
+ right: 16202398852313093556
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    remote::network::tests::epoch_detects_recreated_interface_with_same_name_flags_and_mac
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 412 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

@@ -2,11 +2,11 @@
 
 ## Device continuation, 2026-11-16
 
-The authorized Pixel 9/API 37 is connected and the latest isolated fixture has been installed without replacing production Remote. HDMI detects the TV in extended layout; the HDMI audio endpoint is now available after selecting the card's HDMI profile. Mirror setup and audible output remain unconfirmed.
+The authorized Pixel 9/API 37 is connected and the isolated fixture is paired without replacing production Remote. The 1080p mirror is configured and saved. After selecting **HDMI 1**, the user confirmed the same TV/computer picture. Audible TV output remains awaiting confirmation.
 
 Physical testing found and corrected the phone Mediacenter page's missing system-bar padding and theme content color. Android `36302ec` passed 431 unit/Compose tests, quality/build checks and seven tests on the Pixel. The actual corrected page was visually checked.
 
-In the authorized follow-up, Linux LAN Discovery was enabled and the 1080p mirror was applied and saved in Cinnamon. An administratively approved, exact-phone-only UFW rule opened the test listener; the phone-side TCP check now passes. The app's direct Wi-Fi socket still fails with Android EPERM before TLS while the phone reports a non-bypassable NordVPN connection. The opt-in physical probe at Android `98b82ba` records that failure; it is not TLS acceptance. Phone VPN exception permission and physical picture/audible-output confirmation are pending. Full T21-PAIR/T21-LOCAL and Task 22 acceptance remain open. [Detailed run, packages and evidence](device-2026-11-16/README.md)
+Linux LAN Discovery and the exact-phone-only UFW rule are applied. With the user's authorization, both Remote apps were excluded from phone NordVPN and the VPN reconnected; the real Wi-Fi certificate probe passed. Desktop `f842322` fixes unstable network epochs canceling pairing, and `42996f2` fixes native HDMI sink names invalidating snapshots. Secure manual pairing, a real pinned WebSocket/native reducer probe, and ordinary phone library/play/pause use now pass. Final Rust verification passed 434 tests with 4 existing ignored tests; quality, contract and package checks passed. QR, the full sofa-only boundary, production signed Android upgrade and the remaining physical/long-run cases are still open. [Detailed run, packages and evidence](device-2026-11-16/README.md#paired-follow-up-and-confirmed-hdmi-picture)
 
 ## Read-only inventory, 2026-11-13
 
@@ -48,8 +48,8 @@ Record a result for each row using **pass**, **fail**, **blocked**, or **pending
 
 | Test | What to observe | Current status |
 | --- | --- | --- |
-| T21-PAIR | From the target phone, pair by QR and manually with camera permission denied. Check Android LAN permission denial/revocation, certificate change, Wi-Fi loss, and a blocked-discovery network. | Pending on the paired candidates. |
-| T21-LOCAL | At the sofa-only boundary, operate videos, music, playlists and photos. Verify seek, volume, mute, track controls, menu return, canceled replacement, and recovery after phone sleep or network loss. | Blocked on HDMI hardware and paired candidates. [Local-media source checkpoint](task21-local-checkpoint/README.md) |
+| T21-PAIR | From the target phone, pair by QR and manually with camera permission denied. Check Android LAN permission denial/revocation, certificate change, Wi-Fi loss, and a blocked-discovery network. | Partial: actual Pixel manual pairing, selected-Wi-Fi certificate/challenge and stored-pairing snapshot subscription pass. QR and remaining connected/error cases pending. |
+| T21-LOCAL | At the sofa-only boundary, operate videos, music, playlists and photos. Verify seek, volume, mute, track controls, menu return, canceled replacement, and recovery after phone sleep or network loss. | Partial: ordinary phone library/query/video play/pause observed after computer setup; mirrored TV image confirmed by user. Audible TV sound and full sofa-only sequence pending. [Local-media source checkpoint](task21-local-checkpoint/README.md) |
 | T21-DEVICES | Exercise library folder scan/cancel/remove, disposable USB busy/eject, audio output selection, and LG/Mediacenter switching. Verify state and side effects at the intended device. | Pending physical run. |
 | T21-STREAM | In each available service, verify phone search, selection, playback, return to Mediacenter and control of only the enrolled tab. Record required computer access, login redirects/popups, visible debugger warning and audible HDMI output. Verify ordinary Chrome tabs and windows survive closing HBO Max. | Blocked for HDMI acceptance. Provider sessions pending. |
 | T21-LIFETIME | Test End session, resume and network recovery, HDMI unplug/replug and TV power cycle, no automatic laptop-speaker playback, explicit lock, desktop login autostart and a single listener. Check the mirrored desktop for UI regressions. | Pending physical run. |

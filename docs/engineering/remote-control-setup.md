@@ -10,7 +10,7 @@ Use the Mediacenter Debian package and Remote Android APK named in the same comp
 
 Select Mediacenter as the target in Remote, then choose Videos, Music, Photos, or a service. Choose **Keep available for Remote** when closing the computer window to retain the connection. In Remote settings, **Start after computer login** starts Mediacenter after the next desktop sign-in. Use **End session** to stop owned playback after confirmation and keep Remote available.
 
-Use the existing HDMI mirror. It needs no new display configuration.
+Select the HDMI input where the computer cable is connected on the television. In the current LG setup this is **HDMI 1**. The saved mirror uses 1920×1080 on both displays. Confirm the same image on both screens before testing sound or phone-only use.
 
 ## Set up Chrome for streaming controls
 

@@ -1,0 +1,24 @@
+   Compiling mediacenter v0.1.6 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 51.43s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 1 test
+test remote::network::tests::epoch_ignores_unused_socket_storage_bytes ... FAILED
+
+failures:
+
+---- remote::network::tests::epoch_ignores_unused_socket_storage_bytes stdout ----
+
+thread 'remote::network::tests::epoch_ignores_unused_socket_storage_bytes' (886) panicked at src/remote/network.rs:168:9:
+assertion `left == right` failed
+  left: 17972743218437547384
+ right: 8530069738486481426
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    remote::network::tests::epoch_ignores_unused_socket_storage_bytes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 414 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

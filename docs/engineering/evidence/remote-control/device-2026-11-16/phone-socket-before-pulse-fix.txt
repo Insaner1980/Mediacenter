@@ -1,0 +1,83 @@
+INSTRUMENTATION_STATUS: class=com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stream=
+com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest:
+INSTRUMENTATION_STATUS: test=storedPairingReceivesNativeSnapshot
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stack=org.junit.ComparisonFailure: expected:<[ready]> but was:<[failure:http=null,kind=EOFException,at=okio.RealBufferedSource.require(RealBufferedSource.kt:225), okio.RealBufferedSource.readByte(RealBufferedSource.kt:235), okhttp3.internal.ws.WebSocketReader.readHeader(WebSocketReader.kt:128), okhttp3.internal.ws.WebSocketReader.processNextFrame(WebSocketReader.kt:111)]>
+	at org.junit.Assert.assertEquals(Assert.java:117)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest$storedPairingReceivesNativeSnapshot$1.invokeSuspend(PhysicalMediacenterSocketProbeTest.kt:53)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:35)
+	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:101)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:47)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+	at kotlinx.coroutines.BuildersKt.runBlockingImpl(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33520:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+	at kotlinx.coroutines.BuildersKt.runBlockingK(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33521:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK$default(Builders.concurrent.kt:157)
+	at kotlinx.coroutines.BuildersKt.runBlockingK$default(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33522:1)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest.storedPairingReceivesNativeSnapshot(PhysicalMediacenterSocketProbeTest.kt:28)
+
+INSTRUMENTATION_STATUS: stream=
+Error in storedPairingReceivesNativeSnapshot(com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest):
+org.junit.ComparisonFailure: expected:<[ready]> but was:<[failure:http=null,kind=EOFException,at=okio.RealBufferedSource.require(RealBufferedSource.kt:225), okio.RealBufferedSource.readByte(RealBufferedSource.kt:235), okhttp3.internal.ws.WebSocketReader.readHeader(WebSocketReader.kt:128), okhttp3.internal.ws.WebSocketReader.processNextFrame(WebSocketReader.kt:111)]>
+	at org.junit.Assert.assertEquals(Assert.java:117)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest$storedPairingReceivesNativeSnapshot$1.invokeSuspend(PhysicalMediacenterSocketProbeTest.kt:53)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:35)
+	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:101)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:47)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+	at kotlinx.coroutines.BuildersKt.runBlockingImpl(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33520:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+	at kotlinx.coroutines.BuildersKt.runBlockingK(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33521:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK$default(Builders.concurrent.kt:157)
+	at kotlinx.coroutines.BuildersKt.runBlockingK$default(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33522:1)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest.storedPairingReceivesNativeSnapshot(PhysicalMediacenterSocketProbeTest.kt:28)
+
+INSTRUMENTATION_STATUS: test=storedPairingReceivesNativeSnapshot
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 0,63
+There was 1 failure:
+1) storedPairingReceivesNativeSnapshot(com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest)
+org.junit.ComparisonFailure: expected:<[ready]> but was:<[failure:http=null,kind=EOFException,at=okio.RealBufferedSource.require(RealBufferedSource.kt:225), okio.RealBufferedSource.readByte(RealBufferedSource.kt:235), okhttp3.internal.ws.WebSocketReader.readHeader(WebSocketReader.kt:128), okhttp3.internal.ws.WebSocketReader.processNextFrame(WebSocketReader.kt:111)]>
+	at org.junit.Assert.assertEquals(Assert.java:117)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest$storedPairingReceivesNativeSnapshot$1.invokeSuspend(PhysicalMediacenterSocketProbeTest.kt:53)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:35)
+	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:101)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:47)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+	at kotlinx.coroutines.BuildersKt.runBlockingImpl(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33520:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+	at kotlinx.coroutines.BuildersKt.runBlockingK(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33521:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK$default(Builders.concurrent.kt:157)
+	at kotlinx.coroutines.BuildersKt.runBlockingK$default(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33522:1)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterSocketProbeTest.storedPairingReceivesNativeSnapshot(PhysicalMediacenterSocketProbeTest.kt:28)
+
+FAILURES!!!
+Tests run: 1,  Failures: 1
+
+
+INSTRUMENTATION_CODE: -1

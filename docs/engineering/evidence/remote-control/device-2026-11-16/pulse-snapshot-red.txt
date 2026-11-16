@@ -1,0 +1,22 @@
+   Compiling mediacenter v0.1.6 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.09s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 1 test
+test remote::state::tests::snapshot_projects_real_pulse_sink_names_as_opaque_ids ... FAILED
+
+failures:
+
+---- remote::state::tests::snapshot_projects_real_pulse_sink_names_as_opaque_ids stdout ----
+
+thread 'remote::state::tests::snapshot_projects_real_pulse_sink_names_as_opaque_ids' (288) panicked at src/remote/state.rs:418:61:
+called `Result::unwrap()` on an `Err` value: ErrorPayload { code: InvalidRequest, message: [redacted], retryable: false, refresh: BoundedList([]), replacement_preview: None }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    remote::state::tests::snapshot_projects_real_pulse_sink_names_as_opaque_ids
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 417 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `--lib`

@@ -1,0 +1,9 @@
+   Compiling mediacenter v0.1.6 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.98s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 1 test
+test remote::state::tests::snapshot_projects_real_pulse_sink_names_as_opaque_ids ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 418 filtered out; finished in 0.02s
+

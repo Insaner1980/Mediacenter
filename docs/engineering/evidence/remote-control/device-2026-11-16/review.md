@@ -18,3 +18,11 @@ Reviewed final source SHA-256:
 The same scoped reviewer inspected the new `PhysicalMediacenterProbeTest.kt` separately. Verdict: safe diagnostic probe, no Critical or Important finding. The test does not confirm identity, pair, store trust or send credentials. Its observed EPERM occurs before TLS, so it provides no TLS acceptance evidence.
 
 Deferred Minor: the TCP preflight uses `endpoint.literal` rather than `network.resolve(endpoint)`, which omits the interface scope for IPv6 link-local addresses. This run is an IPv4 baseline; IPv6 preflight acceptance remains out of scope until the resolver is used or the probe is explicitly restricted. Network-policy changes, pairing, HDMI acceptance and the earlier UI fix were excluded from this review.
+
+## Paired follow-up review
+
+The same independent reviewer approved the final typed network epoch fix (`f842322`), with no remaining findings. An Important issue in the intermediate Display-based version omitted link-layer interface indices; a failing AF_PACKET regression was added and typed address hashing resolved it. Both original-padding and interface-recreation regressions passed in the final suite.
+
+The opaque audio-output mapping (`42996f2`) was approved with no findings. Review confirmed consistent list/requested/effective IDs, current-available-sink resolution for prepare/test and retained native confirmation validation. No global protocol-ID relaxation was introduced.
+
+The extended pin/challenge probe was approved; its resolver correction resolves the earlier IPv6 preflight Minor. The new isolated stored-pairing snapshot probe was approved with one diagnostic-hygiene Minor: an untrusted frame type could enter assertion output. Android `92229bd` maps it to fixed hello/snapshot/other tags, resolving that Minor. Final checks/build and the actual Pixel probe passed. The reviewer performed read-only source review, not device acceptance.

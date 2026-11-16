@@ -2,6 +2,8 @@
 
 This run continues Task 21. Full sofa and release acceptance remain incomplete.
 
+Current continuation: [paired follow-up and confirmed HDMI picture](#paired-follow-up-and-confirmed-hdmi-picture). Earlier sections below retain the failures and pending permissions as historical observations.
+
 ## Setup and preservation
 
 - Desktop checkout: `f6ba2b0`; tested desktop artifact is the unchanged candidate built from `525184a80aca337b033f289367b1c66f9d18b0d6`. All three entries in `releases/remote-streaming-candidate/SHA256SUMS` passed a fresh check.
@@ -59,3 +61,24 @@ The opt-in probe is Android commit `98b82ba`. Its assembly, Detekt and ktlint ch
 The scoped diagnostic-test review found no Critical or Important issue. One deferred Minor limits its TCP preflight to the tested IPv4 scope: it uses the endpoint literal rather than the production resolver's interface-scoped IPv6 address. Do not use this preflight as IPv6 link-local acceptance. TLS, pairing and media acceptance are not inferred from this review.
 
 Next: obtain the phone VPN choice, rerun the physical probe after the approved change, and perform fresh manual and QR pairing. The phone's camera permission is currently denied from the fallback test; request it normally before QR use. Confirm TV picture and sound before the sofa boundary. The production signed Android upgrade, service sessions, LG controls, USB/eject, lifecycle, latency and two-hour tests remain open.
+
+## Paired follow-up and confirmed HDMI picture
+
+The user authorized all necessary setup and asked to stop repeated permission questions. Both the isolated fixture and existing Remote were excluded from the phone's NordVPN tunnel using its normal split-tunneling UI, preserving the other exclusions. **Reconnect now** was selected to apply the changes. VPN remains active for other apps. The real selected-Wi-Fi certificate probe then passed; the earlier EPERM failure is retained above.
+
+Two desktop defects were reproduced and corrected:
+
+- `f842322`: the network epoch hashed `SockaddrStorage` debug text, including inactive storage bytes. The real listener repeatedly replaced its network and canceled fresh pairing windows. A deterministic regression constructed semantically identical IPv4 storage with different unused bytes and failed with the original hash. Typed address hashing now excludes those bytes while retaining interface indices, IPv6 scope, VPN changes and order independence. Review caught the intermediate Display-based version losing link-layer indices; its failing regression is retained, and typed hashing corrected it. [Original failure](network-epoch-red.txt), [review regression](network-epoch-review-red.txt), [passing suite](network-epoch-rust.txt), [Clippy](network-epoch-clippy.txt).
+- `42996f2`: native PulseAudio names contain characters forbidden in the wire `Id`. Snapshot capture rejected the real HDMI sink, so an authenticated WebSocket closed before sending hello. The real-name snapshot regression failed before the correction. Remote list/requested/effective IDs now use a uniform SHA-256-derived opaque ID; prepare/test resolve it against current available native sinks. Confirmation retains its native descriptor/session checks. Native preferences, backend arguments and the protocol schema are unchanged. [RED](pulse-snapshot-red.txt), [GREEN](pulse-snapshot-green.txt), [434 passing Rust tests, 4 existing ignored](pulse-rust.txt), [Clippy](pulse-clippy.txt), [package build](pulse-build.txt), [88-method contract comparison](device-contract.txt).
+
+Android `92229bd` adds an optional independently verified pin to the read-only challenge probe and an opt-in isolated stored-pairing subscription test. The latter uses the production transport and reducer without sending control commands or storing credentials. Its final Pixel execution passed in 0.364 seconds. TCP preflight now uses the production scoped resolver, and failure diagnostics map message types to fixed tags. [Final checks/build](probes-final-build.txt), [certificate after VPN correction](phone-certificate-after-vpn.txt), [pinned challenge](phone-pinned-challenge.txt), [socket before correction](phone-socket-before-pulse-fix.txt), [final socket pass](phone-socket-final.txt), [review](review.md).
+
+Actual manual pairing compared all six independent native/phone words before submitting the one-use code and succeeded. The ordinary phone UI subsequently showed **Connected**, queried the library, started the synthetic video and paused it. The isolated desktop's default video directory was indexed by opening Videos at the computer before the phone query. This setup used computer/ADB actions and is **not sofa-only acceptance**.
+
+The owned video window was visually inspected and showed the generated color pattern. Its audio stream was observed on the explicit HDMI sink, unmuted at 40% system volume. The user then selected **HDMI 1** on the television and explicitly confirmed the **same image on TV and computer**. Audible TV sound remains pending the user's answer after a fresh video sound test. The video was paused again. Configuration and audio command success are not substituted for physical sound confirmation.
+
+The new desktop package and isolated test runner are archived with exact source metadata and SHA256SUMS in `releases/remote-device-20261116/paired-followup-42996f2/`. The earlier streaming candidate, production desktop installation, production Android APK and user library remain unchanged. Existing Remote's LAN permission and VPN exception were changed with authorization; its retained LG pairing connected successfully.
+
+Before production adoption, the complete inactive application-data directory was copied privately with symlinks preserved rather than followed. The earlier local 0.1.6 Debian package's executable hash matched the installed executable; that matching rollback package was included in the backup. The installed package has not yet been updated.
+
+QR/camera, signed production Android update, full local-media sofa use, provider sessions, USB, OS lifetime, latency and two-hour acceptance remain open. The phone also misleadingly labels active playback “Nothing playing” when the native optional activity title is absent; phase/time and controls work, but that caption fallback remains to fix. [Current machine-readable status](paired-followup.json).
