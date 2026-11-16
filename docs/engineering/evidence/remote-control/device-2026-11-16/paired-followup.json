@@ -37,7 +37,7 @@
   "fullTask21And22": "partial",
   "productionColdBackupComplete": true,
   "matchingRollbackDebBackedUp": true,
-  "androidRevision": "b9c4d3747969700c761c49b76c14178056f3cb99",
+  "androidRevision": "d152ac011e5cd4f2eec30a8f52af8f3ef930d8dc",
   "schemaSha256": "03b59eb6974e08f24f93e355deeae0b70e67e9ef835a0ceb1ea933514fbaa0c2",
   "productionDataPreserved": {
     "mediaItems": 1198,
@@ -68,22 +68,35 @@
     "ordinaryProfileExtensionEnrollment": "not completed: browser access host unavailable"
   },
   "phoneUiUpdate": {
-    "sourceRevision": "f7ed5a2f68abebd229f78db8f1b9dcb86d94295a",
-    "verifiedUnitTests": 440,
-    "verifiedPhysicalUiTests": 15,
+    "sourceRevision": "d152ac011e5cd4f2eec30a8f52af8f3ef930d8dc",
+    "verifiedUnitTests": 447,
+    "verifiedPhysicalUiTests": 29,
     "bothScreensInspected": true,
     "sameSignerInPlaceUpdate": true,
     "savedCredentialsPreserved": true,
-    "onlyOriginalRemoteRemains": true
+    "onlyOriginalRemoteRemains": true,
+    "visualComparison": "passed",
+    "evidence": "../simple-settings-2026-11-16/README.md"
   },
   "selectedSettingsUpdate": {
-    "sourceRevision": "b9c4d3747969700c761c49b76c14178056f3cb99",
-    "apkSha256": "9554178699156afe19e0c04f01b6b08e31ab5a03864254cce858106341acd8ec",
+    "sourceRevision": "d152ac011e5cd4f2eec30a8f52af8f3ef930d8dc",
+    "apkSha256": "164b6620fa80d4a56dd68785f445188c87176b649f11155a24682918e0cd1545",
     "verifiedUnitTests": 447,
-    "verifiedPhysicalUiTests": 0,
+    "verifiedPhysicalUiTests": 29,
     "sameSignerInPlaceUpdate": true,
     "savedCredentialsPreserved": true,
-    "physicalVisualAcceptance": "pending-phone-unlock",
+    "physicalVisualAcceptance": "passed",
     "evidence": "../simple-settings-2026-11-16/README.md"
-  }
+  },
+  "phoneUiUpdateHistory": [
+    {
+      "sourceRevision": "f7ed5a2f68abebd229f78db8f1b9dcb86d94295a",
+      "verifiedUnitTests": 440,
+      "verifiedPhysicalUiTests": 15,
+      "bothScreensInspected": true,
+      "sameSignerInPlaceUpdate": true,
+      "savedCredentialsPreserved": true,
+      "onlyOriginalRemoteRemains": true
+    }
+  ]
 }

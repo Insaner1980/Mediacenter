@@ -1,0 +1,53 @@
+{
+  "pixelDimensions": [
+    1080,
+    2424
+  ],
+  "statusBarPixels": 173,
+  "androidNavigationBarPixels": 126,
+  "fontScale": 1.15,
+  "rows": {
+    "Sound": [
+      53,
+      564,
+      1027,
+      711
+    ],
+    "VPN": [
+      53,
+      714,
+      1027,
+      861
+    ],
+    "Media": [
+      53,
+      864,
+      1027,
+      1011
+    ],
+    "Devices": [
+      53,
+      1014,
+      1027,
+      1161
+    ],
+    "Appearance": [
+      53,
+      1164,
+      1027,
+      1311
+    ],
+    "Advanced": [
+      53,
+      1314,
+      1027,
+      1461
+    ]
+  },
+  "allSixRowsVisibleEnabled": true,
+  "singleDeviceName": true,
+  "connected": true,
+  "noInlineSwitchesOrTechnicalGuidanceOnOverview": true,
+  "noDotSeparators": true,
+  "settingsBottomDestinationSelected": true
+}

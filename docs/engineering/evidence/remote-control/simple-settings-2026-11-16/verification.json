@@ -1,8 +1,8 @@
 {
   "date": "2026-11-16",
-  "androidRevision": "b9c4d3747969700c761c49b76c14178056f3cb99",
+  "androidRevision": "d152ac011e5cd4f2eec30a8f52af8f3ef930d8dc",
   "nativeRevision": "1df215629696fdb31a88d38129449b2a3d435b51",
-  "apkSha256": "9554178699156afe19e0c04f01b6b08e31ab5a03864254cce858106341acd8ec",
+  "apkSha256": "164b6620fa80d4a56dd68785f445188c87176b649f11155a24682918e0cd1545",
   "applicationId": "com.emmah.colordock.remote",
   "label": "Remote",
   "installedInPlaceWithSameSigner": true,
@@ -24,12 +24,22 @@
     "instrumentationApkBuild": "pass"
   },
   "sourceReview": "two Important feedback findings reproduced RED and fixed GREEN; no Critical findings",
-  "physicalTestsThisRevision": 0,
-  "physicalVisualAcceptance": "pending-phone-unlock",
+  "physicalTestsThisRevision": 29,
+  "physicalVisualAcceptance": "passed",
   "previousPhysicalResultsDoNotCertifyThisRevision": true,
   "fontScalePreserved": 1.15,
   "stayAwakeRestored": 0,
   "originalRemoteOnly": true,
   "desktopHdmiAudioVpnUnchanged": true,
-  "archive": "releases/remote-device-20261116/simple-settings-b9c4d37"
+  "archive": "releases/remote-device-20261116/simple-settings-d152ac0",
+  "physicalTestSeconds": 37.336,
+  "referenceComparison": "combined full-view and focused images inspected; P2 icon/row-size fixes recaptured and accepted",
+  "bothTargetScreensInspected": true,
+  "allSixSettingsSectionsOpened": true,
+  "androidBackAndVisibleBackVerified": true,
+  "connectionAndPhoneAppearanceCallbacksVerified": true,
+  "testRunnerRemoved": true,
+  "finalPage": "Mediacenter Settings, connected",
+  "sourceUnitGate": "fresh completed 447-test results revalidated UP-TO-DATE with successful exit after quality-session interruption",
+  "nativeControlsMutatedDuringPhysicalChecks": false
 }
