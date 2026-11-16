@@ -1,0 +1,25 @@
+{
+  "originalApplicationId": "com.emmah.colordock.remote",
+  "lgTvConnected": true,
+  "mediacenterConnected": true,
+  "bothConnectedInSameTargetSelector": true,
+  "targetSwitchLgToMediacenterAndBackPassed": true,
+  "showMenusOnComputerWindowViewable": true,
+  "settingsPageWithoutGlobalProtocolError": true,
+  "libraryQueryRenderedMediaRows": true,
+  "visibleMediaRows": 9,
+  "separateCompanionRemoved": true,
+  "fixtureTestRunnerRemoved": true,
+  "originalTestRunnerRemoved": true,
+  "remainingRemotePackages": [
+    "com.emmah.colordock.remote"
+  ],
+  "activeVpn": true,
+  "originalRemoteUidExcluded": true,
+  "removedFixtureUidNotExcluded": true,
+  "bothTargetsConnectedAfterCompanionRemovalAndVpnRestart": true,
+  "actualOriginalPackageCertificateProbeAfterVpnRestart": "pass, 1 test, 0.261 seconds",
+  "phoneMigrationHelpersRemoved": true,
+  "sensitiveApplicationDataIncluded": false,
+  "originalPackageProbeBeforeVpnRestartFailure": "EPERM at Android Network.bindSocket"
+}

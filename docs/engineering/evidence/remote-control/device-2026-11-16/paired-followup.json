@@ -4,10 +4,13 @@
   "androidTestsRevision": "92229bd2536f5b781ea60d62fe3add17a47ba45e",
   "userAuthorizedAllNecessarySetup": true,
   "phoneVpn": {
-    "remoteAndIsolatedRemoteExcluded": true,
+    "remoteAndIsolatedRemoteExcluded": false,
     "reconnectedToApply": true,
     "otherExclusionsPreserved": true,
-    "vpnRemainsActive": true
+    "vpnRemainsActive": true,
+    "originalRemoteExcluded": true,
+    "removedCompanionExclusionRemoved": true,
+    "activeUidRangesVerifiedAfterNordAppRestart": true
   },
   "certificateProbe": "pass after VPN exception",
   "manualPairing": "pass, six native/phone verification words matched before code submission",
@@ -49,8 +52,10 @@
     "originalTvCredentialImportedAndRoundTripVerified": true,
     "liveMediacenterCredentialImportedAndRoundTripVerified": true,
     "signerRotatedWithEncryptedMigration": true,
-    "liveConnectionVerification": "pending personal phone unlock",
-    "separateCompanionRemoved": false
+    "liveConnectionVerification": "pass: both targets Connected simultaneously in original Remote; target switching, real library query and native menu foreground checked",
+    "separateCompanionRemoved": true,
+    "testRunnersRemoved": true,
+    "bothTargetsConnectedAfterRemovalAndVpnRestart": true
   },
   "lifecycle": {
     "startAtLoginEnabled": true,

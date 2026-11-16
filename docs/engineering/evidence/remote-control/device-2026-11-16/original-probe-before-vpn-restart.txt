@@ -1,0 +1,89 @@
+INSTRUMENTATION_STATUS: class=com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stream=
+com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest:
+INSTRUMENTATION_STATUS: test=selectedWifiInspectsDesktopCertificate
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stack=java.net.SocketException: Binding socket to network 152 failed: EPERM (Operation not permitted)
+	at android.net.Network.bindSocket(Network.java:438)
+	at android.net.Network.bindSocket(Network.java:405)
+	at android.net.Network$NetworkBoundSocketFactory.createSocket(Network.java:265)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest$selectedWifiInspectsDesktopCertificate$1.invokeSuspend(PhysicalMediacenterProbeTest.kt:41)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+	at kotlinx.coroutines.BuildersKt.runBlockingImpl(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33520:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+	at kotlinx.coroutines.BuildersKt.runBlockingK(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33521:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK$default(Builders.concurrent.kt:157)
+	at kotlinx.coroutines.BuildersKt.runBlockingK$default(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33522:1)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest.selectedWifiInspectsDesktopCertificate(PhysicalMediacenterProbeTest.kt:38)
+	... 32 trimmed
+Caused by: android.system.ErrnoException: Binding socket to network 152 failed: EPERM (Operation not permitted)
+	at android.net.Network.bindSocket(Network.java:437)
+	... 47 more
+
+INSTRUMENTATION_STATUS: stream=
+Error in selectedWifiInspectsDesktopCertificate(com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest):
+java.net.SocketException: Binding socket to network 152 failed: EPERM (Operation not permitted)
+	at android.net.Network.bindSocket(Network.java:438)
+	at android.net.Network.bindSocket(Network.java:405)
+	at android.net.Network$NetworkBoundSocketFactory.createSocket(Network.java:265)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest$selectedWifiInspectsDesktopCertificate$1.invokeSuspend(PhysicalMediacenterProbeTest.kt:41)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+	at kotlinx.coroutines.BuildersKt.runBlockingImpl(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33520:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+	at kotlinx.coroutines.BuildersKt.runBlockingK(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33521:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK$default(Builders.concurrent.kt:157)
+	at kotlinx.coroutines.BuildersKt.runBlockingK$default(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33522:1)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest.selectedWifiInspectsDesktopCertificate(PhysicalMediacenterProbeTest.kt:38)
+	... 32 trimmed
+Caused by: android.system.ErrnoException: Binding socket to network 152 failed: EPERM (Operation not permitted)
+	at android.net.Network.bindSocket(Network.java:437)
+	... 47 more
+
+INSTRUMENTATION_STATUS: test=selectedWifiInspectsDesktopCertificate
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 0,079
+There was 1 failure:
+1) selectedWifiInspectsDesktopCertificate(com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest)
+java.net.SocketException: Binding socket to network 152 failed: EPERM (Operation not permitted)
+	at android.net.Network.bindSocket(Network.java:438)
+	at android.net.Network.bindSocket(Network.java:405)
+	at android.net.Network$NetworkBoundSocketFactory.createSocket(Network.java:265)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest$selectedWifiInspectsDesktopCertificate$1.invokeSuspend(PhysicalMediacenterProbeTest.kt:41)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+	at kotlinx.coroutines.BuildersKt.runBlockingImpl(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33520:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+	at kotlinx.coroutines.BuildersKt.runBlockingK(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33521:1)
+	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK$default(Builders.concurrent.kt:157)
+	at kotlinx.coroutines.BuildersKt.runBlockingK$default(dex-id-5db124b58585d29d7544be2627c317195ab4def6-33522:1)
+	at com.emmah.colordock.remote.mediacenter.PhysicalMediacenterProbeTest.selectedWifiInspectsDesktopCertificate(PhysicalMediacenterProbeTest.kt:38)
+	... 32 trimmed
+Caused by: android.system.ErrnoException: Binding socket to network 152 failed: EPERM (Operation not permitted)
+	at android.net.Network.bindSocket(Network.java:437)
+	... 47 more
+
+FAILURES!!!
+Tests run: 1,  Failures: 1
+
+
+INSTRUMENTATION_CODE: -1
