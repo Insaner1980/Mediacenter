@@ -2,7 +2,7 @@
 
 This run continues Task 21. Full sofa and release acceptance remain incomplete.
 
-Current continuation: [paired follow-up and confirmed HDMI picture](#paired-follow-up-and-confirmed-hdmi-picture). Earlier sections below retain the failures and pending permissions as historical observations.
+Current continuation: [integrated original Remote and live desktop](#integrated-original-remote-and-live-desktop). Earlier sections retain the earlier failures, temporary isolated installs and then-pending setup as historical observations.
 
 ## Setup and preservation
 
@@ -82,3 +82,25 @@ The new desktop package and isolated test runner are archived with exact source 
 Before production adoption, the complete inactive application-data directory was copied privately with symlinks preserved rather than followed. The earlier local 0.1.6 Debian package's executable hash matched the installed executable; that matching rollback package was included in the backup. The installed package has not yet been updated.
 
 QR/camera, signed production Android update, full local-media sofa use, provider sessions, USB, OS lifetime, latency and two-hour acceptance remain open. The phone also misleadingly labels active playback “Nothing playing” when the native optional activity title is absent; phase/time and controls work, but that caption fallback remains to fix. [Current machine-readable status](paired-followup.json).
+
+## Integrated original Remote and live desktop
+
+The user clarified that all functionality must be in the original **Remote**, with both LG TV and Mediacenter targets. A separately branded companion was an incorrect deployment choice. Android source already contained the combined target selector; the final build now uses its original application ID `com.emmah.colordock.remote`, launcher name **Remote**, and no isolated-ID or branding overlay.
+
+The original APK's debug signing certificate did not match the available build key. Before reinstalling, the old APK and entire original app data were backed up privately. Three critical ciphertext/preference hashes matched the phone. The original TV record and live Mediacenter record from the temporary companion were exported under their respective app UIDs into authenticated AES-GCM portable records. Each export validated its structure, decrypted back identically and passed a new Android Keystore encryption/decryption canary. Both portable files were independently authenticated on the host before package removal. Credentials, portable records, migration key, private media and app data are excluded from this evidence and release artifacts.
+
+An independent read-only review approved the crypto, package/signature gates and restore/rollback path after correcting the initial uninstall to run inside the rollback guard. The original package was then reinstalled from standard Android source `0b8a2335905967b33bdd98fc0feab79f7177124e`. Its TV and appearance DataStore files match the original bytes. Both credentials were encrypted under fresh app Keystore aliases, read back and compared successfully. This is a verified encrypted migration with signing-certificate rotation, **not a same-signer in-place update**. The old APK, matching recovery material and current signing key remain in a private ignored recovery directory.
+
+**Live UI verification is pending the user unlocking the phone.** The original Remote was opened, but Android's personal lock screen prevents the final target/connection check. The unwanted companion and its test runner are retained only until that check succeeds, then must be removed. Do not report their removal yet.
+
+The desktop is now the installed `/usr/bin/mediacenter`, source `1df215629696fdb31a88d38129449b2a3d435b51`, using the real application data. Its migration retained 1198 media items, four sources and zero playlists; foreign-key violations remain zero. Complete cold backups include matching rollback packages. Start at login and keep available for Remote were enabled from the phone. Closing the main window retained the process/listener, and the phone's Show menus on computer restored the window. A fresh login/reboot has not been tested.
+
+The missing playback-title fallback was fixed in Android `700c861`: a missing native title now uses the active Video/Music/Photos/Streaming label. Its observed RED and four passing Compose/device tests were reviewed. The real Settings failure was the installed NordVPN returning 150 valid country names against the old 100-item protocol bound. Desktop `1df2156` and Android `0b8a233` increase only that collection's bound to 250, preserving all countries and existing command/auth semantics. Watched Rust and Kotlin RED cases preceded the correction; final checks include 150-item roundtrip, 250 acceptance and 251 rejection. The reviewed final source gates passed **435 Rust tests, four existing ignored**, and **433 Android tests**, with no failures. [Rust](country-final-rust.txt), [Clippy](country-final-clippy.txt), [Android and quality gates](country-final-android.txt), [contract](country-final-contract.txt), [standard APK build](integrated-original-apk-build.txt).
+
+The final source-paired artifacts are locally archived in `releases/remote-device-20261116/integrated-remote-1df2156/`, with all checksums verified:
+
+- Mediacenter Debian SHA-256: `c8cdb5791b46f2e4171bee5aa890c182d46fc257319e3a0451b39199cdcb68ec`.
+- Original-ID Remote APK SHA-256: `cd2351d91a9286b310774aa9cd86d2593b6081f059005d5f10992704d048362b`.
+- Shared schema: `03b59eb6974e08f24f93e355deeae0b70e67e9ef835a0ceb1ea933514fbaa0c2`, 88 methods.
+
+The user confirmed audible test tones from the TV, describing them as quiet. The system HDMI level was raised from 40% to 80% only after confirming every HDMI stream was paused. No loud playback was started after the adjustment. The TV remains on HDMI 1 with the human-confirmed mirrored image. The ordinary Chrome profile's Native Messaging host was registered and verified, but extension enrollment was not completed because the browser access host is unavailable. Full QR/sofa/provider/USB/lifecycle/latency/two-hour and Task 21/22 release acceptance remain partial. [Current status](paired-followup.json).

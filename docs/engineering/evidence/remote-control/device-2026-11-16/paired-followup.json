@@ -1,6 +1,6 @@
 {
   "date": "2026-11-16",
-  "desktopRevision": "42996f2d3df01164c501f41e5df0a4d28e90e672",
+  "desktopRevision": "1df215629696fdb31a88d38129449b2a3d435b51",
   "androidTestsRevision": "92229bd2536f5b781ea60d62fe3add17a47ba45e",
   "userAuthorizedAllNecessarySetup": true,
   "phoneVpn": {
@@ -24,11 +24,42 @@
     "explicitHdmiRouteObserved": true,
     "muted": false,
     "systemVolumePercent": 40,
-    "userConfirmedAudibleTvSound": "pending"
+    "userConfirmedAudibleTvSound": true,
+    "userReportedTestTonesQuiet": true,
+    "systemVolumePercentAfterAdjustment": 80,
+    "adjustmentPerformedWhileAllHdmiStreamsPaused": true
   },
-  "productionDesktopUpdated": false,
-  "productionAndroidApkUpdated": false,
+  "productionDesktopUpdated": true,
+  "productionAndroidApkUpdated": true,
   "fullTask21And22": "partial",
   "productionColdBackupComplete": true,
-  "matchingRollbackDebBackedUp": true
+  "matchingRollbackDebBackedUp": true,
+  "androidRevision": "0b8a2335905967b33bdd98fc0feab79f7177124e",
+  "schemaSha256": "03b59eb6974e08f24f93e355deeae0b70e67e9ef835a0ceb1ea933514fbaa0c2",
+  "productionDataPreserved": {
+    "mediaItems": 1198,
+    "sources": 4,
+    "playlists": 0,
+    "foreignKeyViolations": 0
+  },
+  "integratedOriginalRemote": {
+    "applicationId": "com.emmah.colordock.remote",
+    "label": "Remote",
+    "originalTvAndAppearancePreferencesByteIdentical": true,
+    "originalTvCredentialImportedAndRoundTripVerified": true,
+    "liveMediacenterCredentialImportedAndRoundTripVerified": true,
+    "signerRotatedWithEncryptedMigration": true,
+    "liveConnectionVerification": "pending personal phone unlock",
+    "separateCompanionRemoved": false
+  },
+  "lifecycle": {
+    "startAtLoginEnabled": true,
+    "keepAvailableForRemoteEnabled": true,
+    "windowCloseAndPhoneRestorePassed": true,
+    "reloginTested": false
+  },
+  "browser": {
+    "ordinaryProfileNativeHostRegisteredAndVerified": true,
+    "ordinaryProfileExtensionEnrollment": "not completed: browser access host unavailable"
+  }
 }

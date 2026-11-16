@@ -1,0 +1,489 @@
+   Compiling mediacenter v0.1.6 (/home/emma/Dev/Mediacenter/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 05s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/mediacenter_lib-6ff3f88f1bf9e5a0)
+
+running 420 tests
+test commands::tests::presentation_cannot_invoke_privileged_operations ... ok
+test control::activity::tests::task9_confirmed_switch_cannot_target_replacement_session ... ok
+test contracts::tests::contracts_match_generated_types ... ok
+test control::activity::tests::task9_missing_media_fails_preflight_without_changing_current_photo_session ... ok
+test control::activity::foreground_tests::task10_show_menu_only_shows_and_focuses_existing_window_without_picture_or_geometry_changes ... ok
+test control::activity::foreground_tests::task10_show_playback_never_relaunches_a_missing_or_unowned_session ... ok
+test control::confirmations::tests::task9_confirmation_ownership_expiry_and_consumption_are_server_bound ... ok
+test control::audio::tests::task10_audio_confirmation_preserves_picture_target_and_partial_picture_status ... ok
+test control::library::attachment_tests::explicit_uuidless_confirmation_preserves_association_and_kinds ... ok
+test control::audio::tests::task10_fix1_explicit_available_preference_clears_old_fault_without_claiming_routing ... ok
+test control::audio::tests::task10_audio_preference_preserves_picture_and_confirmed_output_and_main_geometry ... ok
+test control::library::tests::default_and_removable_candidates_do_not_expose_parent_home ... ok
+test control::library::tests::default_root_add_can_refresh_after_association_removal ... ok
+test control::library::tests::phone_roots_are_authorized_only_and_paths_cannot_be_supplied ... ok
+test control::library::tests::remove_preview_is_bound_to_source_owner_and_never_removes_on_prepare ... ok
+test control::library::tests::source_cancel_is_owner_scoped_and_waits_for_actual_completion ... ok
+test control::library::tests::source_identity_checks_detect_changed_association ... ok
+test control::playback::tests::task9_player_validation_rejects_invalid_values_and_wrong_track_kind ... ok
+test control::playback::tests::task9_entry_identity_is_resolved_after_serialized_desktop_reorder ... ok
+test control::library::tests::stale_source_revision_requires_fresh_explicit_confirmation ... ok
+test control::playback::tests::task9_review_confirmed_music_adopts_explicit_duplicate_then_next ... ok
+test control::playback::tests::task9_review_music_handoff_rejects_stale_revision_session_and_wrong_media ... ok
+test control::playback::tests::task9_queue_start_reserves_session_transition_before_any_player_effect ... ok
+test control::playback::tests::task9_remote_queue_play_requires_confirmation_before_replacing_photos ... ok
+test control::settings::tests::concurrent_native_preference_edits_share_one_atomic_revision ... ok
+test control::settings::tests::failed_counter_persistence_rolls_back_preference_and_home_update ... ok
+test control::settings::tests::native_vpn_publication_preserves_preference_revision_and_atomic_edit_conflicts ... ok
+test control::settings::tests::invalid_or_exhausted_preference_counter_rolls_back_every_writer ... ok
+test control::settings::tests::preference_revision_survives_restart_ignores_noops_and_tracks_setup_preferences ... ok
+test control::settings::tests::settings_read_uses_native_catalog_and_redacts_private_state ... ok
+test control::library::tests::revoked_root_invalidates_add_and_stale_preview_retry ... ok
+test control::settings::tests::routine_writes_use_catalog_persistence_and_check_revision_at_commit ... ok
+test control::settings::tests::settings_scope_and_unsupported_keys_are_denied ... ok
+test control::settings_devices::tests::capacity_scope_disable_and_owner_revocation_fail_closed ... ok
+test control::settings_devices::tests::changed_owner_scope_and_changed_target_identity_cannot_revoke ... ok
+test control::settings_devices::tests::concurrent_confirmation_issues_once_and_last_seen_is_not_a_resource_change ... ok
+test control::settings_devices::tests::qr_rows_reject_non_square_non_binary_and_out_of_bounds ... ok
+test control::settings_devices::tests::failed_issuance_journal_write_cancels_candidate ... ok
+test control::settings_devices::tests::pairing_is_confirmed_once_and_only_secret_free_issuance_is_retained ... ok
+test devices::actions::tests::internal_and_system_drives_cannot_be_removed ... ok
+test devices::actions::tests::mount_resolves_opaque_volume_id_and_confirms_new_state ... ok
+test devices::actions::tests::no_power_off_support_reports_unmounted_only ... ok
+test devices::actions::tests::one_volume_failure_prevents_false_drive_success ... ok
+test devices::actions::tests::power_off_failure_never_reports_safe_removal ... ok
+test devices::actions::tests::preview_identity_rejects_same_drive_replug ... ok
+test devices::actions::tests::readers_that_do_not_close_prevent_os_mutations ... ok
+test devices::actions::tests::remote_os_options_disable_prompts_and_have_no_force_option ... ok
+test devices::actions::tests::remounted_volume_prevents_power_off_and_success ... ok
+test devices::actions::tests::shared_physical_device_requires_explicit_complete_confirmation ... ok
+test devices::actions::tests::unsafe_block_topology_prevents_eject_even_when_removable ... ok
+test devices::actions::tests::whole_drive_removal_drains_every_volume_then_unmounts_and_powers_off ... ok
+test devices::identity::tests::fingerprint_distinguishes_partition_and_device_but_not_mount_path ... ok
+test devices::identity::tests::fingerprint_requires_actual_hardware_and_filesystem_evidence ... ok
+test devices::registry::tests::duplicate_uuid_requires_disambiguation ... ok
+test devices::registry::tests::replug_at_new_mount_path_preserves_source_id ... ok
+test devices::registry::tests::usb_c_does_not_require_separate_media_logic ... ok
+test devices::udisks::native_tests::host_device_discovery ... ignored, read-only host UDisks2 integration probe
+test diagnostics::tests::logs_rotate_with_only_structured_fields ... ok
+test events::audio_fault_tests::task10_fix1_private_fault_only_commit_still_publishes_outputs_revision ... ok
+test library::confirmation::tests::uuidless_source_requires_native_confirmation_after_restart_or_remount ... ok
+test control::settings_devices::tests::wrong_owner_expiry_and_listener_rebind_cannot_issue_a_candidate ... ok
+test library::defaults::attachment_tests::automatic_registration_cannot_confirm_a_uuidless_attachment ... ok
+test library::defaults::tests::configured_folder_is_registered_idempotently_and_existing_parent_reused ... ok
+test library::defaults::tests::missing_or_disabled_default_does_not_grant_home_or_root ... ok
+test library::files::tests::descriptor_survives_path_replacement ... ok
+test library::files::tests::kernel_boundary_rejects_external_symlink ... ok
+test control::settings_devices::tests::self_revocation_closes_socket_and_owner_issued_candidate ... ok
+test library::defaults::tests::existing_child_is_not_silently_duplicated_by_default_registration ... ok
+test library::probe::tests::local_only_probe_uses_open_descriptor ... ok
+test library::probe::tests::external_reference_never_fetches_http ... ok
+test library::repository::tests::removing_source_does_not_delete_files ... ok
+test library::repository::tests::duplicate_root_merges_kinds_without_duplicate_index ... ok
+test library::resources::tests::removal_cancels_existing_and_blocks_new_readers ... ok
+test library::scanner::tests::cancelled_scan_does_not_mark_files_missing ... ok
+test library::scanner::tests::changed_file_invalidates_thumbnail ... ok
+test library::scanner::tests::incomplete_scan_does_not_mark_files_missing ... ok
+test library::scanner::tests::disconnected_source_during_scan_preserves_metadata_and_reports_recovery ... ok
+test library::scanner::tests::pre_cancelled_scan_admission_reports_cancelled_not_resource_busy ... ok
+test library::source_service::tests::remote_grant_revalidates_before_registration_and_preserves_actual_root ... ok
+test library::source_service::tests::default_and_removable_roots_survive_association_removal ... ok
+test library::source_service::tests::remote_registration_rechecks_root_after_serialized_removal ... ok
+test library::sources::tests::external_symlink_and_cycles_are_rejected ... ok
+test library::sources::tests::grant_is_single_use_and_expires ... ok
+test library::sources::tests::non_utf8_path_identity_is_lossless ... ok
+test library::sources::tests::overlapping_roots_are_detected ... ok
+test library::sources::tests::source_root_validation_rejects_file ... ok
+test library::source_service::tests::source_add_cannot_bypass_active_device_gate ... ok
+test library::query::tests::ten_thousand_items_are_paged_with_stable_cursor ... ok
+test lifecycle::tests::partial_failure_keeps_os_error_and_reports_stale_library ... ok
+test music::playlists::cascade_revision_tests::revision_exhaustion_rejects_save_without_mutating_content ... ok
+test music::playlists::cascade_revision_tests::source_deletion_advances_affected_playlist_revision_and_preserves_other_duplicates ... ok
+test music::playlists::compare_and_swap_tests::remote_create_requires_no_previous_revision_and_enforces_existing_name_limits ... ok
+test music::playlists::revision_tests::desktop_edits_advance_remote_revision_and_stale_edits_cannot_replace_content ... ok
+test library::thumbnails::task12_tests::task12_issued_token_binds_first_open_and_rejects_replaced_inode ... ok
+test music::playlists::revision_tests::revision_distinguishes_missing_playlist_from_database_query_failure ... ok
+test music::playlists::tests::duplicates_offline_and_order_survive_save_and_reload ... ok
+test music::playlists::tests::playlist_limits_count_unicode_characters_and_item_occurrences ... ok
+test music::playlists::tests::invalid_edits_are_atomic_and_delete_only_playlist ... ok
+test music::playlists::tests::unplugged_source_overrides_available_file_and_retains_playlist ... ok
+test music::queue::tests::duplicates_advance_as_independent_entries_and_end ... ok
+test music::queue::tests::manual_stop_wins_over_a_delayed_natural_end_callback ... ok
+test music::queue::tests::offline_entries_are_retained_and_skipped_without_repeat_loop ... ok
+test music::queue::tests::persistence_restores_order_and_modes_without_restarting_playback ... ok
+test music::queue::tests::previous_never_reselects_an_unavailable_current_track ... ok
+test music::queue::tests::repeat_all_wraps_and_previous_wraps ... ok
+test music::queue::tests::bounds_and_current_removal_are_explicit ... ok
+test music::queue::tests::seeded_shuffle_restores_original_order_and_current_occurrence ... ok
+test music::queue::tests::stale_and_invalid_edits_leave_queue_unchanged ... ok
+test music::queue::tests::stale_session_cannot_advance_replacement_queue ... ok
+test music::queue::tests::repeat_one_repeats_natural_end_but_next_advances ... ok
+test music::service::tests::externally_stopped_player_is_not_reported_as_active ... ok
+test music::service::tests::persistence_failure_keeps_live_queue_edits ... ok
+test music::service::tests::unplugged_volume_is_skipped_but_player_ownership_failure_is_not ... ok
+test outputs::audio::loss_tests::task10_disappeared_hdmi_pauses_owned_local_media_without_default_fallback ... ok
+test outputs::audio::routing_tests::task10_audio_only_moves_verified_owned_stream_and_observes_output ... ok
+test outputs::audio::routing_tests::task10_new_owned_stream_during_routing_cannot_be_reported_as_confirmed ... ok
+test outputs::audio::routing_tests::task10_stale_sink_missing_stream_and_pid_reuse_never_move_any_stream ... ok
+test outputs::audio::tests::ambiguous_stream_is_not_rerouted ... ok
+test outputs::audio::tests::unavailable_port_is_not_a_working_hdmi_sink ... ok
+test outputs::audio::tests::unrelated_chrome_audio_is_untouched ... ok
+test outputs::control_window::tests::geometry_is_reachable_on_small_negative_scaled_display ... ok
+test music::service::tests::queued_edit_cannot_restore_an_externally_closed_session ... ok
+test outputs::coordinator::loss_tests::task10_display_only_loss_preserves_playback_but_missing_hdmi_requires_pause ... ok
+test outputs::coordinator::tests::audio_failure_does_not_report_complete_success ... ok
+test outputs::monitors::tests::negative_geometry_and_scaling_preserve_reachability ... ok
+test outputs::monitors::tests::reordered_outputs_and_duplicate_names_use_identity ... ok
+test outputs::x11::placement_tests::move_playback_never_moves_main_window ... ok
+test outputs::x11::placement_tests::unverified_window_is_not_moved ... ok
+test outputs::x11::placement_tests::visible_music_window_uses_verified_playback_placement ... ok
+test outputs::x11::placement_tests::wayland_reports_manual_placement ... ok
+test outputs::x11::tests::ambiguous_windows_are_not_guessed ... ok
+test outputs::x11::tests::title_cannot_claim_unrelated_window ... ok
+test outputs::coordinator::audio_fault_tests::task10_fix1_fault_only_routing_change_is_not_dropped_and_pending_retry_preserves_loss ... ok
+test photos::presenter::foreground_tests::task10_cancelled_photo_or_missing_presentation_window_never_restarts_or_changes_image ... ok
+test photos::presenter::foreground_tests::task10_existing_photo_foregrounds_without_restart_image_or_output_change ... ok
+test photos::presenter::tests::preload_retention_releases_previous_frame_and_keeps_only_next_two ... ok
+test photos::presenter::tests::presentation_capability_grants_no_privileged_operations ... ok
+test control::settings::tests::busy_routine_write_returns_typed_busy_without_a_journal_intent ... ok
+test photos::presenter::tests::task14_drive_impact_tracks_only_owned_photo_source_and_stable_session ... ok
+test photos::presenter::foreground_tests::task10_stale_photo_session_never_foregrounds_its_replacement_window ... ok
+test photos::presenter::tests::source_removal_cancels_frames_and_releases_all_buffers_and_handles ... ok
+test photos::presenter::tests::task9_fix2_completed_obsolete_decode_cannot_replace_new_session ... ok
+test photos::presenter::tests::task9_paused_singleton_adopts_exact_item_selection_without_replacing_session ... ok
+test photos::presenter::tests::task9_fix2_new_navigation_reuses_preload_and_supersedes_pending_step ... ok
+test photos::presenter::tests::task9_review_offline_neighbor_does_not_expire_current_still ... ok
+test photos::presenter::tests::task9_fix2_stop_does_not_wait_for_navigation_decoder_permits ... ok
+test photos::presenter::tests::task9_singleton_handoff_rejects_wrong_item_and_playing_session ... ok
+test photos::presenter::tests::task9_still_photo_selection_keeps_session_and_pauses_before_publication ... ok
+test player::ipc::tests::cancelling_a_command_removes_its_pending_slot_and_ignores_late_reply ... ok
+test player::ipc::tests::concurrent_replies_are_routed_by_id_instead_of_arrival_order ... ok
+test player::ipc::tests::interleaved_events_do_not_consume_replies ... ok
+test player::ipc::tests::malformed_peer_is_reported_after_request_is_received ... ok
+test photos::presenter::tests::task9_review_still_start_and_adoption_retain_missing_neighbors ... ok
+test photos::presenter::tests::task9_review_unavailable_navigation_preserves_current_and_automatic_pauses ... ok
+test player::ipc::tests::unexpected_eof_fails_every_pending_request_and_future_commands ... ok
+test player::mpv::native_observer_tests::task9_native_audio_eof_keeps_observing_owned_player_after_seek_and_pause ... ignored, requires isolated Xvfb and real mpv; null audio/video outputs only
+test player::mpv::native_observer_tests::task9_native_eof_confirmed_music_adopts_queue_without_restart ... ignored, requires isolated Xvfb and real mpv; null audio/video outputs only
+test player::resume::tests::changed_duration_clamps_resume ... ok
+test player::resume::tests::completed_video_does_not_resume_near_end ... ok
+test player::resume::tests::resume_waits_for_file_loaded ... ok
+test player::subtitles::tests::authorized_adjacent_subtitles_preserve_raw_names_and_descriptors ... ok
+test player::subtitles::tests::external_sidecar_links_and_parent_escape_are_rejected ... ok
+test player::ipc::tests::timeout_releases_pending_request_and_late_reply_cannot_complete_next ... ok
+test process::registry::tests::pid_reuse_is_not_treated_as_owned ... ok
+test process::runner::tests::arguments_are_not_shell_interpreted ... ok
+test process::runner::tests::cancellation_releases_command ... ok
+test player::subtitles::tests::real_mpv_loads_authorized_sidecar_with_production_restrictions ... ok
+test process::runner::tests::oversized_output_is_bounded ... ok
+test remote::adapters::audio_tests::opaque_audio_ids_resolve_only_to_the_current_available_native_sink ... ok
+test process::runner::tests::command_timeout_reaps_owned_child ... ok
+test remote::auth::tests::revoking_a_device_closes_its_existing_subscription ... ok
+test remote::autostart::tests::reversible_user_only_file_and_exec_escaping ... ok
+test remote::autostart::tests::task20_fix1_disable_reports_directory_sync_failure_after_unlink ... ok
+test remote::autostart::tests::task20_fix1_new_directory_publication_precedes_entry_write ... ok
+test remote::autostart::tests::task20_invalid_desktop_exec_path_is_rejected_before_file_writes ... ok
+test remote::autostart::tests::unowned_files_and_symlinks_are_never_overwritten_or_removed ... ok
+test remote::browser_bridge::runtime_regressions::select_only_the_live_profile_designated_for_the_catalog_service ... ok
+test remote::browser_bridge::tests::protects_socket_and_consumes_only_authenticated_current_grant ... ok
+test remote::browser_bridge::tests::rejects_wrong_peer_uid ... ok
+test remote::browser_protocol::tests::accepts_only_exact_bundled_extension_origin ... ok
+test remote::browser_protocol::tests::native_framing_preserves_unicode_and_detects_truncation ... ok
+test remote::browser_protocol::tests::rejects_oversized_frames_before_body_allocation ... ok
+test remote::browser_runtime::tests::live_port_owns_one_target_and_retires_generation_on_navigation_and_disconnect ... ok
+test remote::autostart::tests::task20_fix1_rollback_to_absence_reports_directory_sync_failure ... ok
+test remote::discovery::tests::advertisement_contains_only_public_identity_and_explicit_addresses ... ok
+test remote::browser_runtime::tests::managed_wake_accepts_the_grant_once_from_the_selected_profile ... ok
+test remote::discovery::tests::queued_registration_does_not_claim_advertising_and_daemon_errors_clear_it ... ok
+test remote::dispatch::admission_tests::durable_cancellation_ack_replays_without_target_lookup_or_repeated_effect ... ok
+test remote::dispatch::admission_tests::stale_epoch_cannot_cancel_an_operation ... ok
+test remote::dispatch::admission_tests::eight_queued_native_jobs_per_device_and_duplicates_do_not_take_another_slot ... ok
+test remote::dispatch::admission_tests::task9_absent_and_foreign_operation_lookup_are_indistinguishable_not_found ... ok
+test remote::dispatch::admission_tests::task9_activity_preview_binds_target_file_identity_and_returns_fresh_preview ... ok
+test remote::dispatch::admission_tests::task9_native_queue_cas_is_observed_after_acceptance_and_desktop_reorder ... ok
+test remote::dispatch::admission_tests::task9_activity_preview_revalidates_native_queue_revision ... ok
+test remote::dispatch::admission_tests::task9_pause_missing_session_finishes_with_typed_stale_state ... ok
+test remote::dispatch::admission_tests::transient_input_and_scope_failures_never_reach_the_persistent_journal ... ok
+test remote::dispatch::admission_tests::task9_replaced_preview_does_not_replay_as_successful_activity ... ok
+test remote::dispatch::task10_tests::task10_audio_preview_replay_uses_the_shared_owner_bound_confirmation ... ok
+test remote::dispatch::task10_tests::task10_foreground_input_is_never_journaled_or_replayed ... ok
+test remote::dispatch::task11_tests::task11_ui_without_renderer_is_unavailable_and_never_journaled ... ok
+test remote::dispatch::task10_tests::task10_remote_play_admission_preserves_mirrored_target_and_stored_main_geometry ... ok
+test remote::dispatch::tests::missing_scope_and_browser_state_do_not_create_journal_intents ... ok
+test remote::dispatch::tests::task20_end_session_prepares_confirmation_without_stopping_availability ... ok
+test remote::drives::tests::cancellation_before_effect_does_not_quiesce_or_mutate ... ok
+test remote::drives::tests::accepted_eject_survives_disconnect_and_cancel_waits_for_actual_completion ... ok
+test remote::drives::tests::insertion_bound_handles_and_missing_identity_fail_closed ... ok
+test remote::drives::tests::foreign_busy_and_local_authorization_are_terminal_failures ... ok
+test remote::drives::tests::mount_uses_only_inventory_handle_and_retains_native_authorization_failure ... ok
+test remote::drives::tests::phone_owner_and_cancelled_preview_never_admit_eject ... ok
+test remote::drives::tests::preview_covers_sibling_volumes_owned_use_and_never_paths ... ok
+test player::ipc::tests::oversized_incoming_lines_are_rejected_with_or_without_newline ... ok
+test remote::drives::tests::replacement_after_acceptance_is_checked_before_owned_use_stops ... ok
+test remote::drives::tests::wire_never_admits_device_paths_force_or_deletion_into_typed_command ... ok
+test remote::event_hub::tests::message_257_requires_resync_only_for_slow_client ... ok
+test remote::event_hub::tests::native_hub_identity_binding_is_immutable ... ok
+test remote::event_hub::tests::newer_publication_wins_when_old_capture_arrives_late ... ok
+test remote::drives::tests::timed_out_native_eject_is_unknown_and_lookup_never_replays ... ok
+test remote::event_hub::tests::revocation_signal_interrupts_a_writer_without_consuming_events ... ok
+test remote::drives::tests::replacement_and_replug_require_fresh_confirmation_without_effect ... ok
+test remote::folders::security_tests::final_selection_rejects_symlink_replacement_of_node_and_root ... ok
+test remote::folders::security_tests::handles_reject_paths_other_devices_and_expire_at_five_minutes ... ok
+test remote::folders::security_tests::children_hide_credentials_and_symlinks_and_page_at_one_hundred ... ok
+test remote::folders::tests::authorized_roots_only_and_no_raw_paths ... ok
+test remote::idle::lifetime_tests::only_explicit_remote_playback_inhibits_and_end_releases_once ... ok
+test remote::idle::lifetime_tests::failed_release_and_disconnection_never_report_active_or_success ... ok
+test remote::idle::tests::fresh_unknown_lock_observation_never_grants_input ... ok
+test remote::lifecycle::launch_tests::task20_only_exact_background_flag_hides_initial_and_existing_ui ... ok
+test remote::lifecycle::tests::absent_application_cannot_write_real_login_startup ... ok
+test remote::interop_tests::task21_export_rust_client_corpus ... ok
+test remote::lifecycle::tests::changed_owned_work_invalidates_confirmation_without_effect ... ok
+test remote::lifecycle::tests::task20_accepted_end_session_outlives_expired_or_removed_preview_without_replay ... ok
+test remote::lifecycle::tests::end_session_is_owned_confirmed_journaled_and_replay_never_reexecutes ... ok
+test remote::lifecycle::tests::task20_replacement_scan_is_not_cancelled_by_captured_end_session ... ok
+test remote::lifecycle::tests::task20_revocation_during_native_wait_blocks_end_session_effect ... ok
+test remote::limits::tests::commands_exhaust_burst_and_refill_twenty_per_second ... ok
+test remote::lifecycle::tests::task20_unaccepted_sheet_cancellation_expiry_and_replacement_refuse_before_intent ... ok
+test remote::media::tests::task12_playlist_search_covers_collection_and_binds_cursor_to_query ... ok
+test remote::event_hub::tests::position_ticks_are_coalesced_with_final_flush_and_immediate_seek ... ok
+test remote::media::tests::task9_photo_handoff_rejects_foreign_owner_before_journal_or_native_effect ... ok
+test remote::media::tests::task9_playlist_handles_are_resolved_only_after_revision_cas ... ok
+test remote::media::tests::task12_phone_browse_issues_bounded_preview_ids_without_desktop_decode ... ok
+test remote::network::tests::defaults_exclude_loopback_tunnels_containers_and_public_addresses ... ok
+test remote::network::tests::epoch_detects_recreated_interface_with_same_name_flags_and_mac ... ok
+test remote::network::tests::epoch_ignores_unused_socket_storage_bytes ... ok
+test remote::network::tests::epoch_tracks_real_address_flags_and_vpn_changes_independent_of_order ... ok
+test remote::network::tests::selected_interface_never_falls_back_and_scopes_ipv6_link_local ... ok
+test remote::media::tests::task9_queue_read_pages_actual_metadata_and_retains_offline_items ... ok
+test remote::operations::tests::cancellation_is_requested_until_native_completion_is_observed ... ok
+test remote::operations::tests::lost_reply_has_one_effect_and_terminal_lookup_survives_disconnect ... ok
+test remote::operations::tests::failed_terminal_write_keeps_private_unknown_outcome_without_reexecution ... ok
+test remote::operations::tests::operation_events_are_complete_owner_projections_with_contiguous_sequences ... ok
+test remote::operations::tests::same_phone_in_another_identity_cannot_publish_or_clear_the_subscription ... ok
+test remote::operations::tests::terminal_local_history_does_not_populate_active_shutdown_tokens ... ok
+test remote::pairing::tests::endpoint_rejects_ambiguous_or_unbounded_documents ... ok
+test remote::pairing::tests::desktop_status_hides_expired_consumed_and_canceled_attempts_without_canceling_a_newer_one ... ok
+test remote::pairing::tests::expiry_is_monotonic_at_120_seconds_and_shared_between_manual_and_qr ... ok
+test remote::pairing::tests::global_failure_limit_covers_rotating_peers_and_attempts ... ok
+test remote::pairing::tests::fifth_failed_secret_closes_attempt_and_peer_limit_survives_new_window ... ok
+test remote::pairing::tests::pairing_requires_window_and_is_single_use_with_hash_only_storage ... ok
+test remote::pairing::tests::wrong_attempt_and_no_window_failures_are_rate_limited ... ok
+test remote::protocol_tests::adapters_translate_native_kinds_units_fields_and_bounded_revisions ... ok
+test remote::protocol_tests::all_confirmation_phases_are_reachable ... ok
+test remote::protocol_tests::browser_input_requires_target_generation_and_bounds_text ... ok
+test remote::pairing::tests::manual_success_consumes_qr_and_device_limit_preserves_attempt ... ok
+test remote::protocol_tests::hello_and_snapshots_use_bounded_typed_state_and_decimal_sequences ... ok
+test remote::protocol_tests::every_method_fixture_has_a_stable_typed_roundtrip ... ok
+test remote::protocol_tests::method_correlated_replies_roundtrip_without_shape_guessing ... ok
+test remote::protocol_tests::opaque_identifiers_cannot_be_paths_or_urls ... ok
+test remote::protocol_tests::idle_queue_building_and_bounded_saved_playlist_edits_are_valid ... ok
+test remote::protocol_tests::operation_lookup_requires_exactly_one_identity ... ok
+test remote::protocol_tests::operation_cancellation_accepts_exactly_one_request_or_operation_identity ... ok
+test remote::protocol_tests::oversized_complete_messages_are_rejected_before_parsing ... ok
+test remote::protocol_tests::pairing_begin_delivers_candidate_once_and_redacts_it ... ok
+test remote::protocol_tests::pairing_dtos_roundtrip_and_secrets_are_redacted ... ok
+test remote::protocol_tests::photo_fit_preserves_native_fit_and_actual_semantics ... ok
+test remote::protocol_tests::query_page_and_unicode_limits_are_enforced ... ok
+test remote::protocol_tests::revisions_are_canonical_decimal_strings_not_json_numbers ... ok
+test remote::protocol_tests::reply_success_and_error_are_exclusive_and_versioned ... ok
+test remote::protocol_tests::session_commands_require_matching_session_and_epoch ... ok
+test remote::protocol_tests::shared_malformed_and_boundary_corpus_is_rejected ... ok
+test remote::protocol_tests::stale_confirmation_failure_preserves_required_replacement_preview ... ok
+test remote::protocol_tests::task10_foreground_ack_is_synchronous_transient_and_has_no_operation ... ok
+test remote::protocol_tests::text_is_redacted_and_transient_input_is_never_a_durable_command ... ok
+test remote::protocol_tests::unknown_action_enums_never_select_a_default ... ok
+test remote::protocol_tests::unknown_versions_and_methods_are_rejected ... ok
+test remote::protocol_tests::unsupported_methods_are_distinguished_from_invalid_arguments ... ok
+test remote::protocol_tests::valid_pause_and_additive_optional_fields_are_accepted ... ok
+test remote::protocol_tests::volume_and_seek_have_finite_nonnegative_ranges ... ok
+test remote::protocol_tests::schema_hash_matches_the_shared_manifest ... ok
+test remote::renderer::lock_tests::task20_locked_and_unobserved_desktop_refuse_renderer_input_before_delivery ... ok
+test remote::renderer::tests::task11_expired_ack_cannot_authorize_an_action ... ok
+test remote::renderer::tests::task11_missing_renderer_ack_times_out_without_success_or_late_effect ... ok
+test remote::renderer::tests::task11_bridge_registration_is_shared_across_control_services_and_main_only ... ok
+test remote::renderer::tests::task11_reload_and_cancellation_invalidate_pending_input ... ok
+test remote::renderer::tests::task11_same_wire_ids_are_isolated_until_each_renderer_ack ... ok
+test remote::renderer::tests::task11_stale_renderer_context_and_lost_heartbeat_are_not_ready ... ok
+test remote::renderer::tests::task11_navigation_scope_cannot_play_media_or_approve_another_owner ... ok
+test remote::server::tests::acknowledgement_deadline_combines_delayed_capture_and_blocked_reply ... ok
+test remote::server::tests::authenticated_thumbnail_is_bounded_and_four_in_flight_requests_are_revocable ... ok
+test remote::server::tests::disabled_default_and_native_bind_validation_prevent_wildcards_and_public_addresses ... ok
+test remote::server::tests::event_overflow_closes_with_resync_and_never_sends_further_deltas ... ok
+test remote::server::tests::fragmented_message_over_64k_is_rejected_before_dispatch ... ok
+test remote::server::tests::heartbeat_deadline_expires_thirty_seconds_after_pong_between_ping_ticks ... ok
+test remote::server::tests::heartbeat_deadline_interrupts_native_capture_and_blocked_event_write ... ok
+test remote::server::tests::lost_reply_reconnect_duplicate_has_one_effect_and_conflicting_id_fails ... ok
+test remote::server::tests::normal_command_flood_is_closed_before_any_mutation ... ok
+test remote::server::tests::a_slow_tls_phone_does_not_block_native_state_or_another_phone_and_revocation_releases_it ... ok
+test remote::server::tests::pairing_is_closed_until_native_setup_and_consumes_one_use_secret ... ok
+test remote::media::tests::task9_photo_selection_is_owner_bound_and_rejects_oversize_without_truncation ... ok
+test remote::server::tests::rejects_origin_query_credentials_and_unknown_privileged_commands ... ok
+test remote::server::tests::refresh_on_same_socket_keeps_delivered_and_queued_event_sequences_contiguous ... ok
+test remote::server::tests::slow_writer_is_cancelled_by_revocation_and_stop ... ok
+test remote::server::tests::runtime_registration_is_exclusive_and_dropping_it_does_not_repeat_recovery ... ok
+test remote::server::tests::transient_dedup_is_bounded_connection_local_and_conflicting_input_is_rejected ... ok
+test remote::server::tests::runtime_registration_remains_owned_by_accepted_native_work_after_runtime_drop ... ok
+test remote::server::tests::unauthenticated_endpoints_never_disclose_metadata ... ok
+test remote::server::tests::socket_limit_revocation_and_disable_release_every_connection ... ok
+test remote::settings_admin::tests::route_lease_is_bounded_to_live_connection_owner_and_listener_generation ... ok
+test remote::setup::tests::desktop_revocation_cancels_current_admissions_and_removes_credentials_and_metadata ... ok
+test remote::setup::tests::disappeared_selected_interface_closes_listener_and_pairing_but_retains_runtime_identity_and_devices ... ok
+test remote::setup::tests::failed_preference_write_suspends_reconciliation_until_explicit_recovery ... ok
+test remote::setup::tests::fresh_setup_is_disabled_and_cannot_issue_pairing_material ... ok
+test remote::setup::tests::namespace_port_collision_is_rejected_before_network_selection ... ok
+test remote::setup::tests::native_config_roundtrips_atomically_and_rejects_corruption ... ok
+test remote::setup::tests::occupied_port_is_actionable_without_partial_listener_or_alternative_port ... ok
+test remote::setup::tests::persisted_enablement_with_missing_corrupt_or_mismatched_config_never_binds ... ok
+test remote::setup::tests::stale_persisted_revision_is_rejected_before_mutating_lifecycle ... ok
+test remote::setup::tests::task20_failed_owned_rollback_suspends_availability_and_reports_unknown ... ok
+test remote::setup::tests::task20_fix1_rollback_sync_failure_keeps_marker_and_settings_unavailable ... ok
+test remote::setup::tests::task20_fix1_write_ahead_crash_marker_survives_failed_recovery_until_repair ... ok
+test remote::setup::tests::task20_keep_available_hides_only_ui_and_explicit_stop_closes_listener ... ok
+test remote::setup::tests::task20_lifetime_preferences_preserve_listener_and_rollback_exact_owned_files ... ok
+test remote::setup::tests::task20_stale_and_unowned_startup_changes_have_no_effect ... ok
+test remote::setup::tests::task20_unwritable_or_unowned_marker_refuses_before_startup_effects ... ok
+test remote::state::refresh_tests::refresh_snapshot_preserves_sequence_for_events_not_yet_delivered ... ok
+test remote::state::tests::loaded_queue_summary_and_events_keep_native_cas_through_reads_and_edit ... ok
+test remote::state::tests::native_snapshot_has_actual_queue_and_no_renderer_claim ... ok
+test remote::state::tests::player_change_during_capture_is_delivered_after_old_snapshot ... ok
+test remote::state::tests::revoked_admission_before_or_during_snapshot_never_resubscribes ... ok
+test remote::state::tests::snapshot_and_subscription_require_browse_scope ... ok
+test remote::state::tests::snapshot_projects_real_pulse_sink_names_as_opaque_ids ... ok
+test remote::state::tests::superseded_buffered_topic_consumes_sequence_and_gap_requires_resync ... ok
+test remote::state::tests::task10_fix1_audio_projection_distinguishes_idle_preference_and_lost_output ... ok
+test remote::state::tests::unknown_outputs_are_not_fabricated_and_discovery_is_projected ... ok
+test remote::store::tests::cancelled_pairing_is_not_secret_issuance ... ok
+test remote::store::tests::capacity_rejects_new_work_without_evicting_running_but_retries_still_work ... ok
+test remote::store::tests::credentials_and_accepted_intent_survive_reopen_then_startup_recovers_without_execution ... ok
+test remote::store::tests::credentials_are_hash_only_scoped_and_revocable_without_affecting_other_identity ... ok
+test remote::store::tests::failed_pairing_is_not_secret_issuance ... ok
+test remote::store::tests::journal_ids_hashes_results_and_pruning_are_isolated_between_server_identities ... ok
+test remote::store::tests::ninth_active_device_rejected_and_revocation_frees_slot_per_identity ... ok
+test remote::store::tests::normalized_retry_returns_original_and_changed_hash_conflicts ... ok
+test remote::store::tests::paired_device_ownership_is_required_for_journal_and_revocation_blocks_acceptance ... ok
+test remote::store::tests::pairing_completed_duplicate_is_already_issued_and_stores_only_safe_metadata ... ok
+test remote::store::tests::pairing_preparation_success_is_not_secret_issuance ... ok
+test remote::store::tests::preferences_default_disabled_and_cas_is_identity_scoped ... ok
+test remote::store::tests::recovery_is_explicit_scoped_and_persists_unknown_without_replay ... ok
+test remote::store::tests::retention_expires_completed_after_24h_but_protects_unfinished ... ok
+test remote::store::tests::revision_exhaustion_does_not_commit_invalid_preferences ... ok
+test remote::store::tests::successful_pairing_issuance_marker_is_atomic_and_rejects_non_pairing_work ... ok
+test remote::store::tests::terminal_outcome_cannot_be_overwritten_and_wrong_operation_is_rejected ... ok
+test remote::store::tests::transient_input_and_safe_reads_never_store_payload_or_hash ... ok
+test remote::store::tests::unknown_pairing_is_not_secret_issuance ... ok
+test remote::tls::tests::actual_tls_pin_validation_precedes_qr_secret_and_existing_bearer_transmission ... ok
+test remote::tls::tests::confirming_displayed_phrase_a_cannot_authorize_later_probe_b ... ok
+test remote::tls::tests::identity_persists_and_private_permissions_and_namespaces_are_enforced ... ok
+test remote::tls::tests::identity_rejects_symlinks_and_corruption_without_silent_rotation ... ok
+test remote::tls::tests::manual_probe_aborts_tls_and_code_requires_explicit_phrase_confirmation ... ok
+test remote::tls::tests::missing_key_keeps_uuid_but_revokes_old_credentials_and_requires_pairing ... ok
+test remote::tls::tests::missing_uuid_does_not_silently_reassign_an_existing_certificate ... ok
+test remote::tls::tests::phrase_is_six_11_bit_indices_with_fixed_wordlist_version ... ok
+test remote::server::tests::unauthenticated_handshakes_are_capped_at_sixteen_and_expire_in_five_seconds ... ok
+test remote::vpn::tests::authority_changes_during_observation_never_issue_preview_or_intent ... ok
+test remote::vpn::tests::cancel_during_paused_confirm_refuses_without_effect_or_poisoning_registry ... ok
+test remote::vpn::tests::country_catalog_larger_than_one_hundred_is_complete_and_still_bounded ... ok
+test remote::vpn::tests::country_change_preserves_kill_switch_and_launch_policy_and_never_replays ... ok
+test remote::vpn::tests::expiry_during_paused_confirm_refuses_without_effect_or_intent ... ok
+test remote::vpn::tests::admitted_native_change_runs_beyond_ack_budget_without_replay ... ok
+test remote::vpn::tests::native_preference_edit_during_preparation_refuses_old_revision ... ok
+test remote::vpn::tests::native_vpn_publication_does_not_stale_preparation_or_preview_settings_revision ... ok
+test remote::vpn::tests::preparation_has_one_total_budget_and_no_effect_when_country_read_exceeds_it ... ok
+test remote::vpn::tests::provider_final_read_cannot_outlive_effect_authority ... ok
+test remote::vpn::tests::replacement_during_paused_confirm_preserves_new_sheet_without_effect ... ok
+test remote::vpn::tests::replacement_socket_cannot_confirm_another_connections_preview ... ok
+test remote::vpn::tests::route_loss_retains_original_uncertain_operation_without_a_second_change ... ok
+test remote::vpn::tests::stale_future_and_error_observations_remain_unknown ... ok
+test remote::vpn::tests::stale_semantics_owner_expiry_and_dead_lan_reject_before_effect ... ok
+test storage::database::tests::fresh_upgrade_retains_both_sequential_backups ... ok
+test storage::database::tests::future_schema_is_rejected_without_changing_journal_or_file ... ok
+test storage::database::tests::interrupted_schema2_migration_rolls_back_fixture_and_keeps_usable_backup ... ok
+test storage::database::tests::migration_failure_preserves_previous_database ... ok
+test storage::database::tests::offline_source_is_not_deleted ... ok
+test storage::database::tests::schema1_upgrade_preserves_all_content_and_reopens_idempotently ... ok
+test streaming::browser::tests::linked_profile_parent_does_not_modify_external_directories ... ok
+test streaming::browser::tests::locked_profile_is_not_deleted ... ok
+test streaming::browser::tests::normal_chrome_profile_is_untouched ... ok
+test streaming::browser::tests::unknown_service_id_is_rejected ... ok
+test streaming::external::tests::cancelled_handoff_does_not_spawn ... ok
+test streaming::external::tests::hbo_handoff_preserves_the_users_chrome_profile ... ok
+test streaming::external::tests::immediate_launcher_failure_is_not_reported_as_success ... ok
+test streaming::external::tests::long_lived_browser_survives_handoff_and_later_cancellation ... ok
+test streaming::placement::tests::ignored_placement_is_not_reported_as_ready ... ok
+test streaming::placement::tests::restored_tv_window_is_moved_and_verified_on_computer ... ok
+test streaming::switching::tests::every_different_service_preflights_then_retires_only_the_owned_window ... ok
+test streaming::switching::tests::failed_preflight_or_cancellation_keeps_the_current_service ... ok
+test streaming::switching::tests::native_switches_preserve_profiles_and_leave_another_chrome_untouched ... ignored, requires an explicitly isolated X11 display and window manager
+test streaming::switching::tests::same_service_focuses_without_closing_or_preflighting_its_locked_profile ... ok
+test streaming::switching::tests::uncertain_ownership_prevents_replacement_and_keeps_the_session_registered ... ok
+test vpn::nordvpn::tests::explicit_country_matches_only_normalized_country_and_other_actions_keep_their_postconditions ... ok
+test vpn::nordvpn::tests::explicit_country_rejects_wrong_or_missing_provider_country ... ok
+test vpn::nordvpn::tests::version_identifier_requires_nonempty_numeric_components ... ok
+test vpn::parser::tests::ansi_extra_fields_and_disconnected_are_parsed ... ok
+test vpn::parser::tests::observed_connected_and_disabled_settings_are_distinct ... ok
+test vpn::parser::tests::unrecognized_output_never_means_connected ... ok
+test vpn::policy::tests::current_connection_service_does_not_change_vpn ... ok
+test vpn::policy::tests::required_service_rejects_disconnected_stale_or_unknown ... ok
+test vpn::policy::tests::required_service_rejects_unverified_kill_switch ... ok
+test remote::vpn::tests::hanging_provider_and_busy_gate_return_typed_errors_before_socket_deadline ... ok
+test remote::server::tests::unresponsive_authenticated_socket_expires_after_heartbeat_deadline ... ok
+test library::thumbnails::task12_tests::task12_token_metadata_is_bounded_and_eviction_never_rebinds_old_identity has been running for over 60 seconds
+test library::thumbnails::task12_tests::task12_token_metadata_is_bounded_and_eviction_never_rebinds_old_identity ... ok
+
+test result: ok. 416 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 108.24s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/mediacenter-5d4255fd23823369)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/mediacenter-browser-host.rs (src-tauri/target/debug/deps/mediacenter_browser_host-bd3d80506da61f32)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/default_media_permissions.rs (src-tauri/target/debug/deps/default_media_permissions-d4b436ca9588eab4)
+
+running 2 tests
+test task11_renderer_commands_are_available_only_to_main ... ok
+test system_folder_opening_is_available_only_to_the_main_window ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/photos_decode.rs (src-tauri/target/debug/deps/photos_decode-4375d313b236b5b7)
+
+running 5 tests
+test cancellation_prevents_image_delivery ... ok
+test unsafe_corrupt_and_oversize_files_are_rejected ... ok
+test oversized_pixel_dimensions_are_rejected_before_frame_decoding ... ok
+test supported_avif_decodes_to_safe_jpeg ... ok
+test raster_decoding_and_exif_orientation ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/photos_model.rs (src-tauri/target/debug/deps/photos_model-036a444a519c6ee5)
+
+running 4 tests
+test omitted_options_default_to_five_seconds_and_source_order ... ok
+test shuffle_preserves_members_and_restores_original_order ... ok
+test ordered_navigation_pause_resume_and_release ... ok
+test bounds_reject_empty_oversize_invalid_interval_and_accept_single_photo ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/thumbnails.rs (src-tauri/target/debug/deps/thumbnails-3dfe88be801f5691)
+
+running 8 tests
+test thumbnails_cache_hits_restore_missing_accounting_and_remove_orphans ... ok
+test remote_thumbnail_uses_512_profile_without_changing_desktop_cache ... ok
+test task12_stale_remote_thumbnail_identity_never_serves_new_media_version ... ok
+test thumbnails_real_jpeg_and_png_decode_to_bounded_pngs ... ok
+test thumbnails_regenerate_a_truncated_cached_png ... ok
+test thumbnails_lru_budget_evicts_oldest_files_and_keeps_recent_images ... ok
+test thumbnails_reject_corrupt_and_oversize_photos_without_caching ... ok
+test thumbnails_source_changes_never_return_the_previous_image ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.88s
+
+   Doc-tests mediacenter_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
