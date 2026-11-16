@@ -1,0 +1,33 @@
+{
+  "applicationId": "com.emmah.colordock.remote",
+  "launcherLabel": "Remote",
+  "updatedInPlace": true,
+  "uidUnchanged": true,
+  "uid": 10450,
+  "matchingInstalledSigner": true,
+  "bothEncryptedCredentialsAndOriginalPreferencesByteIdenticalAfterUpdate": true,
+  "apkSha256": "fd3066c7ea2d4753efa6eb61b2a26a89d5c3a97ee54a999b117b2109e24b7438",
+  "stayAwakeRestored": 0,
+  "fontScalePreserved": 1.15,
+  "diagnosticTagsRestored": true,
+  "onlyOriginalRemoteInstalled": true,
+  "bothTargetsConnectedInFinalChooser": true,
+  "liveQueueAndFolderNavigationVerified": true,
+  "finalProcessTraceRetained": false,
+  "unitTests": 464,
+  "physicalRenderedTests": 65,
+  "physicalSeconds": 76.24,
+  "nativeLibrary": {
+    "mediaItems": 1198,
+    "sources": 4,
+    "foreignKeyErrors": 0
+  },
+  "nativeProductionUnchanged": true,
+  "noRealPlaybackOrTestToneStarted": true,
+  "schemaUnchanged": true,
+  "visualScope": "whole-app concise text and original target layouts; full provider/lifecycle release acceptance remains partial",
+  "androidRevision": "bd41e785b9a209fff0e6659c284680621079247c",
+  "archive": "releases/remote-device-20261116/plain-remote-bd41e78",
+  "desktopRevision": "1df215629696fdb31a88d38129449b2a3d435b51",
+  "applicationDataIncluded": false
+}
