@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests scripts",
     "test": "vitest run",
-    "test:visual": "playwright test tests/visual",
+    "test:visual": "npm run build && playwright test tests/visual",
     "test:e2e": "playwright test tests/e2e",
     "verify:assets": "node scripts/verify-assets.mjs",
     "verify:ui-copy": "node scripts/verify-ui-copy.mjs",

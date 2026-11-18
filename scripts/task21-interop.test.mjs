@@ -1,49 +1,105 @@
-// Freshness guard regression tests use only isolated copies of sanitized test data/source.
-import {test} from 'node:test';
-import {Buffer} from 'node:buffer';
+import { test } from 'node:test';
+import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,copyFileSync,rmSync} from 'node:fs';
-import {tmpdir} from 'node:os';
-import {resolve,dirname} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {spawnSync} from 'node:child_process';
-const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const relativePlan='.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control';
-const plan=resolve(root,relativePlan);
-const consumer='app/src/test/java/com/emmah/colordock/remote/mediacenter/RustInteropTest.kt';
-const resource='app/src/test/resources/mediacenter-rust-interop-v1.json';
-function isolated(){
- const temporary=mkdtempSync(resolve(tmpdir(),'task21-guard-'));
- const mc=resolve(temporary,'MC'),remote=resolve(temporary,'Remote');
- const prepared=readFileSync(resolve(plan,'task-21-fresh-corpus.json'));
- const provenance=JSON.parse(prepared).provenance;
- for(const name of Object.keys(provenance.sourceSha256)){
-  const [repo,...parts]=name.split('/');const path=parts.join('/');
-  const target=resolve(temporary,repo,path);mkdirSync(dirname(target),{recursive:true});
-  const source=repo==='MC'?resolve(root,path):path===consumer?resolve(plan,'android-task21',consumer):resolve(root,'../Remote',path);
-  copyFileSync(source,target);
- }
- const targetPlan=resolve(mc,relativePlan);
- for(const path of [resolve(targetPlan,'task-21-fresh-corpus.json'),resolve(targetPlan,'android-task21',resource),resolve(remote,resource)]){mkdirSync(dirname(path),{recursive:true});writeFileSync(path,prepared);}
- const staged=resolve(targetPlan,'android-task21',consumer);mkdirSync(dirname(staged),{recursive:true});copyFileSync(resolve(remote,consumer),staged);
- return {temporary,mc,remote,targetPlan};
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const plan = '.superpowers/sdd/2026-11-09-remote-mediacenter-sofa-control';
+const consumer = 'app/src/test/java/com/emmah/colordock/remote/mediacenter/RustInteropTest.kt';
+const resource = 'app/src/test/resources/mediacenter-rust-interop-v1.json';
+const kotlin = 'app/src/main/java/com/emmah/colordock/remote/mediacenter';
+
+function write(path, contents, options) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, contents, options);
 }
-function verify(fixture){return spawnSync(process.execPath,[resolve(fixture.mc,'scripts/task21-interop.mjs'),'verify'],{encoding:'utf8'});}
-test('prepared bytes verify; installed tampering fails with no protected-tree writes',()=>{
- const fixture=isolated();
- try{
-  const good=verify(fixture);assert.equal(good.status,0,good.stderr);
-  const path=resolve(fixture.remote,resource),corpus=JSON.parse(readFileSync(path));
-  const hello=JSON.parse(corpus.hello);hello.snapshotSequence=12;corpus.hello=JSON.stringify(hello);writeFileSync(path,JSON.stringify(corpus));
-  const bad=verify(fixture);assert.notEqual(bad.status,0);assert.match(bad.stderr,/Installed corpus differs from fresh exporter output/);
- }finally{rmSync(fixture.temporary,{recursive:true,force:true});}
+
+function isolated(t) {
+  const temporary = mkdtempSync(resolve(tmpdir(), 'task21-guard-'));
+  t.after(() => rmSync(temporary, { recursive: true, force: true }));
+  const mc = resolve(temporary, 'MC');
+  const remote = resolve(temporary, 'Remote');
+  for (const path of [
+    'scripts/task21-interop.mjs', 'scripts/task21-interop.test.mjs', 'protocol/remote/v1',
+    'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'src-tauri/build.rs', 'src-tauri/src/remote',
+  ]) {
+    mkdirSync(dirname(resolve(mc, path)), { recursive: true });
+    cpSync(resolve(root, path), resolve(mc, path), { recursive: true });
+  }
+  for (const path of ['protocol/RemoteJson.kt', 'protocol/Messages.kt', 'protocol/StrictJson.kt', 'RemoteStateReducer.kt']) {
+    write(resolve(remote, kotlin, path), '// Synthetic Android source for the freshness guard\n');
+  }
+  write(resolve(remote, consumer), '// Synthetic Kotlin consumer\n');
+
+  // Exercise the actual staging CLI while controlling when its external Cargo process finishes.
+  const fixtures = JSON.parse(readFileSync(resolve(mc, 'protocol/remote/v1/fixtures.json')));
+  write(resolve(mc, 'test-corpus.json'), JSON.stringify({
+    format: 'mediacenter-rust-interop-v1',
+    requests: fixtures.requests,
+    replies: fixtures.replies,
+    snapshots: [{}, {}],
+    invalidRequests: Array(44).fill({}),
+    invalidReplies: [{}, {}],
+    dispatcher: { effectCount: 1 },
+  }));
+  const bin = resolve(temporary, 'bin');
+  write(resolve(bin, 'cargo'), [
+    '#!/bin/sh',
+    'cp test-corpus.json "$MEDIACENTER_TASK21_CORPUS_OUT" || exit 1',
+    'if [ -n "$TASK21_CHANGE_SOURCE" ]; then printf "\\n// changed during export\\n" >> "$TASK21_CHANGE_SOURCE"; fi',
+    '',
+  ].join('\n'), { mode: 0o700 });
+
+  const targetPlan = resolve(mc, plan);
+  const fresh = resolve(targetPlan, 'task-21-fresh-corpus.json');
+  const run = (action, env = {}) => spawnSync(process.execPath, [resolve(mc, 'scripts/task21-interop.mjs'), action], {
+    cwd: mc,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, ...env },
+  });
+  const prepareAndInstall = () => {
+    const prepared = run('prepare');
+    assert.equal(prepared.status, 0, prepared.stderr);
+    write(resolve(remote, resource), readFileSync(fresh));
+  };
+  return { mc, remote, targetPlan, fresh, run, prepareAndInstall };
+}
+
+test('prepared bytes verify and installed tampering fails with no protected-tree writes', t => {
+  const fixture = isolated(t);
+  fixture.prepareAndInstall();
+  const good = fixture.run('verify');
+  assert.equal(good.status, 0, good.stderr);
+
+  const path = resolve(fixture.remote, resource);
+  const tampered = Buffer.concat([readFileSync(path), Buffer.from('\n')]);
+  write(path, tampered);
+  const bad = fixture.run('verify');
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /Installed corpus differs from fresh exporter output/);
+  assert.deepEqual(readFileSync(path), tampered);
 });
-test('changed serializer source and missing prepared output fail closed',()=>{
- const fixture=isolated();
- try{
-  const path=resolve(fixture.mc,'src-tauri/src/remote/protocol.rs');const original=readFileSync(path);writeFileSync(path,Buffer.concat([original,Buffer.from('\n// isolated drift probe\n')]));
-  const stale=verify(fixture);assert.notEqual(stale.status,0);assert.match(stale.stderr,/source hashes changed/);
-  writeFileSync(path,original);rmSync(resolve(fixture.targetPlan,'task-21-fresh-corpus.json'));
-  const absent=verify(fixture);assert.notEqual(absent.status,0);assert.match(absent.stderr,/ENOENT/);
- }finally{rmSync(fixture.temporary,{recursive:true,force:true});}
+
+test('prepare does not publish a corpus or stage files if a source changes during export', t => {
+  const fixture = isolated(t);
+  const changed = fixture.run('prepare', { TASK21_CHANGE_SOURCE: 'src-tauri/src/remote/protocol.rs' });
+  assert.notEqual(changed.status, 0);
+  assert.match(changed.stderr, /source hashes changed during export/);
+  assert.equal(existsSync(fixture.targetPlan), false);
 });
+
+for (const input of ['src-tauri/src/remote/protocol.rs', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'src-tauri/build.rs']) {
+  test(`verify rejects a corpus after ${input} changes`, t => {
+    const fixture = isolated(t);
+    fixture.prepareAndInstall();
+    const path = resolve(fixture.mc, input);
+    write(path, Buffer.concat([readFileSync(path), Buffer.from('\n')]));
+    const stale = fixture.run('verify');
+    assert.notEqual(stale.status, 0);
+    assert.match(stale.stderr, /source hashes changed/);
+  });
+}

@@ -4,7 +4,7 @@ import { services } from './service-catalog.mjs';
 const host = 'io.emma.mediacenter.browser';
 const enrollmentKey = 'remoteEnrollment';
 const alarmName = 'mediacenter-browser-reconnect';
-const knownErrors = new Set(['stale_target', 'stale_viewport', 'origin_pending', 'bridge_unavailable']);
+const knownErrors = new Set(['stale_target', 'stale_viewport', 'origin_pending', 'bridge_unavailable', 'busy']);
 
 function validSelection(kind, service) {
   return (kind === 'ordinary' && service === undefined)
@@ -16,6 +16,11 @@ export class ProfileBridge {
     this.chrome = chrome;
     this.session = session;
     this.actions = Promise.resolve();
+    this.wakePages = new Map();
+    chrome.tabs.onRemoved.addListener(tabId => this.forgetWakeTab(tabId));
+    chrome.tabs.onUpdated.addListener((tabId, change) => {
+      if (change.url !== undefined) this.forgetWakeTab(tabId);
+    });
     chrome.runtime.onStartup.addListener(() => this.connect().catch(() => {}));
     chrome.runtime.onInstalled.addListener(() => this.connect().catch(() => {}));
     chrome.alarms.onAlarm.addListener(alarm => {
@@ -105,14 +110,22 @@ export class ProfileBridge {
   wake(nonce, tabId) {
     return this.serialize(async () => {
       const enrollment = await this.savedEnrollment();
-      if (enrollment?.kind !== 'managed' || !isUuid(nonce) || !Number.isInteger(tabId)) {
+      if (!enrollment) throw Error('not_enrolled');
+      if (enrollment.kind !== 'managed' || !isUuid(nonce) || !Number.isInteger(tabId)) {
         throw Error('invalid_profile');
       }
       await this.connectSaved();
-      if (!this.port) throw Error('bridge_unavailable');
-      this.wakePage = { nonce, tabId };
-      this.post(this.port, { type: 'wake', nonce });
+      if (!this.port || this.wakePages.has(nonce) || !this.post(this.port, { type: 'wake', nonce })) {
+        throw Error('bridge_unavailable');
+      }
+      this.wakePages.set(nonce, tabId);
     });
+  }
+
+  forgetWakeTab(tabId) {
+    for (const [nonce, pendingTab] of this.wakePages) {
+      if (pendingTab === tabId) this.wakePages.delete(nonce);
+    }
   }
 
   receive(port, enrollment, message) {
@@ -125,17 +138,19 @@ export class ProfileBridge {
     const { id, command } = message;
     this.session.command(command, enrollment).then(
       () => {
-        this.post(port, { type: 'reply', id, ok: true });
-        const page = this.wakePage;
-        if (command.type === 'launch' && page?.nonce === command.nonce) {
-          this.wakePage = null;
-          this.chrome.tabs.remove(page.tabId).catch(() => {});
+        if (this.post(port, { type: 'reply', id, ok: true }) && command.type === 'launch') {
+          const tabId = this.wakePages.get(command.nonce);
+          this.wakePages.delete(command.nonce);
+          if (tabId !== undefined) this.chrome.tabs.remove(tabId).catch(() => {});
         }
       },
-      failure => this.post(port, {
-        type: 'reply', id, ok: false,
-        error: knownErrors.has(failure.message) ? failure.message : 'bridge_unavailable',
-      }),
+      failure => {
+        if (this.port === port && command.type === 'launch') this.wakePages.delete(command.nonce);
+        this.post(port, {
+          type: 'reply', id, ok: false,
+          error: knownErrors.has(failure.message) ? failure.message : 'bridge_unavailable',
+        });
+      },
     );
   }
 
@@ -144,12 +159,14 @@ export class ProfileBridge {
   }
 
   post(port, message) {
-    if (this.port !== port) return;
+    if (!port || this.port !== port) return false;
     try {
       port.postMessage(message);
+      return true;
     } catch {
       this.drop(port);
       port.disconnect();
+      return false;
     }
   }
 
@@ -157,6 +174,7 @@ export class ProfileBridge {
     if (!port || this.port !== port) return;
     this.port = null;
     this.connected = false;
+    this.wakePages.clear();
     this.session.disconnect();
   }
 }

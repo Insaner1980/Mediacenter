@@ -4,6 +4,7 @@ import { services } from './service-catalog.mjs';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const sequence = /^(0|[1-9][0-9]{0,19})$/;
 const motionInterval = 1000 / 30;
+const snapshotRetryDelays = [50, 125, 250];
 const center = { x: 0.5, y: 0.5 };
 const markerColor = { r: 255, g: 255, b: 255, a: 1 };
 const markerOutline = { r: 0, g: 0, b: 0, a: 1 };
@@ -45,7 +46,7 @@ export class BrowserSession {
       if (target?.tabId !== tabId) return;
       if (change.status === 'loading' || change.url !== undefined) this.suspend(target);
       if ((change.status === 'complete' || change.url !== undefined) && tab.status === 'complete' && !tab.pendingUrl) {
-        this.refresh(target).catch(() => {});
+        this.refresh(target, snapshotRetryDelays).catch(() => {});
       }
     });
     chrome.debugger.onEvent.addListener(({ tabId }, method, params) => {
@@ -286,12 +287,21 @@ export class BrowserSession {
     if (changed) this.publish(target);
   }
 
-  async refresh(target) {
-    if (this.target !== target || !target.attached) return;
+  async refresh(target, retryDelays = []) {
     const generation = target.generation;
-    const snapshot = await this.snapshot(target, generation);
-    if (snapshot && this.target === target && target.generation === generation && target.navigation === snapshot.navigation) {
-      this.updateSnapshot(target, snapshot);
+    const navigation = target.navigation;
+    const current = () => this.target === target && target.attached
+      && target.generation === generation && target.navigation === navigation;
+    for (const delay of [0, ...retryDelays]) {
+      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      if (!current()) return;
+      try {
+        const snapshot = await this.snapshot(target, generation);
+        if (snapshot && current()) this.updateSnapshot(target, snapshot);
+        return;
+      } catch (error) {
+        if (delay === (retryDelays.at(-1) ?? 0)) throw error;
+      }
     }
   }
 
@@ -422,20 +432,24 @@ export class BrowserSession {
   }
 
   async dispatch(target, generation, input) {
-    if (target.inputBusy) throw Error('bridge_unavailable');
+    if (target.inputBusy) throw Error('busy');
     target.inputBusy = true;
     const validate = () => this.requireReady(target, generation);
     try {
-      await this.requireSnapshot(target, generation);
+      const { frame, navigation, origin } = await this.requireSnapshot(target, generation);
       validate();
+      const validateRelease = () => {
+        this.requireReady(target);
+        if (target.navigation !== navigation || target.origin !== origin
+          || target.frameId !== frame.id || target.loaderId !== frame.loaderId) throw Error('stale_target');
+      };
       let request = input;
       if (input.type === 'click') {
         if (!exactFields(input, ['type', 'x', 'y', 'button'])) throw Error('bridge_unavailable');
         request = { ...input, generation };
       }
-      await dispatchBrowserInput(this.chrome.debugger, target.tabId, request, target.viewport, validate);
-      if (input.type === 'pointer' || input.type === 'click') {
-        validate();
+      await dispatchBrowserInput(this.chrome.debugger, target.tabId, request, target.viewport, validate, validateRelease);
+      if (this.target === target && target.generation === generation && (input.type === 'pointer' || input.type === 'click')) {
         target.point = { x: input.x, y: input.y };
         await this.showMarker(target, generation);
       }
@@ -450,15 +464,21 @@ export class BrowserSession {
 
   async showMarker(target, generation) {
     const debuggee = { tabId: target.tabId };
+    const markerEpoch = target.markerEpoch;
+    const canDraw = () => {
+      this.requireReady(target, generation);
+      return target.markerEpoch === markerEpoch;
+    };
     try {
       const tab = await this.chrome.tabs.get(target.tabId);
-      this.requireReady(target, generation);
-      if (tab.active === false) return;
+      if (!canDraw() || !tab.active) return;
+      const window = await this.chrome.windows.get(tab.windowId);
+      if (!canDraw() || !window.focused) return;
       if (!target.overlay) {
         await this.chrome.debugger.sendCommand(debuggee, 'DOM.enable');
-        this.requireReady(target, generation);
+        if (!canDraw()) return;
         await this.chrome.debugger.sendCommand(debuggee, 'Overlay.enable');
-        this.requireReady(target, generation);
+        if (!canDraw()) return;
         target.overlay = true;
       }
       const { width, height } = target.viewport;
@@ -467,6 +487,7 @@ export class BrowserSession {
       await this.chrome.debugger.sendCommand(debuggee, 'Overlay.highlightRect', {
         x: x - 4, y: y - 4, width: 8, height: 8, color: markerColor, outlineColor: markerOutline,
       });
+      if (!canDraw()) return;
       clearTimeout(target.markerTimer);
       target.markerTimer = setTimeout(() => this.hideMarker(target), 1_500);
     } catch {
@@ -475,6 +496,7 @@ export class BrowserSession {
   }
 
   hideMarker(target) {
+    target.markerEpoch = (target.markerEpoch ?? 0) + 1;
     clearTimeout(target.markerTimer);
     if (target.overlay) {
       this.chrome.debugger.sendCommand({ tabId: target.tabId }, 'Overlay.hideHighlight').catch(() => {});

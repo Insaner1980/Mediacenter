@@ -245,14 +245,8 @@ async fn preflight(d: &Dispatcher, service: ServiceId) -> Result<(), RemoteError
     let state = &d.services.state;
     let app = d.services.app().ok_or_else(unavailable)?;
     super::idle::require_unlocked().await?;
-    let required = state
-        .snapshot()
-        .map_err(native_error)?
-        .services
-        .iter()
-        .find(|entry| entry.id == service)
-        .is_none_or(|entry| entry.vpn_required);
-    if !required {
+    if !crate::vpn::policy::requires_vpn(&state.snapshot().map_err(native_error)?.services, service)
+    {
         return Ok(());
     }
     let observation = tokio::time::timeout(
@@ -267,7 +261,7 @@ async fn preflight(d: &Dispatcher, service: ServiceId) -> Result<(), RemoteError
         )
     })?
     .map_err(native_error)?;
-    crate::vpn::policy::evaluate_launch(required, &observation, now_ms()).map_err(native_error)
+    crate::vpn::policy::evaluate_launch(true, &observation, now_ms()).map_err(native_error)
 }
 
 async fn open(
@@ -403,12 +397,33 @@ async fn open(
                     activity::validate_identity(&observed, &activity::identity(state).await)?;
                     authorize_effect(&services, &principal)?;
                     stop_previous(app, state, &observed).await?;
-                    authorize_effect(&services, &principal)?;
-                    let session = state
-                        .browser_runtime
-                        .launch(principal.device_id, service, &profile, &cancel)
-                        .await
-                        .map_err(app_error)?;
+                    let session = crate::vpn::policy::launch_after_preflight(
+                        state,
+                        service,
+                        &cancel,
+                        async {
+                            tokio::time::timeout(
+                                std::time::Duration::from_secs(3),
+                                crate::vpn::nordvpn::refresh_locked(app, state),
+                            )
+                            .await
+                            .map_err(|_| {
+                                AppError::new(
+                                    "unavailable",
+                                    "VPN status could not be verified before opening this service.",
+                                )
+                            })?
+                        },
+                        async {
+                            authorize_effect(&services, &principal)?;
+                            state
+                                .browser_runtime
+                                .launch(principal.device_id, service, &profile, &cancel)
+                                .await
+                                .map_err(app_error)
+                        },
+                    )
+                    .await?;
                     let id = session.id.as_str().to_owned();
                     crate::events::publish(app, state, |home| {
                         home.sessions.push(ManagedSession {

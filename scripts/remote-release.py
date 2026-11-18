@@ -154,10 +154,12 @@ def verify_debian_package(path, version, extension):
     manifest = extension_directory / "manifest.json"
     required = {
         PACKAGED_SUPPORT / "remote-release.py",
-        extension_directory / extension["action"]["default_popup"],
-        extension_directory / extension["background"]["service_worker"],
-        extension_directory / "launch.html",
-        extension_directory / "launch.mjs",
+        *(extension_directory / file for file in (
+            extension["action"]["default_popup"],
+            extension["background"]["service_worker"],
+            "browser-session.mjs", "enroll.css", "enroll.mjs", "input-proof.mjs", "input.mjs",
+            "launch.html", "launch.mjs", "profile-bridge.mjs", "service-catalog.mjs", "target-registry.mjs",
+        )),
     }
     packaged_host = PurePosixPath(str(PACKAGED_HOST).lstrip("/"))
     with subprocess.Popen(["dpkg-deb", "--fsys-tarfile", path], stdout=subprocess.PIPE) as package:
@@ -190,6 +192,49 @@ def verify_debian_package(path, version, extension):
         raise ValueError("Debian package extension manifest differs from the desktop source manifest.")
 
 
+def verify_protocol(desktop_root, desktop_revision, android_bundle):
+    directory = "protocol/remote/v1"
+    manifest = json.loads(source_file(desktop_root, desktop_revision, f"{directory}/manifest.json"))
+    if manifest != android_bundle["manifest"]:
+        raise ValueError("Desktop and Android protocol manifests must agree.")
+
+    desktop_payload = {
+        name: json.loads(source_file(desktop_root, desktop_revision, f"{directory}/{name}.json"))
+        for name in ("schema", "fixtures")
+    }
+    # Use the same canonical JSON rules as the contract generator for Unicode and numbers.
+    verifier = (ROOT / "scripts/verify-remote-contract.mjs").as_uri()
+    computed = subprocess.check_output(
+        ["node", "--input-type=module", "--eval", """
+            import { readFileSync } from 'node:fs';
+            const { protocolManifest } = await import(process.argv[1]);
+            const bundles = JSON.parse(readFileSync(0, 'utf8'));
+            console.log(JSON.stringify(bundles.map(({ schema, fixtures }) => protocolManifest(schema, fixtures))));
+        """, verifier],
+        input=json.dumps([desktop_payload, android_bundle]), text=True,
+    )
+    if json.loads(computed) != [manifest, manifest]:
+        raise ValueError("Desktop and Android protocol payloads must match the protocol manifest at both revisions.")
+    return manifest
+
+
+def verify_apk(path, aapt2, application_id, version_name, version_code):
+    try:
+        details = subprocess.check_output(
+            [aapt2, "dump", "badging", path.resolve()], text=True, stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError as error:
+        raise ValueError("Android SDK aapt2 is required to inspect the APK. Pass its path with --aapt2.") from error
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"Could not inspect the APK manifest: {error.stderr.strip()}") from error
+
+    metadata = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", details, re.MULTILINE)
+    if not metadata:
+        raise ValueError("The APK manifest must have an application ID, version name, and version code.")
+    if (metadata[1], metadata[3], int(metadata[2])) != (application_id, version_name, version_code):
+        raise ValueError("APK application ID or version differs from the Android source revision.")
+
+
 def candidate_manifest(args):
     import tomllib
 
@@ -201,22 +246,22 @@ def candidate_manifest(args):
     desktop = json.loads(source_file(desktop_root, desktop_revision, "src-tauri/tauri.conf.json"))
     host = tomllib.loads(source_file(desktop_root, desktop_revision, "src-tauri/Cargo.toml"))
     extension = json.loads(source_file(desktop_root, desktop_revision, "browser-extension/manifest.json"))
-    contract = json.loads(source_file(desktop_root, desktop_revision, "protocol/remote/v1/manifest.json"))
     gradle = source_file(android_root, android_revision, "app/build.gradle.kts")
-    android_contract = json.loads(
+    android_bundle = json.loads(
         source_file(android_root, android_revision, "app/src/test/resources/mediacenter-v1.json")
-    )["manifest"]
+    )
 
     id_from_key = extension_id(extension["key"])
     if id_from_key != EXTENSION_ID:
         raise ValueError("The source extension key does not match the registered extension ID.")
-    if contract != android_contract or not re.fullmatch(r"[a-f0-9]{64}", contract["schemaSha256"]):
-        raise ValueError("Desktop and Android protocol manifests must agree.")
+    contract = verify_protocol(desktop_root, desktop_revision, android_bundle)
+    application_id = re.search(r'^\s*applicationId\s*=\s*"([^"]+)"\s*$', gradle, re.MULTILINE)
     version_name = re.search(r'^\s*versionName\s*=\s*"([^"]+)"\s*$', gradle, re.MULTILINE)
     version_code = re.search(r"^\s*versionCode\s*=\s*(\d+)\s*$", gradle, re.MULTILINE)
-    if version_name is None or version_code is None:
-        raise ValueError("The Android source must declare its version name and code.")
+    if application_id is None or version_name is None or version_code is None:
+        raise ValueError("The Android source must declare its application ID, version name, and version code.")
     verify_debian_package(args.deb, desktop["version"], extension)
+    verify_apk(args.apk, args.aapt2, application_id[1], version_name[1], int(version_code[1]))
 
     print(json.dumps({
         "status": "candidate",
@@ -254,6 +299,7 @@ def main():
     command.add_argument("--android-revision", required=True)
     command.add_argument("--deb", type=Path, required=True)
     command.add_argument("--apk", type=Path, required=True)
+    command.add_argument("--aapt2", default="aapt2", help="Android SDK aapt2 executable (defaults to PATH)")
     command.set_defaults(run=candidate_manifest)
 
     args = parser.parse_args()

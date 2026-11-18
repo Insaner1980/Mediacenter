@@ -219,6 +219,13 @@ impl RemoteServer {
             .iter()
             .map(|l| l.local_addr().expect("bound listener"))
             .collect::<Vec<_>>();
+        runtime
+            .dispatcher
+            .services
+            .admin
+            .as_ref()
+            .ok_or_else(dispatch::unavailable)?
+            .replace_network(addresses.clone())?;
         let cancel = CancellationToken::new();
         let tasks = TaskTracker::new();
         for listener in listeners {
@@ -235,13 +242,6 @@ impl RemoteServer {
                 }
             });
         }
-        runtime
-            .dispatcher
-            .services
-            .admin
-            .as_ref()
-            .ok_or_else(dispatch::unavailable)?
-            .replace_network(addresses.clone())?;
         *running = Some(RunningServer {
             cancel,
             tasks,

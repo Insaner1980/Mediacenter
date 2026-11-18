@@ -5,3 +5,13 @@ it('bounds decode concurrency and caches decoded images',async()=>{
  let count=0,max=0;const fetch=vi.fn(async()=>{count++;max=Math.max(max,count);await new Promise(r=>setTimeout(r,5));count--;return {mime:'image/png',base64:'AAAA'};});const load=createThumbnailLoader(fetch);
  await Promise.all(Array.from({length:70},(_,i)=>load(String(i),String(i))));expect(max).toBe(4);await load('69','69');expect(fetch).toHaveBeenCalledTimes(70);await load('0','0');expect(fetch).toHaveBeenCalledTimes(71);
 });
+it('allows a thumbnail to load again after a rejected or synchronous failure',async()=>{
+ const unstable=vi.fn()
+  .mockRejectedValueOnce(Error('Temporarily offline'))
+  .mockImplementationOnce(()=>{throw Error('Connection not ready');})
+  .mockResolvedValue({mime:'image/png',base64:'AAAA'});
+ const load=createThumbnailLoader(unstable);
+ expect(await load('song','song')).toBeNull();
+ expect(await load('song','song')).toBeNull();
+ expect(await load('song','song')).toBe('data:image/png;base64,AAAA');
+});

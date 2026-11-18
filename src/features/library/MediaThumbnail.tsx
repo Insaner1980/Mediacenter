@@ -12,5 +12,5 @@ export function MediaThumbnail({item,alt=''}:{item:MediaItem;alt?:string}){
   if(typeof IntersectionObserver==='undefined'){run();return()=>{active=false;};}
   const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){observer.disconnect();run();}},{rootMargin:'200px'});if(ref.current)observer.observe(ref.current);return()=>{active=false;observer.disconnect();};
  },[backend,item.id,item.thumbnailId,item.modifiedAtMs,item.availability,revision]);
- return <div ref={ref} className="media-thumbnail">{url?<img src={url} alt={alt}/>:<Icon name={item.kind==='photo'?'photos':'video'}/>}</div>;
+ return <div ref={ref} className="media-thumbnail">{item.availability==='available'&&url?<img src={url} alt={alt}/>:<Icon name={item.kind==='photo'?'photos':'video'}/>}</div>;
 }

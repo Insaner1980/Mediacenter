@@ -1,7 +1,6 @@
 import {invoke,isTauri} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import type {PlayerSnapshot,PlayerAction,MediaPage,EncodedImage,SourceGrant,MediaSource,MediaKind,DriveDescriptor,OutputList,PlaybackTarget,HomeSnapshot,Theme,CountryOption,VpnSnapshot,ServiceId,OperationRef,OperationFinished,AppError} from './contracts';
-import {RevisionStore} from './controller';
 export const backend = {
   player:()=>invoke<PlayerSnapshot|null>('get_player'),
   playMedia:(mediaId:string,resume:boolean)=>performOperation('play_media',{mediaId,resume}),
@@ -50,25 +49,17 @@ export async function performOperation(command:string,args:Record<string,unknown
   } finally {clearTimeout(timer);unlisten();}
 }
 export async function subscribeHome(update:(value:HomeSnapshot)=>void):Promise<()=>void> {
-  const store=new RevisionStore<HomeSnapshot>();let active=true;let starting=true;const pending:HomeSnapshot[]=[];
-  let refreshing:Promise<void>|null=null;
-  async function refresh() {
-    if(refreshing)return refreshing;
-    refreshing=backend.snapshot().then(value=>{if(active){store.reset(value);update(store.value!);}}).finally(()=>{refreshing=null;});
-    return refreshing;
+  let active=true;
+  let revision=-1;
+  function publish(value:HomeSnapshot) {
+    // Native Home events contain complete snapshots, so skipped revisions do not require a reload.
+    if(!active || value.revision<=revision)return;
+    revision=value.revision;
+    update(value);
   }
-  const unlisten=await listen<HomeSnapshot>('home_changed',({payload})=>{
-    if(!active)return;
-    if(starting){pending.push(payload);return;}
-    const result=store.accept(payload);
-    if(result==='gap')void refresh().catch(()=>{});
-    if(result==='applied')update(payload);
-  });
+  const unlisten=await listen<HomeSnapshot>('home_changed',({payload})=>publish(payload));
   try {
-    await refresh();starting=false;
-    for(const value of pending.sort((a,b)=>a.revision-b.revision)){
-      const result=store.accept(value);if(result==='applied' && active)update(value);else if(result==='gap')await refresh();
-    }
+    publish(await backend.snapshot());
   } catch(error) {active=false;unlisten();throw error;}
   return ()=>{active=false;unlisten();};
 }

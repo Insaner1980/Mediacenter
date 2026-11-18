@@ -119,13 +119,18 @@ pub fn list(
 }
 /// The same root policy is used for browsing, confirmation, and final registration.
 pub fn remote_roots(
+    state: &AppState,
     db: &rusqlite::Connection,
     devices: &crate::devices::udisks::Devices,
     defaults: Vec<std::path::PathBuf>,
 ) -> Result<Vec<std::path::PathBuf>, AppError> {
     let mut roots = repository::records(db)?
         .iter()
-        .filter_map(|s| repository::root(s, devices).ok())
+        .filter_map(|source| {
+            let root = repository::root(source, devices).ok()?;
+            confirmation::check(state, source, &root).ok()?;
+            Some(root)
+        })
         .collect::<Vec<_>>();
     roots.extend(defaults);
     roots.extend(
@@ -144,12 +149,13 @@ pub fn remote_roots(
 }
 
 pub fn authorize_remote_root(
+    state: &AppState,
     db: &rusqlite::Connection,
     selection: &crate::remote::folders::Selection,
     devices: &crate::devices::udisks::Devices,
     defaults: Vec<std::path::PathBuf>,
 ) -> Result<(), AppError> {
-    if !remote_roots(db, devices, defaults)?
+    if !remote_roots(state, db, devices, defaults)?
         .iter()
         .any(|root| root == selection.root())
     {
@@ -199,7 +205,7 @@ fn register_remote(
         .lock()
         .map_err(|_| AppError::new("database_error", "Library unavailable."))?;
     let transaction = db.transaction()?;
-    authorize_remote_root(&transaction, selection, devices, defaults)?;
+    authorize_remote_root(state, &transaction, selection, devices, defaults)?;
     let grant = state
         .grants
         .lock()
@@ -238,6 +244,42 @@ fn register_remote(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn fingerprint_source_requires_confirmation_to_contribute_a_remote_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let mount = dir.path().join("drive");
+        let root = mount.join("Music");
+        std::fs::create_dir_all(&root).unwrap();
+        let state = AppState::open(dir.path().join("data")).unwrap();
+        let devices = crate::devices::udisks::Devices {
+            drives: vec![],
+            volumes: vec![crate::devices::registry::Volume {
+                path: "/test".into(),
+                id: "drive".into(),
+                drive_id: "drive".into(),
+                identity: Some("fingerprint:v1:test".into()),
+                mounts: vec![mount.clone()],
+                label: "Drive".into(),
+                size: 1024,
+                removable: true,
+            }],
+        };
+        let db = state.db.lock().unwrap();
+        let source = repository::add(&db, &root, &[MediaKind::Audio], &devices).unwrap();
+        assert_eq!(
+            remote_roots(&state, &db, &devices, vec![]).unwrap(),
+            vec![mount.clone()]
+        );
+        state
+            .source_confirmations
+            .lock()
+            .unwrap()
+            .insert(source, confirmation::capture(&root).unwrap());
+        assert_eq!(
+            remote_roots(&state, &db, &devices, vec![]).unwrap(),
+            vec![root, mount]
+        );
+    }
     #[tokio::test]
     async fn source_add_cannot_bypass_active_device_gate() {
         let dir = tempfile::tempdir().unwrap();

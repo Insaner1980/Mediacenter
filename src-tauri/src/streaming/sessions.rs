@@ -59,13 +59,10 @@ pub async fn open(
                     "Stop local playback before opening a service.",
                 ));
             }
-            let required = home
-                .services
-                .iter()
-                .find(|entry| entry.id == service)
-                .is_none_or(|entry| entry.vpn_required);
-            let observation = vpn::nordvpn::refresh_deferred(&state, &publications).await?;
-            vpn::policy::evaluate_launch(required, &observation, now_ms())?;
+            if vpn::policy::requires_vpn(&home.services, service) {
+                let observation = vpn::nordvpn::refresh_deferred(&state, &publications).await?;
+                vpn::policy::evaluate_launch(true, &observation, now_ms())?;
+            }
             if service == ServiceId::HboMax {
                 super::browser::check_chrome_available()?;
                 return Ok(Destination::OrdinaryChrome);
@@ -87,12 +84,32 @@ pub async fn open(
         },
     )
     .await?;
-    let monitor = match prepared {
-        None => return Ok(()),
-        Some(Destination::OrdinaryChrome) => return super::external::open_hbo(cancel).await,
-        Some(Destination::Managed(monitor)) => monitor,
+    let Some(destination) = prepared else {
+        return Ok(());
     };
-    let mut started = super::browser::launch(&state.data_dir, service, cancel.clone()).await?;
+    let started = vpn::policy::launch_after_preflight(
+        &state,
+        service,
+        &cancel,
+        vpn::nordvpn::refresh_deferred_locked(&state, &publications),
+        async {
+            match destination {
+                Destination::OrdinaryChrome => {
+                    super::external::open_hbo(cancel.clone()).await?;
+                    Ok(None)
+                }
+                Destination::Managed(monitor) => {
+                    let browser =
+                        super::browser::launch(&state.data_dir, service, cancel.clone()).await?;
+                    Ok(Some((browser, monitor)))
+                }
+            }
+        },
+    )
+    .await?;
+    let Some((mut started, monitor)) = started else {
+        return Ok(());
+    };
     if cancel.is_cancelled() {
         let _ = started.close().await;
         return Err(AppError::new("cancelled", "Service opening was cancelled."));

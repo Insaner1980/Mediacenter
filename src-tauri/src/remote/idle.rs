@@ -248,7 +248,7 @@ mod tests {
     }
 }
 #[cfg(test)]
-mod lifetime_tests {
+pub(super) mod lifetime_tests {
     use super::*;
     use std::sync::atomic::AtomicUsize;
     #[derive(Default)]
@@ -285,6 +285,12 @@ mod lifetime_tests {
                 }
             })
         }
+    }
+    pub(in crate::remote) async fn active_session() -> IdleSession {
+        let idle = IdleSession::with_backend(Arc::new(Arc::new(Fake::default())));
+        idle.begin_viewing();
+        idle.reconcile(true).await;
+        idle
     }
     #[tokio::test]
     async fn only_explicit_remote_playback_inhibits_and_end_releases_once() {

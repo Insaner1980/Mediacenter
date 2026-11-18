@@ -77,6 +77,12 @@ pub(crate) async fn refresh_deferred(
     publications: &events::DeferredPublications<'_>,
 ) -> Result<VpnSnapshot, AppError> {
     let _guard = state.vpn_gate.lock().await;
+    refresh_deferred_locked(state, publications).await
+}
+pub(crate) async fn refresh_deferred_locked(
+    state: &AppState,
+    publications: &events::DeferredPublications<'_>,
+) -> Result<VpnSnapshot, AppError> {
     let snapshot = observe_locked(state).await?;
     publications.publish(|home| home.vpn = snapshot.clone())?;
     Ok(snapshot)

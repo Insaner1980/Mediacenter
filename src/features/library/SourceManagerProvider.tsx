@@ -11,14 +11,49 @@ export function SourceManagerProvider({children}:{children:ReactNode}){
  const active=useRef(true),generation=useRef(0),pending=useRef(new Set<string>()),rescan=useRef(new Set<string>()),currentSources=useRef<MediaSource[]|null>(null);
  const accept=useCallback((value:MediaSource[],force=false)=>{const changed=JSON.stringify(value)!==JSON.stringify(currentSources.current);if(changed||force){currentSources.current=value;setSources(value);setRevision(v=>v+1);}},[]);
  const fail=useCallback((id:string,reason:unknown)=>{if(active.current)setErrors(current=>new Map(current).set(id,errorMessage(reason)));},[]);
- const refresh=useCallback(async()=>{const ticket=++generation.current;const value=await api.sources();if(active.current&&ticket===generation.current){accept(value,true);}},[api,accept]);
+ const updateSources=useCallback(async()=>{
+  const ticket=++generation.current;
+  const value=await api.sources();
+  if(!active.current||ticket!==generation.current)return false;
+  accept(value,true);
+  return true;
+ },[api,accept]);
+ const refresh=useCallback(async()=>{await updateSources();},[updateSources]);
  useEffect(()=>{active.current=true;if(!canUseMedia)return;let alive=true;let dispose:(()=>void)|undefined;
   void observeSources(value=>{if(alive){generation.current++;accept(value);}}).then(async stop=>{if(!alive){stop();return;}dispose=stop;await refresh();}).catch(e=>{if(alive)fail('',e);});
   return()=>{alive=false;active.current=false;generation.current++;dispose?.();};
  },[refresh,fail,canUseMedia,observeSources,accept]);
  const clear=(id:string)=>setErrors(current=>{const next=new Map(current);next.delete(id);return next;});
- async function scan(id:string){if(pending.current.has(id)){rescan.current.add(id);return;}pending.current.add(id);setPending(new Set(pending.current));clear(id);try{do{rescan.current.delete(id);await api.scanSource(id);await refresh();}while(active.current&&rescan.current.has(id));}catch(e){fail(id,e);}finally{rescan.current.delete(id);pending.current.delete(id);if(active.current)setPending(new Set(pending.current));}}
+ async function scan(id:string){
+  if(!active.current)return;
+  if(pending.current.has(id)){rescan.current.add(id);return;}
+  pending.current.add(id);setPending(new Set(pending.current));
+  try{
+   do{
+    rescan.current.delete(id);clear(id);
+    await api.scanSource(id);
+    if(!active.current)return;
+    let published=false;
+    try{published=await updateSources();}catch(e){fail(id,e);}
+    if(active.current&&!published)setRevision(v=>v+1);
+   }while(active.current&&rescan.current.has(id));
+  }catch(e){
+   fail(id,e);
+   // A failed or cancelled scan can have committed earlier batches of media.
+   if(active.current)setRevision(v=>v+1);
+  }
+  finally{rescan.current.delete(id);pending.current.delete(id);if(active.current)setPending(new Set(pending.current));}
+ }
  async function cancelScan(id:string){rescan.current.delete(id);try{await api.cancelScan(id);}catch(e){fail(id,e);}}
- async function remove(id:string){clear(id);try{await api.removeSource(id);await refresh();}catch(e){fail(id,e);throw e;}}
+ async function remove(id:string){
+  clear(id);
+  try{
+   await api.removeSource(id);
+   if(active.current){
+    generation.current++;
+    accept((currentSources.current??[]).filter(source=>source.id!==id));
+   }
+  }catch(e){fail(id,e);throw e;}
+ }
  return <Context.Provider value={{sources,pendingScans,errorBySource,revision,refresh,scan,cancelScan,remove}}>{children}</Context.Provider>;
 }

@@ -2,30 +2,63 @@ import {createContext,useCallback,useContext,useEffect,useRef,useState,type Reac
 import {useAppServices} from '../../app/AppServices';
 import {errorMessage} from '../../app/backend';
 import type {MusicAction,MusicQueue,PlayerAction,PlayerSnapshot} from '../../app/contracts';
-export interface PlaybackState {player:PlayerSnapshot|null;queue:MusicQueue|null;error:string|null;pending:boolean;playerAction:(action:PlayerAction)=>Promise<void>;musicAction:(action:MusicAction)=>Promise<void>;refresh:()=>Promise<void>}
+export interface PlaybackState {player:PlayerSnapshot|null;queue:MusicQueue|null;error:string|null;queueError:string|null;pending:boolean;playerAction:(action:PlayerAction,sessionId?:string)=>Promise<void>;musicAction:(action:MusicAction)=>Promise<void>;refresh:()=>Promise<void>;refreshQueue:()=>Promise<void>}
 const Context=createContext<PlaybackState|null>(null);
 export function usePlayback(){const value=useContext(Context);if(!value)throw Error('PlaybackProvider is required');return value;}
 export function useOptionalPlayback(){return useContext(Context);}
 export function PlaybackProvider({children}:{children:ReactNode}){
  const {backend,music,player:observation,canUseMedia}=useAppServices();
  const [player,setPlayer]=useState<PlayerSnapshot|null>(null),[queue,setQueue]=useState<MusicQueue|null>(null),[error,setError]=useState<string|null>(null),[pending,setPending]=useState(false);
+ const [observationError,setObservationError]=useState<string|null>(null),[queueError,setQueueError]=useState<string|null>(null);
  const live=useRef(true),playerRef=useRef(player),queueRef=useRef(queue),playerEpoch=useRef(0),queueEpoch=useRef(0),busy=useRef(false);
  const acceptPlayer=useCallback((value:PlayerSnapshot|null)=>{if(!live.current)return;const previous=playerRef.current;if(value&&previous&&value.sessionId===previous.sessionId&&value.revision<previous.revision)return;playerRef.current=value;setPlayer(value);},[]);
- const acceptQueue=useCallback((value:MusicQueue)=>{if(!live.current||!value)return;const previous=queueRef.current;if(previous&&value.revision<previous.revision)return;queueRef.current=value;setQueue(value);},[]);
+ const acceptQueue=useCallback((value:MusicQueue)=>{if(!live.current||!value)return;const previous=queueRef.current;if(previous&&value.revision<previous.revision)return;queueRef.current=value;setQueue(value);setQueueError(null);},[]);
  const refresh=useCallback(async()=>{const p=playerEpoch.current,q=queueEpoch.current;await Promise.all([backend.player().then(value=>{if(p===playerEpoch.current)acceptPlayer(value??null);}),music.queue().then(value=>{if(q===queueEpoch.current)acceptQueue(value);})]);},[backend,music,acceptPlayer,acceptQueue]);
+ const refreshQueue=useCallback(async()=>{
+  const epoch=++queueEpoch.current;
+  try{const value=await music.queue();if(epoch===queueEpoch.current)acceptQueue(value);}
+  catch(reason){if(live.current&&epoch===queueEpoch.current)setQueueError(errorMessage(reason));}
+ },[music,acceptQueue]);
  useEffect(()=>{live.current=true;if(!canUseMedia)return;let active=true;const dispose:(()=>void)[]=[];
- const fail=(reason:unknown)=>{if(active)setError(errorMessage(reason));};
- void observation.observe(value=>{if(active){playerEpoch.current++;acceptPlayer(value);}}).then(stop=>{if(active)dispose.push(stop);else stop();}).catch(fail);
- void music.subscribe(value=>{if(active){queueEpoch.current++;acceptQueue(value);}}).then(async stop=>{if(!active){stop();return;}dispose.push(stop);const epoch=queueEpoch.current;const value=await music.queue();if(active&&epoch===queueEpoch.current)acceptQueue(value);}).catch(fail);
- return()=>{active=false;live.current=false;dispose.forEach(stop=>stop());};
- },[music,observation,canUseMedia,acceptPlayer,acceptQueue]);
+ let timer:ReturnType<typeof setTimeout>|undefined,delay=250;
+ async function observePlayer(){
+  try{
+   const stop=await observation.observe(value=>{if(active){playerEpoch.current++;acceptPlayer(value);}});
+   if(active){dispose.push(stop);setObservationError(null);}
+   else stop();
+  }catch(reason){
+   if(!active)return;
+   setObservationError(errorMessage(reason));
+   timer=setTimeout(()=>void observePlayer(),delay);
+   delay=Math.min(delay*2,5000);
+  }
+ }
+ void observePlayer();
+ void music.subscribe(value=>{if(active){queueEpoch.current++;acceptQueue(value);}}).then(async stop=>{if(!active){stop();return;}dispose.push(stop);await refreshQueue();}).catch(reason=>{if(active)setQueueError(errorMessage(reason));});
+ return()=>{active=false;live.current=false;queueEpoch.current++;clearTimeout(timer);dispose.forEach(stop=>stop());};
+ },[music,observation,canUseMedia,acceptPlayer,acceptQueue,refreshQueue]);
  // Volume updates share one flight; the last requested value is always flushed.
  const volume=useRef<{sessionId:string;value:number}|null>(null),volumeFlight=useRef<Promise<void>|null>(null);
- async function playerAction(action:PlayerAction){
-  const current=playerRef.current;if(!current)return;
+ async function playerAction(action:PlayerAction,sessionId?:string){
+  const current=playerRef.current;if(!current||(sessionId!==undefined&&sessionId!==current.sessionId))return;
   if(action.type==='volume'){
    volume.current={sessionId:current.sessionId,value:action.value};
-   if(!volumeFlight.current){volumeFlight.current=(async()=>{try{do{while(volume.current){const next=volume.current;volume.current=null;await backend.controlPlayer(next.sessionId,{type:'volume',value:next.value});}await refresh();}while(volume.current);}catch(reason){if(live.current)setError(errorMessage(reason));}finally{volumeFlight.current=null;}})();}
+   if(!volumeFlight.current){
+    volumeFlight.current=(async()=>{
+     let failure:string|null=null;
+     try{
+      do{
+       while(volume.current){
+        const next=volume.current;volume.current=null;
+        try{await backend.controlPlayer(next.sessionId,{type:'volume',value:next.value});failure=null;}
+        catch(reason){failure=errorMessage(reason);}
+       }
+       try{await refresh();}catch(reason){failure??=errorMessage(reason);}
+      }while(volume.current);
+      if(failure&&live.current)setError(failure);
+     }finally{volumeFlight.current=null;}
+    })();
+   }
    return volumeFlight.current;
   }
   if(busy.current)return;busy.current=true;setPending(true);setError(null);
@@ -34,5 +67,5 @@ export function PlaybackProvider({children}:{children:ReactNode}){
  async function musicAction(action:MusicAction){const current=queueRef.current;if(!current||busy.current)return;busy.current=true;setPending(true);setError(null);const epoch=queueEpoch.current;
   try{const value=await music.control(current,action);if(epoch===queueEpoch.current)acceptQueue(value);}catch(reason){if(live.current)setError(errorMessage(reason));const recovery=queueEpoch.current;try{const value=await music.queue();if(recovery===queueEpoch.current)acceptQueue(value);}catch{/* Retain the mutation failure. */}}finally{busy.current=false;if(live.current)setPending(false);}
  }
- return <Context.Provider value={{player,queue,error,pending,playerAction,musicAction,refresh}}>{children}</Context.Provider>;
+ return <Context.Provider value={{player,queue,error:error??observationError,queueError,pending,playerAction,musicAction,refresh,refreshQueue}}>{children}</Context.Provider>;
 }

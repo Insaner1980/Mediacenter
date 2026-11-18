@@ -12,7 +12,7 @@ vi.mock('@tauri-apps/api/event',()=>({listen:async()=>()=>{}}));
 vi.mock('../../src/app/backend',async importOriginal=>{
  const original=await importOriginal<typeof import('../../src/app/backend')>();
  const {referenceSnapshot}=await import('../../src/testing/fixtures');
- return {...original,subscribeHome:async(callback:(s:unknown)=>void)=>{callback({...referenceSnapshot,sessions:state.sessions});return()=>{};},backend:{...original.backend,openService:vi.fn(async()=>{}),focusSession:vi.fn(async()=>{}),outputs:async()=>({monitors:[],audioSinks:[],computerMonitorId:null,audioError:null})}};
+ return {...original,subscribeHome:async(callback:(s:unknown)=>void)=>{callback({...referenceSnapshot,sessions:state.sessions});return()=>{};},backend:{...original.backend,openService:vi.fn(async()=>{}),focusSession:vi.fn(async()=>{}),countries:async()=>[],outputs:async()=>({monitors:[],audioSinks:[],computerMonitorId:null,audioError:null})}};
 });
 beforeEach(()=>{state.sessions=[];vi.clearAllMocks();});
 function hbo(phase:string):ManagedSession{return {id:'hbo-session',kind:'streaming',serviceId:'hbo_max',mediaId:null,phase,target:{monitorId:null,audioSinkId:null}};}
@@ -32,6 +32,18 @@ it('opens service controls only when explicitly requested',async()=>{
  await userEvent.click(await screen.findByRole('button',{name:'Playback controls'}));
  expect(screen.getByText('Service window: ready')).toBeVisible();
  expect(backend.openService).not.toHaveBeenCalled();
+});
+it('loads Home and applies appearance even when the local theme cache cannot be written',async()=>{
+ const cache=vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new Error('Storage unavailable');});
+ try {
+  render(<App/>);
+  await screen.findByRole('button',{name:'HBO Max'});
+  expect(screen.queryByText('The media services are not available yet.')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button',{name:'Settings'}));
+  await userEvent.click(screen.getByRole('button',{name:'Light'}));
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Light'})).toHaveAttribute('aria-pressed','true'));
+  expect(document.documentElement.dataset.theme).toBe('light');
+ } finally {cache.mockRestore();}
 });
 it('uses the reopening operation from service controls too',async()=>{
  state.sessions=[hbo('unavailable')];render(<App/>);

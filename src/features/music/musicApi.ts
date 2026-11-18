@@ -12,10 +12,12 @@ export const musicApi={
  remove:(playlistId:string)=>invoke<void>('remove_playlist',{playlistId}),
  playPlaylist:(playlistId:string,startIndex=0)=>performOperation('play_playlist',{playlistId,startIndex}),
  subscribe:async(update:(queue:MusicQueue)=>void)=>{
-  const unlistenQueue=await listen<MusicQueue>('music_queue_changed',({payload})=>update(payload));
+  let active=true;
+  const accept=(queue:MusicQueue)=>{if(active)update(queue);};
+  const unlistenQueue=await listen<MusicQueue>('music_queue_changed',({payload})=>accept(payload));
   try{
-   const unlistenPlayer=await listen<PlayerSnapshot|null>('player_changed',({payload})=>{if(payload===null)void invoke<MusicQueue>('get_music_queue').then(update).catch(()=>{});});
-   return()=>{unlistenQueue();unlistenPlayer();};
-  }catch(error){unlistenQueue();throw error;}
+   const unlistenPlayer=await listen<PlayerSnapshot|null>('player_changed',({payload})=>{if(payload===null)void invoke<MusicQueue>('get_music_queue').then(accept).catch(()=>{});});
+   return()=>{active=false;unlistenQueue();unlistenPlayer();};
+  }catch(error){active=false;unlistenQueue();throw error;}
  },
 };

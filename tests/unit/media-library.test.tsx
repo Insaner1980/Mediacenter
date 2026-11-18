@@ -31,3 +31,19 @@ it('keeps a source event over a delayed initial list response',async()=>{
  function View(){const state=useSources();return <p>{state.sources[0]?.availability}</p>;}
  render(<AppServicesProvider services={services}><SourceManagerProvider><View/></SourceManagerProvider></AppServicesProvider>);await waitFor(()=>expect(list).toHaveBeenCalled());await act(async()=>emit([source]));await act(async()=>resolve([{...source,availability:'available'}]));expect(screen.getByText('offline')).toBeVisible();
 });
+it('publishes a completed scan when an identical event supersedes its source list',async()=>{
+ const {AppServicesProvider,productionServices}=await import('../../src/app/AppServices');
+ const {SourceManagerProvider,useSources}=await import('../../src/features/library/SourceManagerProvider');
+ const source={id:'s',label:'USB',displayPath:'/usb',kinds:['video' as const],availability:'available',removable:true};
+ let emit:(value:typeof source[])=>void=()=>{},resolve:(value:typeof source[])=>void=()=>{};
+ const list=vi.fn().mockResolvedValueOnce([source]).mockImplementation(()=>new Promise(r=>{resolve=r;}));
+ const services={...productionServices,canUseMedia:true,backend:{...backend,sources:list,scanSource:async()=>{}},observeSources:async(update:typeof emit)=>{emit=update;return()=>{};}};
+ function View(){const state=useSources();return <><button onClick={()=>void state.scan('s')}>Scan USB</button><p>Revision {state.revision}</p></>;}
+ render(<AppServicesProvider services={services}><SourceManagerProvider><View/></SourceManagerProvider></AppServicesProvider>);
+ await screen.findByText('Revision 1');
+ fireEvent.click(screen.getByText('Scan USB'));
+ await waitFor(()=>expect(list).toHaveBeenCalledTimes(2));
+ await act(async()=>emit([source]));
+ await act(async()=>resolve([source]));
+ expect(screen.getByText('Revision 2')).toBeVisible();
+});

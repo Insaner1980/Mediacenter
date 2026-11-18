@@ -129,6 +129,20 @@ impl Folders {
         label: &str,
         expires: u64,
     ) -> Result<DirectoryNode, AppError> {
+        let label = label.chars().take(256).collect::<String>();
+        let node =
+            |id: &str| checked(serde_json::json!({"nodeId":id,"label":label})).map_err(|_| stale());
+        let existing = self.handles.iter().find(|(_, handle)| {
+            &handle.owner == owner
+                && handle.expires == expires
+                && handle.selection.root == selection.root
+                && handle.selection.relative == selection.relative
+                && handle.selection.root_identity == selection.root_identity
+                && handle.selection.identity == selection.identity
+        });
+        if let Some((id, _)) = existing {
+            return node(id);
+        }
         if self.handles.len() >= MAX_HANDLES {
             return Err(AppError::new(
                 "busy",
@@ -136,8 +150,7 @@ impl Folders {
             ));
         }
         let id = opaque();
-        let label = label.chars().take(256).collect::<String>();
-        let node = checked(serde_json::json!({"nodeId":id,"label":label})).map_err(|_| stale())?;
+        let node = node(&id)?;
         self.handles.insert(
             id,
             Handle {
@@ -257,20 +270,7 @@ impl Folders {
             items.push(self.insert(owner, child_selection, &name.to_string_lossy(), expires)?);
         }
         let next_cursor = if has_more {
-            if self.cursors.len() >= MAX_HANDLES {
-                return Err(AppError::new("busy", "Too many folder pages."));
-            }
-            let id = opaque();
-            self.cursors.insert(
-                id.clone(),
-                PageCursor {
-                    owner: owner.clone(),
-                    node: node.clone(),
-                    after: last.expect("full page"),
-                    expires,
-                },
-            );
-            Some(checked(id).map_err(|_| stale())?)
+            Some(self.insert_cursor(owner, node, last.expect("full page"), expires)?)
         } else {
             None
         };
@@ -278,6 +278,39 @@ impl Folders {
             items: checked(items).map_err(|_| stale())?,
             next_cursor,
         })
+    }
+
+    fn insert_cursor(
+        &mut self,
+        owner: &Id,
+        node: &Id,
+        after: std::ffi::OsString,
+        expires: u64,
+    ) -> Result<Cursor, AppError> {
+        let existing = self.cursors.iter().find(|(_, cursor)| {
+            &cursor.owner == owner
+                && &cursor.node == node
+                && cursor.after == after
+                && cursor.expires == expires
+        });
+        if let Some((id, _)) = existing {
+            return checked(id).map_err(|_| stale());
+        }
+        if self.cursors.len() >= MAX_HANDLES {
+            return Err(AppError::new("busy", "Too many folder pages."));
+        }
+        let id = opaque();
+        let cursor = checked(&id).map_err(|_| stale())?;
+        self.cursors.insert(
+            id,
+            PageCursor {
+                owner: owner.clone(),
+                node: node.clone(),
+                after,
+                expires,
+            },
+        );
+        Ok(cursor)
     }
 }
 
@@ -370,6 +403,62 @@ mod security_tests {
                 2
             )
             .is_err());
+    }
+    #[test]
+    fn refreshing_a_folder_page_preserves_its_live_node_and_cursor() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Music");
+        std::fs::create_dir_all(root.join("Albums")).unwrap();
+        std::fs::create_dir(root.join("Mixes")).unwrap();
+        let mut folders = Folders::default();
+        let phone = owner();
+        let root = folders
+            .roots(&phone, vec![root], 0)
+            .unwrap()
+            .items
+            .as_slice()[0]
+            .node_id
+            .clone();
+        let limit = checked(1).unwrap();
+        let first = folders
+            .children(&phone, &root, None, Some(&limit), 1)
+            .unwrap();
+        let refreshed = folders
+            .children(&phone, &root, None, Some(&limit), 2)
+            .unwrap();
+        assert_eq!(refreshed, first);
+    }
+    #[test]
+    fn six_folder_pages_remain_browsable_with_earlier_nodes_still_valid() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Music");
+        std::fs::create_dir(&root).unwrap();
+        for index in 0..600 {
+            std::fs::create_dir(root.join(format!("Folder{index:03}"))).unwrap();
+        }
+        let mut folders = Folders::default();
+        let phone = owner();
+        let root = folders
+            .roots(&phone, vec![root], 0)
+            .unwrap()
+            .items
+            .as_slice()[0]
+            .node_id
+            .clone();
+        let mut cursor = None;
+        let mut earlier = None;
+        for now in 1..=6 {
+            let page = folders
+                .children(&phone, &root, cursor.as_ref(), None, now)
+                .unwrap();
+            assert_eq!(page.items.as_slice().len(), 100);
+            if now == 1 {
+                earlier = Some(page.items.as_slice()[0].node_id.clone());
+            }
+            cursor = page.next_cursor;
+        }
+        assert!(cursor.is_none());
+        assert!(folders.selection(&phone, &earlier.unwrap(), 7).is_ok());
     }
     #[test]
     fn final_selection_rejects_symlink_replacement_of_node_and_root() {

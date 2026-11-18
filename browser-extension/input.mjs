@@ -39,12 +39,17 @@ export async function readViewport(debuggerApi, tabId, generation, validate) {
 export async function requireSameViewport(debuggerApi, tabId, measured, validate) {
   const current = await readViewport(debuggerApi, tabId, measured.generation, validate);
   if (current.width !== measured.width || current.height !== measured.height) throw Error('stale_viewport');
+  return current;
 }
 
-export async function dispatchBrowserInput(debuggerApi, tabId, request, viewport, validate) {
+export async function dispatchBrowserInput(debuggerApi, tabId, request, viewport, validate, validateRelease = validate) {
   if (!request || typeof request !== 'object') throw Error('invalid_browser_input');
   const send = (method, params) => {
     validate();
+    return debuggerApi.sendCommand({ tabId }, method, params);
+  };
+  const release = (method, params) => {
+    validateRelease();
     return debuggerApi.sendCommand({ tabId }, method, params);
   };
   const mouse = (type, params) => send('Input.dispatchMouseEvent', { type, ...params });
@@ -62,7 +67,7 @@ export async function dispatchBrowserInput(debuggerApi, tabId, request, viewport
       const [key, code, windowsVirtualKeyCode, text = '', modifiers = 0] = definition;
       const params = { key, code, windowsVirtualKeyCode, modifiers };
       await send('Input.dispatchKeyEvent', { ...params, type: 'keyDown', text });
-      await send('Input.dispatchKeyEvent', { ...params, type: 'keyUp' });
+      await release('Input.dispatchKeyEvent', { ...params, type: 'keyUp' });
       return;
     }
     case 'pointer':
@@ -74,7 +79,7 @@ export async function dispatchBrowserInput(debuggerApi, tabId, request, viewport
       if (request.button !== 'left' && request.button !== 'right') throw Error('invalid_browser_input');
       const params = { ...point(request, viewport), button: request.button, clickCount: 1 };
       await mouse('mousePressed', params);
-      await mouse('mouseReleased', params);
+      await release('Input.dispatchMouseEvent', { type: 'mouseReleased', ...params });
       return;
     }
     case 'scroll': {

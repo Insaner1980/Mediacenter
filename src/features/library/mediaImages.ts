@@ -9,7 +9,19 @@ export function createThumbnailLoader(fetch:(id:string)=>Promise<EncodedImage>){
   if(cache.has(key)){const value=cache.get(key)!;cache.delete(key);cache.set(key,value);return Promise.resolve(value);}
   const existing=pending.get(key);if(existing)return existing;
   const work=new Promise<string|null>(resolve=>{
-   const start=()=>{running++;void fetch(id).then(rasterUrl).catch(()=>null).then(value=>{cache.set(key,value);if(cache.size>64)cache.delete(cache.keys().next().value!);resolve(value);}).finally(()=>{running--;pending.delete(key);waiting.shift()?.();});};
+   const start=()=>{
+    running++;
+    void Promise.resolve().then(()=>fetch(id)).then(rasterUrl).then(value=>{
+     cache.set(key,value);
+     if(cache.size>64)cache.delete(cache.keys().next().value!);
+     return value;
+    }).catch(()=>null).then(value=>{
+     running--;
+     pending.delete(key);
+     waiting.shift()?.();
+     resolve(value);
+    });
+   };
    if(running<4)start();else waiting.push(start);
   });pending.set(key,work);return work;
  };
