@@ -261,10 +261,11 @@ async fn launch(
         phase: "ready".into(),
         target: PlaybackTarget::default(),
     };
-    let window = crate::outputs::x11::wmctrl(&["-lpG"])
-        .await
-        .ok()
-        .and_then(|text| crate::outputs::x11::owned_window(&text, pid));
+    let wait_for_mapping = std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("x11");
+    let window = crate::outputs::x11::player_window(&identity, &cancel, wait_for_mapping, || {
+        crate::outputs::x11::wmctrl(&["-lpG"])
+    })
+    .await;
     let snapshot = PlayerSnapshot {
         revision: 0,
         session_id,
@@ -396,7 +397,18 @@ pub(crate) async fn play_in_session(
         }
     }
     retired?;
-    let (mut player, events) = launch(&state, &id, resume, cancel.clone()).await?;
+    let (mut player, events) = launch(&state, &id, resume, cancel.clone())
+        .await
+        .inspect_err(|error| {
+            crate::diagnostics::record(
+                &state,
+                "player",
+                "launch_failed",
+                None,
+                0,
+                Some(&error.code),
+            );
+        })?;
     if cancel.is_cancelled() {
         player.stop().await?;
         return Err(AppError::new("cancelled", "Player startup cancelled."));
@@ -445,7 +457,8 @@ pub(crate) async fn play_in_session(
         Ok(())
     }
     .await;
-    if result.is_err() {
+    if let Err(error) = &result {
+        crate::diagnostics::record(&state, "player", "start_failed", None, 0, Some(&error.code));
         let _ = control(&app, &state, &session_id, PlayerAction::Stop).await;
     }
     result

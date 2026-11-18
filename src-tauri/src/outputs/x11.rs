@@ -34,6 +34,37 @@ pub fn owned_window(listing: &str, pid: u32) -> Option<WindowInfo> {
         Some(first)
     }
 }
+pub(crate) async fn player_window<F>(
+    owner: &crate::process::registry::ProcessIdentity,
+    cancel: &tokio_util::sync::CancellationToken,
+    wait_for_mapping: bool,
+    mut list: impl FnMut() -> F,
+) -> Option<WindowInfo>
+where
+    F: std::future::Future<Output = Result<String, crate::contracts::AppError>>,
+{
+    use std::time::Duration;
+
+    let find_window = async {
+        loop {
+            let listing = list().await.ok()?;
+            if !owner.still_owned() {
+                return None;
+            }
+            let window = owned_window(&listing, owner.pid);
+            if window.is_some() || !wait_for_mapping {
+                return window;
+            }
+            // mpv can load the file before the X11 window manager registers its window.
+            tokio::time::sleep(Duration::from_millis(75)).await;
+        }
+    };
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => None,
+        window = tokio::time::timeout(Duration::from_secs(2), find_window) => window.ok().flatten(),
+    }
+}
 pub async fn wmctrl(args: &[&str]) -> Result<String, crate::contracts::AppError> {
     use crate::{
         contracts::AppError,
@@ -71,6 +102,26 @@ pub async fn wmctrl(args: &[&str]) -> Result<String, crate::contracts::AppError>
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test(start_paused = true)]
+    async fn locates_the_player_after_its_window_is_mapped() {
+        let owner = crate::process::registry::ProcessIdentity::capture(std::process::id()).unwrap();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let mut observations = [
+            String::from("0x01 0 0 0 0 100 100 host Other window"),
+            format!("0x02 0 {} 10 20 640 360 host Player", owner.pid),
+        ]
+        .into_iter();
+        let window = player_window(&owner, &cancel, true, || {
+            std::future::ready(Ok(observations
+                .next()
+                .expect("unexpected extra observation")))
+        })
+        .await;
+        assert_eq!(
+            window.as_ref().map(|window| window.id.as_str()),
+            Some("0x02")
+        );
+    }
     #[test]
     fn title_cannot_claim_unrelated_window() {
         let list = "0x01 0 11 -800 20 640 480 host YouTube\n0x02 0 22 100 30 800 600 host YouTube";

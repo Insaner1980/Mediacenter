@@ -406,6 +406,26 @@ pub async fn move_player(
             .await;
     }
     let audio = super::audio::route(&player.identity, target.audio_sink_id.as_deref()).await;
+    if let Err(error) = &picture {
+        crate::diagnostics::record(
+            state,
+            "player",
+            "picture_unconfirmed",
+            None,
+            0,
+            Some(&error.code),
+        );
+    }
+    if let Err(error) = &audio {
+        crate::diagnostics::record(
+            state,
+            "player",
+            "audio_unconfirmed",
+            None,
+            0,
+            Some(&error.code),
+        );
+    }
     if let Ok(id) = &audio {
         player
             .routing_target
