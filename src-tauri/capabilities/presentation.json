@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "presentation",
-  "description": "Assigned decoded photos only; no process, file, VPN or device access",
-  "windows": ["presentation"],
-  "permissions": ["allow-get-presentation-frame", "core:event:allow-listen", "core:event:allow-unlisten"]
-}

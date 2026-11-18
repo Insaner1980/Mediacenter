@@ -1,7 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Mediacenter Remote
-Comment=Keep Mediacenter available for paired phones after graphical login
-Exec=@EXECUTABLE@ --remote-background
-Terminal=false
-X-GNOME-Autostart-enabled=true

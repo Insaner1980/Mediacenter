@@ -1,1 +1,0 @@
-export function formatTime(seconds:number|null|undefined){if(seconds==null||!Number.isFinite(seconds))return '';const n=Math.max(0,Math.floor(seconds));return n>=3600?`${Math.floor(n/3600)}:${String(Math.floor(n/60)%60).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`:`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;}
