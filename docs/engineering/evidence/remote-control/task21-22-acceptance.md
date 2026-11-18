@@ -1,5 +1,11 @@
 # Remote control acceptance
 
+## Device continuation, 2026-11-18
+
+The installed Pixel update restored both saved connections after a cold launch and reconnected to the desktop after a background interval. The desktop played a disposable HDMI video while Remote was stopped. Remote opened the LG app catalog while the desktop process and listener were stopped. With both apps running, Pixel controlled local video and opened test music and a photo. Two initial video starts failed with an internal error, followed by four successful starts. The system confirmed HDMI stream routing. Speaker audibility for this run awaits observation.
+
+Pixel started Yle Areena from a closed managed Chrome profile, used the touchpad to select essential cookies, and closed the target tab while ordinary Chrome stayed open. YouTube is enrolled and its current VPN kill-switch requirement blocked launch. Provider playback and the remaining extended device checks stay open. The current package pair and automated results are in the [18 November checkpoint](../../remote-control-checkpoint.md#tilanne-18112026).
+
 ## Device continuation, 2026-11-16
 
 The authorized Pixel 9/API 37 is connected and the isolated fixture is paired without replacing production Remote. The 1080p mirror is configured and saved. After selecting **HDMI 1**, the user confirmed the same TV/computer picture. Audible TV output remains awaiting confirmation.

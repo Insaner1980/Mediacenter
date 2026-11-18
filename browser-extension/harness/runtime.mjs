@@ -181,7 +181,7 @@ try {
     await call?.('Browser.close').catch(() => browser.kill());
     await Promise.race([browserExit, delay(2_000).then(() => browser.kill())]);
   }
-  await rm(runtime, { recursive: true, force: true });
+  await rm(runtime, { recursive: true, force: true, maxRetries: 5 });
   await writeFile(path.join(base, 'production-runtime-result.json'), `${JSON.stringify(result, null, 2)}\n`);
   console.log(result);
 }
