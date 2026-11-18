@@ -1,5 +1,11 @@
 # Remote ja Mediacenter – jatkomuistio
 
+## Videon käynnistyksen jatkotesti 18.11.2026
+
+Toistettu käynnistysvirhe johtui mpv:n ja Cinnamonin ajoituksesta. Tiedosto ehti latautua ennen kuin soittimen ikkuna ilmestyi X11:n ikkunaluetteloon. Mediacenter tarkisti ikkunan kerran ja keskeytti käynnistyksen. Työpöydän korjaus `55fe654` odottaa rajatun ajan juuri käynnistetyn soittimen omaa ikkunaa. Kuusi peräkkäistä Pixelistä tehtyä käynnistystä läpäisi korjatulla paketilla. Yle Areenan uutisjakson käynnistys, tauko, jatkaminen ja välilehden sulkeminen toimivat Pixelistä. Chrome reititti äänen HDMI:hin. Testipaketit ovat kansiossa `releases/remote-playback-20261118/`. [Mittaukset ja jäljellä olevat tarkistukset](evidence/remote-control/task21-22-acceptance.md#playback-reliability-and-streaming-follow-up-2026-11-18)
+
+Kahden tunnin ajo kesti 2 tuntia ja 5 sekuntia. Pixel ohjasi aluksi kuvien vaihtoa, sitten kymmentä videon käynnistystä ja yhdeksää musiikin käynnistystä. Kaikki 60 ohjauskomentoa onnistuivat. Kahdessa edeltäneessä ajossa musiikista kuvahakuun siirtyminen antoi hakuhäiriön, joka jäi erilliseksi avoimeksi kohdaksi. Korjattu Mediacenter käynnistettiin puretusta Debian-paketista.
+
 ## Tilanne 18.11.2026
 
 - Pixel 9:ään asennettiin alkuperäisen Remoten päivitys `9e987e8` samalla allekirjoituksella. Sovelluksen UID, molemmat salatut paritukset ja kaksi asetustiedostoa täsmäsivät välittömästi päivityksen jälkeen. Aiempi versio vaati kylmäkäynnistyksen jälkeen Wi-Fi-valinnan ja Reconnect-painalluksen. Päivitys lataa tallennetun parituksen ja avaa yhteyden saatavilla olevalla Wi-Fi-yhteydellä. Kylmäkäynnistyksessä LAN-yhteys syntyi 0,64 sekunnissa ja molemmat kohteet näyttivät Connected. Taustalla yhteys sulkeutui ja palasi sovelluksen avaamisen jälkeen.
