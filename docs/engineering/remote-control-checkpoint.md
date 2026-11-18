@@ -1,10 +1,20 @@
 # Remote ja Mediacenter – jatkomuistio
 
+## Kuvahaun korjaus 18.11.2026
+
+Pienoiskuvien tiheä verkkolataus viivästytti ohjausyhteyttä niin, että kuvahaku ehti aikakatkaisuun. Remote lataa nyt välimuistista puuttuvat pienoiskuvat yksi kerrallaan ja pitää verkkopyyntöjen välissä vähintään 400 ms tauon. Pixelillä neljä peräkkäistä siirtymää musiikista kuvahakuun, kuvan avaukseen ja seuraavaan kuvaan onnistuivat. Kahden testikuvan pienoiskuvat latautuivat myös tyhjennettyyn välimuistiin. Päivitys asennettiin alkuperäiseen Remoteen samalla allekirjoituksella. [Laitetestin tulokset](evidence/remote-control/task21-22-acceptance.md#remote-photo-search-follow-up-2026-11-18)
+
+Mediacenter käynnistettiin testatusta Debian-paketista. Sulje käynnissä oleva Mediacenter valinnalla **Quit Mediacenter** ennen kuin ajat alla olevan asennuskomennon Linux Mintin päätteessä.
+
+```bash
+sudo apt install --reinstall /home/emma/Dev/Mediacenter/releases/remote-photo-search-20261118/Mediacenter_0.1.6_amd64.deb
+```
+
 ## Videon käynnistyksen jatkotesti 18.11.2026
 
 Toistettu käynnistysvirhe johtui mpv:n ja Cinnamonin ajoituksesta. Tiedosto ehti latautua ennen kuin soittimen ikkuna ilmestyi X11:n ikkunaluetteloon. Mediacenter tarkisti ikkunan kerran ja keskeytti käynnistyksen. Työpöydän korjaus `55fe654` odottaa rajatun ajan juuri käynnistetyn soittimen omaa ikkunaa. Kuusi peräkkäistä Pixelistä tehtyä käynnistystä läpäisi korjatulla paketilla. Yle Areenan uutisjakson käynnistys, tauko, jatkaminen ja välilehden sulkeminen toimivat Pixelistä. Chrome reititti äänen HDMI:hin. Testipaketit ovat kansiossa `releases/remote-playback-20261118/`. [Mittaukset ja jäljellä olevat tarkistukset](evidence/remote-control/task21-22-acceptance.md#playback-reliability-and-streaming-follow-up-2026-11-18)
 
-Kahden tunnin ajo kesti 2 tuntia ja 5 sekuntia. Pixel ohjasi aluksi kuvien vaihtoa, sitten kymmentä videon käynnistystä ja yhdeksää musiikin käynnistystä. Kaikki 60 ohjauskomentoa onnistuivat. Kahdessa edeltäneessä ajossa musiikista kuvahakuun siirtyminen antoi hakuhäiriön, joka jäi erilliseksi avoimeksi kohdaksi. Korjattu Mediacenter käynnistettiin puretusta Debian-paketista.
+Kahden tunnin ajo kesti 2 tuntia ja 5 sekuntia. Pixel ohjasi aluksi kuvien vaihtoa, sitten kymmentä videon käynnistystä ja yhdeksää musiikin käynnistystä. Kaikki 60 ohjauskomentoa onnistuivat. Kahdessa edeltäneessä ajossa havaittu kuvahaun häiriö toistettiin ja korjattiin myöhemmässä laitetestissä. Korjattu Mediacenter käynnistettiin puretusta Debian-paketista.
 
 ## Tilanne 18.11.2026
 
