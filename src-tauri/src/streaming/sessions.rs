@@ -95,9 +95,15 @@ pub async fn open(
         },
     )
     .await?;
-    let Some((destination, permit)) = prepared else {
+    let Some((destination, mut permit)) = prepared else {
         return Ok(());
     };
+    permit
+        .refresh_if_expired(
+            &cancel,
+            vpn::nordvpn::refresh_deferred_locked(&state, &publications, &cancel),
+        )
+        .await?;
     let monitor = match destination {
         Destination::OrdinaryChrome => return super::external::open_hbo(cancel.clone()).await,
         Destination::Managed(monitor) => monitor,

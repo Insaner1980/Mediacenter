@@ -435,28 +435,34 @@ async fn open(
                     if cancel.is_cancelled() {
                         return Err(AppError::new("cancelled", "Browser activity cancelled."));
                     }
-                    let session = crate::vpn::policy::launch_after_preflight(
+                    let mut permit = crate::vpn::policy::admit_launch(
                         state,
                         service,
                         &cancel,
                         observe_for_launch(app, state, &cancel),
-                        async {
-                            activity::validate_identity(
-                                &observed,
-                                &activity::identity(state).await,
-                            )?;
-                            authorize_launch(&services, &principal, &cancel).await?;
-                            stop_previous(app, state, &observed).await?;
-                            authorize_launch(&services, &principal, &cancel).await?;
-                            state
-                                .browser_runtime
-                                .launch(principal.device_id, service, &profile, &cancel)
-                                .await
-                                .map_err(app_error)
-                        },
                     )
                     .await
                     .map_err(vpn_launch_error)?;
+                    activity::validate_identity(&observed, &activity::identity(state).await)?;
+                    authorize_launch(&services, &principal, &cancel).await?;
+                    stop_previous(app, state, &observed).await?;
+                    loop {
+                        authorize_launch(&services, &principal, &cancel).await?;
+                        // A provider read can outlast the desktop lock observation.
+                        if !permit
+                            .refresh_if_expired(&cancel, observe_for_launch(app, state, &cancel))
+                            .await
+                            .map_err(vpn_launch_error)?
+                        {
+                            break;
+                        }
+                    }
+                    let session = state
+                        .browser_runtime
+                        .launch(principal.device_id, service, &profile, &cancel)
+                        .await
+                        .map_err(app_error)?;
+                    drop(permit);
                     let id = session.id.as_str().to_owned();
                     crate::events::publish(app, state, |home| {
                         home.sessions.push(ManagedSession {
