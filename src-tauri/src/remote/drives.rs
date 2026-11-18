@@ -160,10 +160,19 @@ pub async fn eject<B: DeviceBackend, L: SourceLifecycle>(
             "Drive or active use changed. Review removal again.",
         ));
     }
+    if cancel.is_cancelled() {
+        return Err(AppError::new("cancelled", "Removal cancelled."));
+    }
     // Once native removal starts, observe completion; a cancellation request never drops an OS call.
-    actions::eject_group(backend, lifecycle, &action.drive_id, &action.group)
-        .await
-        .map(|_| ())
+    actions::eject_group(
+        backend,
+        lifecycle,
+        &action.drive_id,
+        &action.group,
+        Some(cancel),
+    )
+    .await
+    .map(|_| ())
 }
 
 #[cfg(test)]

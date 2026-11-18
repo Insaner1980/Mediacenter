@@ -7,11 +7,13 @@ pub fn finish_scan(
     cancelled: bool,
 ) -> Result<(), AppError> {
     if complete && !cancelled {
-        db.execute("UPDATE media_items SET availability='missing' WHERE source_id=?1 AND (scan_id IS NULL OR scan_id<>?2)",rusqlite::params![source,scan])?;
-        db.execute(
+        let transaction = db.unchecked_transaction()?;
+        transaction.execute("UPDATE media_items SET availability='missing' WHERE source_id=?1 AND (scan_id IS NULL OR scan_id<>?2)",rusqlite::params![source,scan])?;
+        transaction.execute(
             "UPDATE media_sources SET scanned_at_ms=?1 WHERE id=?2",
             rusqlite::params![crate::app_state::now_ms() as i64, source],
         )?;
+        transaction.commit()?;
     }
     Ok(())
 }
@@ -201,7 +203,14 @@ fn write_item(
     scan: &str,
     candidate: &Candidate,
     metadata: &Result<super::probe::Metadata, AppError>,
-) -> Result<(), AppError> {
+) -> Result<bool, AppError> {
+    let metadata = match metadata {
+        Ok(metadata) => Some(metadata),
+        Err(error) if matches!(error.code.as_str(), "unsupported_media" | "image_too_large") => {
+            None
+        }
+        Err(_) => return Ok(false),
+    };
     let id: Option<String> = db
         .query_row(
             "SELECT id FROM media_items WHERE source_id=?1 AND relative_path=?2",
@@ -223,9 +232,8 @@ fn write_item(
         .file_name()
         .unwrap_or_default()
         .to_string_lossy();
-    let metadata = metadata.as_ref().ok();
     db.execute("INSERT INTO media_items(id,source_id,relative_path,display_name,kind,size,mtime_ns,duration_ms,width,height,metadata_json,availability,scan_id) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13) ON CONFLICT(source_id,relative_path) DO UPDATE SET display_name=excluded.display_name,size=excluded.size,mtime_ns=excluded.mtime_ns,duration_ms=excluded.duration_ms,width=excluded.width,height=excluded.height,metadata_json=excluded.metadata_json,availability=excluded.availability,scan_id=excluded.scan_id",params![id,source,candidate.relative.as_os_str().as_bytes(),name,kind,candidate.size,candidate.mtime,metadata.and_then(|m|m.duration_ms).map(|d|d as i64),metadata.and_then(|m|m.width),metadata.and_then(|m|m.height),metadata.map(|m|m.tags.to_string()).unwrap_or_else(||"{}".into()),if metadata.is_some(){"available"}else{"unsupported"},scan])?;
-    Ok(())
+    Ok(true)
 }
 enum Update {
     Touch(String),
@@ -236,15 +244,16 @@ fn flush(
     source: &str,
     scan: &str,
     updates: &mut Vec<Update>,
-) -> Result<(), AppError> {
+) -> Result<bool, AppError> {
     if updates.is_empty() {
-        return Ok(());
+        return Ok(true);
     }
     let mut db = state
         .db
         .lock()
         .map_err(|_| AppError::new("database_error", "The library is unavailable."))?;
     let transaction = db.transaction()?;
+    let mut complete = true;
     for update in updates.iter() {
         match update {
             Update::Touch(id) => {
@@ -254,13 +263,13 @@ fn flush(
                 )?;
             }
             Update::Probed(candidate, metadata) => {
-                write_item(&transaction, source, scan, candidate, metadata)?
+                complete &= write_item(&transaction, source, scan, candidate, metadata)?;
             }
         }
     }
     transaction.commit()?;
     updates.clear();
-    Ok(())
+    Ok(complete)
 }
 fn acquire_scan_resource(
     state: &AppState,
@@ -342,6 +351,7 @@ pub async fn scan(
     let mut last_event = std::time::Instant::now();
     let mut processed = 0u64;
     let mut updates = Vec::with_capacity(16);
+    let mut probes_complete = true;
     while let Some(candidate) =
         tokio::select! {_=cancel.cancelled()=>None,value=receive.recv()=>value}
     {
@@ -378,11 +388,11 @@ pub async fn scan(
             updates.push(Update::Probed(candidate, result));
         }
         if updates.len() >= 16 {
-            flush(&state, &source, &scan, &mut updates)?;
+            probes_complete &= flush(&state, &source, &scan, &mut updates)?;
         }
         processed += 1;
         if last_event.elapsed() >= std::time::Duration::from_millis(250) {
-            flush(&state, &source, &scan, &mut updates)?;
+            probes_complete &= flush(&state, &source, &scan, &mut updates)?;
             let _ = crate::events::publish(&app, &state, |home| {
                 home.summaries.drives = format!("Scanning: {processed} files checked")
             });
@@ -390,7 +400,7 @@ pub async fn scan(
         }
     }
     drop(receive);
-    flush(&state, &source, &scan, &mut updates)?;
+    probes_complete &= flush(&state, &source, &scan, &mut updates)?;
     let complete = enumerator
         .await
         .map_err(|_| AppError::new("scan_failed", "The folder scan stopped unexpectedly."))??;
@@ -406,7 +416,7 @@ pub async fn scan(
             &root,
             &initial,
             ScanOutcome {
-                complete,
+                complete: complete && probes_complete,
                 offline,
                 cancelled: cancel.is_cancelled(),
             },
@@ -558,5 +568,45 @@ mod tests {
                 .get::<_, Option<String>>(0))
             .unwrap()
             .is_none());
+    }
+    #[test]
+    fn temporary_probe_failure_preserves_the_existing_item_and_resume() {
+        let (dir, db) = fixture();
+        db.execute_batch("INSERT INTO resume_positions(media_id,position_ms,updated_at_ms,completed) VALUES('m',15000,1,0);").unwrap();
+        let path = dir.path().join("f");
+        std::fs::write(&path, [1, 2]).unwrap();
+        let candidate = Candidate {
+            relative: "f".into(),
+            kind: MediaKind::Video,
+            file: std::fs::File::open(path).unwrap(),
+            size: 2,
+            mtime: "2".into(),
+        };
+        assert!(!write_item(
+            &db,
+            "s",
+            "new",
+            &candidate,
+            &Err(AppError::new("timeout", "probe timed out"))
+        )
+        .unwrap());
+        let row = db.query_row("SELECT size,availability,thumbnail_id,position_ms FROM media_items JOIN resume_positions ON media_id=id WHERE id='m'", [], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?))
+        }).unwrap();
+        assert_eq!(row, (1, "available".into(), "thumb".into(), 15000));
+    }
+    #[test]
+    fn scan_timestamp_failure_does_not_commit_missing_flags() {
+        let (_dir, db) = fixture();
+        db.execute_batch("CREATE TRIGGER abort_timestamp BEFORE UPDATE OF scanned_at_ms ON media_sources BEGIN SELECT RAISE(ABORT,'fixture failure'); END;").unwrap();
+        assert!(finish_scan(&db, "s", "new", true, false).is_err());
+        let availability: String = db
+            .query_row(
+                "SELECT availability FROM media_items WHERE id='m'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(availability, "available");
     }
 }

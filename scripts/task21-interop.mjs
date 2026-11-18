@@ -1,7 +1,7 @@
 // Offline Task21 exporter/installed-resource guard. Never writes the protected Remote tree.
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {readFileSync,writeFileSync,mkdirSync,existsSync,mkdtempSync,copyFileSync} from 'node:fs';
+import {constants,readFileSync,writeFileSync,mkdirSync,existsSync,mkdtempSync,copyFileSync,rmSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
@@ -16,16 +16,22 @@ const fresh=resolve(plan,'task-21-fresh-corpus.json');
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const inputs=[
  'scripts/task21-interop.mjs','scripts/task21-interop.test.mjs','protocol/remote/v1/schema.json','protocol/remote/v1/fixtures.json','protocol/remote/v1/manifest.json',
+ 'src-tauri/Cargo.toml','src-tauri/Cargo.lock','src-tauri/build.rs',
+ // dispatcher_trace opens the real application database and constructs native services.
+ 'src-tauri/src/app_state.rs', 'src-tauri/src/control/mod.rs', 'src-tauri/src/storage/database.rs',
+ 'src-tauri/src/music/queue.rs', 'src-tauri/src/player/mpv.rs', 'src-tauri/src/streaming/catalog.rs',
+ 'src-tauri/migrations/0001_initial.sql', 'src-tauri/migrations/0002_remote_control.sql',
  ...['interop_tests','mod','protocol','protocol_json','protocol_methods','adapters','dispatch','operations','store','server','state','event_hub'].map(name=>`src-tauri/src/remote/${name}.rs`),
 ];
 const remoteInputs=[`${kotlin}protocol/RemoteJson.kt`,`${kotlin}protocol/Messages.kt`,`${kotlin}protocol/StrictJson.kt`,`${kotlin}RemoteStateReducer.kt`];
-function hashes(){return Object.fromEntries([
+const stagedConsumer = resolve(stage, consumer);
+function hashes(consumerInput = stagedConsumer){return Object.fromEntries([
  ...inputs.map(path=>[`MC/${path}`,sha(readFileSync(resolve(root,path)))]),
  ...remoteInputs.map(path=>[`Remote/${path}`,sha(readFileSync(resolve(remote,path)))]),
- [`Remote/${consumer}`,sha(readFileSync(resolve(stage,consumer)))],
+ [`Remote/${consumer}`,sha(readFileSync(consumerInput))],
 ]);}
 function invariant(value,message){if(!value)throw Error(message);}
-function validate(corpus){
+function validate(corpus, consumerInput){
  invariant(corpus.format==='mediacenter-rust-interop-v1','Wrong corpus format');
  const fixtures=JSON.parse(readFileSync(resolve(root,'protocol/remote/v1/fixtures.json')));
  const expected=fixtures.requests.map(v=>v.method).sort();
@@ -34,18 +40,33 @@ function validate(corpus){
  }
  invariant(corpus.snapshots.length===2&&corpus.invalidRequests.length>=44&&corpus.invalidReplies.length===2,'Vacuous boundary corpus');
  invariant(corpus.dispatcher.effectCount===1,'Native effect count changed');
- invariant(JSON.stringify(corpus.provenance?.sourceSha256)===JSON.stringify(hashes()),'Exporter/parser/consumer source hashes changed: prepare and guarded install again');
+ invariant(JSON.stringify(corpus.provenance?.sourceSha256)===JSON.stringify(hashes(consumerInput)),'Exporter/parser/consumer source hashes changed: prepare and guarded install again');
 }
 const action=process.argv[2];
 invariant(['prepare','verify'].includes(action),'Usage: node scripts/task21-interop.mjs prepare|verify');
 if(action==='prepare'){
- if(!existsSync(resolve(stage,consumer))){mkdirSync(dirname(resolve(stage,consumer)),{recursive:true});copyFileSync(resolve(remote,consumer),resolve(stage,consumer));console.log(`Task21 bootstrapped staged consumer from installed paired source: ${sha(readFileSync(resolve(stage,consumer)))}`);}
- console.log(`Task21 consumer input: ${resolve(stage,consumer)}; SHA256 ${sha(readFileSync(resolve(stage,consumer)))}`);
- const raw=resolve(mkdtempSync(resolve(tmpdir(),'mediacenter-task21-')),'rust-export.json');
- execFileSync('cargo',['test','--manifest-path',resolve(root,'src-tauri/Cargo.toml'),'--lib','remote::interop_tests::task21_export_rust_client_corpus','--','--exact','--nocapture'],{cwd:root,env:{...process.env,MEDIACENTER_TASK21_CORPUS_OUT:raw},stdio:'inherit'});
- const corpus=JSON.parse(readFileSync(raw));
- corpus.provenance={baseMediacenter:'5dd0bee09028ab68d258eecffd79015e3edda2c1',baseRemote:'899edad359f06262061e2345200ef49e48f04657',sourceSha256:hashes()};
- validate(corpus);
+ const consumerInput = existsSync(stagedConsumer) ? stagedConsumer : resolve(remote, consumer);
+ const sourceHashes = hashes(consumerInput);
+ console.log(`Task21 consumer input: ${consumerInput}; SHA256 ${sourceHashes[`Remote/${consumer}`]}`);
+ const temporary = mkdtempSync(resolve(tmpdir(), 'mediacenter-task21-'));
+ const raw = resolve(temporary, 'rust-export.json');
+ let corpus;
+ try {
+  execFileSync('cargo', [
+   'test', '--locked', '--manifest-path', resolve(root, 'src-tauri/Cargo.toml'),
+   '--lib', 'remote::interop_tests::task21_export_rust_client_corpus', '--', '--exact', '--nocapture',
+  ], { cwd: root, env: { ...process.env, MEDIACENTER_TASK21_CORPUS_OUT: raw }, stdio: 'inherit' });
+  invariant(JSON.stringify(hashes(consumerInput)) === JSON.stringify(sourceHashes), 'Exporter/parser/consumer source hashes changed during export: prepare again');
+  corpus = JSON.parse(readFileSync(raw));
+ } finally {
+  rmSync(temporary, { recursive: true, force: true });
+ }
+ corpus.provenance={baseMediacenter:'5dd0bee09028ab68d258eecffd79015e3edda2c1',baseRemote:'899edad359f06262061e2345200ef49e48f04657',sourceSha256:sourceHashes};
+ validate(corpus, consumerInput);
+ if (consumerInput !== stagedConsumer) {
+  mkdirSync(dirname(stagedConsumer), { recursive: true });
+  copyFileSync(consumerInput, stagedConsumer, constants.COPYFILE_EXCL);
+ }
  const bytes=JSON.stringify(corpus,null,2)+'\n';
  writeFileSync(fresh,bytes);
  mkdirSync(dirname(resolve(stage,resource)),{recursive:true});writeFileSync(resolve(stage,resource),bytes);

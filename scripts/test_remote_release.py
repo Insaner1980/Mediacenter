@@ -145,29 +145,49 @@ class RemoteReleaseTest(unittest.TestCase):
         subprocess.run(["git", "-C", source, "add", "."], check=True)
         subprocess.run([
             "git", "-C", source, "-c", "user.email=test@example.test", "-c", "user.name=Test",
-            "-c", "commit.gpgSign=false", "commit", "-qm", "candidate",
+            "-c", "commit.gpgSign=false", "-c", "core.hooksPath=/dev/null", "commit", "-qm", "candidate",
         ], check=True)
         revision = subprocess.check_output(["git", "-C", source, "rev-parse", "HEAD"], text=True)
         return source, revision.strip()
 
     def test_candidate_manifest_reads_exact_sources_and_hashes_artifacts(self):
-        schema = "c" * 64
+        protocol = {
+            "schema": {"x-methods": [{"name": "hello"}]},
+            "fixtures": {"requests": [{"method": "hello"}]},
+        }
+        manifest = {
+            "protocolMajor": 1,
+            "schemaSha256": hashlib.sha256(b'{"x-methods":[{"name":"hello"}]}').hexdigest(),
+            "fixturesSha256": hashlib.sha256(b'{"requests":[{"method":"hello"}]}').hexdigest(),
+            "requestMethods": 1,
+        }
+        bundle = {"manifest": manifest, **protocol}
         extension = json.loads((SCRIPT.parent.parent / "browser-extension/manifest.json").read_text())
         extension["version"] = "2.5.0"
         desktop, desktop_sha = self.source_fixture({
             "src-tauri/tauri.conf.json": '{"version":"0.8.2"}',
             "src-tauri/Cargo.toml": '[package]\nversion = "0.8.3"\n',
             "browser-extension/manifest.json": json.dumps(extension),
-            "protocol/remote/v1/manifest.json": json.dumps({"protocolMajor": 1, "schemaSha256": schema}),
+            "protocol/remote/v1/manifest.json": json.dumps(manifest),
+            **{f"protocol/remote/v1/{name}.json": json.dumps(value) for name, value in protocol.items()},
         })
+        gradle = 'applicationId = "com.example.remote"\nversionName = "3.1.5"\nversionCode = 7\n'
         android, android_sha = self.source_fixture({
-            "app/build.gradle.kts": 'versionName = "3.1.5"\nversionCode = 7\n',
-            "app/src/test/resources/mediacenter-v1.json": json.dumps({"manifest": {"protocolMajor": 1, "schemaSha256": schema}}),
+            "app/build.gradle.kts": gradle,
+            "app/src/test/resources/mediacenter-v1.json": json.dumps(bundle),
         })
         (desktop / "src-tauri/tauri.conf.json").write_text('{"version":"1.0.0"}')
         deb = self.root / "candidate.deb"
         apk = self.root / "candidate.apk"
-        apk.write_bytes(b"android artifact")
+        apk_bytes = b"package: name='com.example.remote' versionCode='7' versionName='3.1.5'\n"
+        apk.write_bytes(apk_bytes)
+        aapt2 = self.root / "aapt2"
+        aapt2.write_text(
+            '#!/bin/sh\n[ "$1 $2" = "dump badging" ] || exit 1\n'
+            'test -s "$3" && cat "$3"\n'
+        )
+        aapt2.chmod(0o700)
+        env = {**os.environ, "PATH": f"{self.root}{os.pathsep}{os.environ['PATH']}"}
         args = (
             "candidate-manifest", "--desktop-root", desktop, "--desktop-revision", desktop_sha,
             "--android-root", android, "--android-revision", android_sha,
@@ -183,14 +203,15 @@ class RemoteReleaseTest(unittest.TestCase):
         packaged_extension = package / "usr/share/mediacenter/browser-extension/manifest.json"
         packaged_extension.parent.mkdir(parents=True)
         packaged_extension.write_text(json.dumps(extension))
-        (packaged_extension.parent / extension["action"]["default_popup"]).touch()
-        (packaged_extension.parent / extension["background"]["service_worker"]).touch()
-        (packaged_extension.parent / "launch.html").touch()
-        (packaged_extension.parent / "launch.mjs").touch()
+        for name in (
+            "enroll.css", "enroll.html", "enroll.mjs", "input-proof.mjs", "input.mjs", "launch.html",
+            "launch.mjs", "profile-bridge.mjs", "service-catalog.mjs", "target-registry.mjs", "worker.mjs",
+        ):
+            (packaged_extension.parent / name).touch()
         packaged_helper = packaged_extension.parent.parent / "remote-release.py"
         packaged_helper.touch()
         subprocess.run(["dpkg-deb", "--build", package, deb], check=True, capture_output=True)
-        result = self.run_cli(*args, success=False)
+        result = self.run_cli(*args, success=False, env=env)
         self.assertIn("Debian package is missing its executable native host", result.stderr)
         self.assertEqual(result.stdout, "")
 
@@ -199,7 +220,13 @@ class RemoteReleaseTest(unittest.TestCase):
         packaged_host.write_bytes(self.host.read_bytes())
         packaged_host.chmod(0o755)
         subprocess.run(["dpkg-deb", "--build", package, deb], check=True, capture_output=True)
-        output = self.run_cli(*args)
+        with self.subTest("worker module is required"):
+            result = self.run_cli(*args, success=False, env=env)
+            self.assertIn("Debian package is missing its browser extension files", result.stderr)
+            self.assertEqual(result.stdout, "")
+        (packaged_extension.parent / "browser-session.mjs").touch()
+        subprocess.run(["dpkg-deb", "--build", package, deb], check=True, capture_output=True)
+        output = self.run_cli(*args, env=env)
         data = json.loads(output.stdout)
         self.assertEqual(data["status"], "candidate")
         self.assertEqual(data["desktop"]["revision"], desktop_sha)
@@ -208,20 +235,38 @@ class RemoteReleaseTest(unittest.TestCase):
         self.assertEqual(data["android"]["revision"], android_sha)
         self.assertEqual(data["android"]["version"], "3.1.5")
         self.assertEqual(data["android"]["versionCode"], 7)
-        self.assertEqual(data["android"]["sha256"], hashlib.sha256(b"android artifact").hexdigest())
-        self.assertEqual(data["schemaSha256"], schema)
+        self.assertEqual(data["android"]["sha256"], hashlib.sha256(apk_bytes).hexdigest())
+        self.assertEqual(data["schemaSha256"], manifest["schemaSha256"])
         self.assertEqual(data["extension"], {"version": "2.5.0", "id": ORIGIN.split("/")[2]})
         self.assertEqual(data["nativeHost"]["version"], "0.8.3")
 
-        incompatible, incompatible_sha = self.source_fixture({
-            "app/build.gradle.kts": 'versionName = "3.1.5"\nversionCode = 7\n',
-            "app/src/test/resources/mediacenter-v1.json": json.dumps({"manifest": {"protocolMajor": 2, "schemaSha256": schema}}),
-        })
-        result = self.run_cli(
-            *args, "--android-root", incompatible, "--android-revision", incompatible_sha, success=False
-        )
-        self.assertIn("Desktop and Android protocol manifests must agree", result.stderr)
-        self.assertEqual(result.stdout, "")
+        for name, values in (
+            ("manifest", {**manifest, "protocolMajor": 2}),
+            ("manifest", {**manifest, "protocolMajor": True}),
+            ("schema", {"x-methods": []}),
+            ("fixtures", {"requests": []}),
+        ):
+            with self.subTest(incompatible_bundle_field=name):
+                incompatible, incompatible_sha = self.source_fixture({
+                    "app/build.gradle.kts": gradle,
+                    "app/src/test/resources/mediacenter-v1.json": json.dumps({**bundle, name: values}),
+                })
+                result = self.run_cli(
+                    *args, "--android-root", incompatible, "--android-revision", incompatible_sha,
+                    success=False, env=env,
+                )
+                self.assertIn("protocol", result.stderr)
+                self.assertEqual(result.stdout, "")
+
+        for contents in (apk_bytes.replace(b"versionCode='7'", b"versionCode='6'"),
+                         apk_bytes.replace(b"versionName='3.1.5'", b"versionName='3.1.4'"),
+                         apk_bytes.replace(b"com.example.remote", b"com.example.other"),
+                         b"", b"not an Android package"):
+            with self.subTest(apk=contents):
+                apk.write_bytes(contents)
+                result = self.run_cli(*args, success=False, env=env)
+                self.assertIn("APK", result.stderr)
+                self.assertEqual(result.stdout, "")
 
 
 if __name__ == "__main__":

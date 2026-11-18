@@ -245,14 +245,8 @@ async fn preflight(d: &Dispatcher, service: ServiceId) -> Result<(), RemoteError
     let state = &d.services.state;
     let app = d.services.app().ok_or_else(unavailable)?;
     super::idle::require_unlocked().await?;
-    let required = state
-        .snapshot()
-        .map_err(native_error)?
-        .services
-        .iter()
-        .find(|entry| entry.id == service)
-        .is_none_or(|entry| entry.vpn_required);
-    if !required {
+    if !crate::vpn::policy::requires_vpn(&state.snapshot().map_err(native_error)?.services, service)
+    {
         return Ok(());
     }
     let observation = tokio::time::timeout(
@@ -267,7 +261,48 @@ async fn preflight(d: &Dispatcher, service: ServiceId) -> Result<(), RemoteError
         )
     })?
     .map_err(native_error)?;
-    crate::vpn::policy::evaluate_launch(required, &observation, now_ms()).map_err(native_error)
+    crate::vpn::policy::evaluate_launch(true, &observation, now_ms())
+        .map_err(|error| native_error(vpn_launch_error(error)))
+}
+
+fn vpn_launch_error(mut error: AppError) -> AppError {
+    if matches!(
+        error.code.as_str(),
+        "vpn_not_ready" | "kill_switch_required"
+    ) {
+        error.code = "unavailable".into();
+    }
+    error
+}
+
+async fn observe_for_launch(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    cancel: &CancellationToken,
+) -> Result<crate::contracts::VpnSnapshot, AppError> {
+    let read_cancel = cancel.child_token();
+    let observation = crate::vpn::nordvpn::refresh_locked_cancellable(app, state, &read_cancel);
+    tokio::pin!(observation);
+    tokio::select! {
+        result = &mut observation => result,
+        _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+            read_cancel.cancel();
+            let _ = observation.await;
+            Err(AppError::new("unavailable", "VPN status could not be verified before opening this service."))
+        }
+    }
+}
+
+async fn authorize_launch(
+    services: &crate::control::ControlServices,
+    owner: &RemotePrincipal,
+    cancel: &CancellationToken,
+) -> Result<(), AppError> {
+    super::idle::require_unlocked().await.map_err(app_error)?;
+    if cancel.is_cancelled() {
+        return Err(AppError::new("cancelled", "Browser activity cancelled."));
+    }
+    authorize_effect(services, owner)
 }
 
 async fn open(
@@ -400,15 +435,34 @@ async fn open(
                     if cancel.is_cancelled() {
                         return Err(AppError::new("cancelled", "Browser activity cancelled."));
                     }
+                    let mut permit = crate::vpn::policy::admit_launch(
+                        state,
+                        service,
+                        &cancel,
+                        observe_for_launch(app, state, &cancel),
+                    )
+                    .await
+                    .map_err(vpn_launch_error)?;
                     activity::validate_identity(&observed, &activity::identity(state).await)?;
-                    authorize_effect(&services, &principal)?;
+                    authorize_launch(&services, &principal, &cancel).await?;
                     stop_previous(app, state, &observed).await?;
-                    authorize_effect(&services, &principal)?;
+                    loop {
+                        authorize_launch(&services, &principal, &cancel).await?;
+                        // A provider read can outlast the desktop lock observation.
+                        if !permit
+                            .refresh_if_expired(&cancel, observe_for_launch(app, state, &cancel))
+                            .await
+                            .map_err(vpn_launch_error)?
+                        {
+                            break;
+                        }
+                    }
                     let session = state
                         .browser_runtime
                         .launch(principal.device_id, service, &profile, &cancel)
                         .await
                         .map_err(app_error)?;
+                    drop(permit);
                     let id = session.id.as_str().to_owned();
                     crate::events::publish(app, state, |home| {
                         home.sessions.push(ManagedSession {

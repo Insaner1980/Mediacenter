@@ -1,8 +1,10 @@
-import { dispatchBrowserInput, readViewport } from './input.mjs';
+import { dispatchBrowserInput, readViewport, requireSameViewport } from './input.mjs';
 
 // Fixed feasibility sequence. The broker supplies synthetic text only.
-export async function runInputProof(debuggerApi, tabId, text, point, validate) {
-  const viewport = await readViewport(debuggerApi, tabId, 'proof', validate);
+export async function runInputProof(debuggerApi, tabId, text, point, validate, measured) {
+  const viewport = measured
+    ? await requireSameViewport(debuggerApi, tabId, measured, validate)
+    : await readViewport(debuggerApi, tabId, 'proof', validate);
   const send = request => dispatchBrowserInput(debuggerApi, tabId, request, viewport, validate);
   await send({ type: 'text', text });
   await send({ type: 'key', key: 'Enter' });

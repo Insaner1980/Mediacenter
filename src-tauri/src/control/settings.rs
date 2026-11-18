@@ -57,6 +57,12 @@ fn save_requirement_at(
     required: bool,
     expected: Option<u64>,
 ) -> Result<HomePublication, AppError> {
+    let _requirement = state.vpn_requirement_gate.try_lock().map_err(|_| {
+        AppError::new(
+            "busy",
+            "Wait for the browser to finish opening before changing its VPN requirement.",
+        )
+    })?;
     let mut saved = Ok(());
     let publication = crate::events::commit(state, |home| {
         saved = (|| -> Result<(), AppError> {

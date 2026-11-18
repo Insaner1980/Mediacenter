@@ -370,7 +370,11 @@ def main():
         (args.kotlin_output / 'RemoteJson.kt').write_text(codec)
     if args.kotlin_check:
         def tokens(source):
-            parts = re.findall(r'"(?:[^"\\]|\\.)*"|//[^\n]*|/\*.*?\*/|[A-Za-z_][A-Za-z_0-9]*|[^\s]', source, re.S)
+            operators = r'!==|===|!=|==|<=|>=|&&|\|\||\?:|\?\.|!!|::|->|\.\.<|\.\.|\+\+|--|[+*/%-]=|!in\b|!is\b|\bas\?'
+            parts = re.findall(
+                rf'"(?:[^"\\]|\\.)*"|//[^\n]*|/\*.*?\*/|{operators}|[A-Za-z_][A-Za-z_0-9]*|[^\s]',
+                source, re.S,
+            )
             parts = [p for p in parts if not p.startswith(('//', '/*'))]
             return [p for i,p in enumerate(parts) if p != ',' or i+1 == len(parts) or parts[i+1] not in (')', '}', ']')]
         for name, expected in zip(['Messages.kt', 'RemoteJson.kt'], kotlin(schema)):
@@ -382,7 +386,7 @@ def main():
         formatted = subprocess.run(['rustfmt', '--edition', '2021'], input=generated, text=True, capture_output=True, check=True).stdout
         if target.read_text() != formatted:
             raise SystemExit('Generated Rust contract differs; regenerate and format.')
-    else:
+    elif not args.kotlin_check:
         target.write_text(generated)
 
 

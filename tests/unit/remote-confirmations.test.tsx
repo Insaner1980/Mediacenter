@@ -20,6 +20,40 @@ function Example(){const [route,setRoute]=useState<AppRoute>('home');return <><R
 async function send(method:'ui.back'|'ui.activate'|'ui.navigate',params:Record<string,unknown>={}){const event={dispatchId:'unique-native-id',requestId:'wire-id',origin:'connection-a',ownerDeviceId:'phone-a',expiresAtMs:Date.now()+4000,request:{method,params:{rendererGeneration:'7',focusRevision:context!.focusRevision,modalId:context!.modalId,...params}}} as RendererRequest;await act(async()=>{transport.listeners.get('remote-ui-request')?.({payload:event});});await waitFor(()=>expect(responses).toHaveLength(1));return responses[0];}
 it('acknowledges only after actual React navigation commits',async()=>{render(<Example/>);await waitFor(()=>expect(context?.available).toBe(true));const response=await send('ui.navigate',{route:'videos'});expect(screen.getByRole('heading',{name:'video'})).toBeVisible();expect(response.context.route).toBe('videos');expect(response.error).toBeUndefined();});
 it('shares the server ID and closes desktop presentation after native resolution',async()=>{previews=[preview];render(<Example/>);await screen.findByRole('dialog');expect(screen.getByRole('button',{name:'Confirm'})).toHaveAttribute('data-remote-confirm','saved-id');await userEvent.click(screen.getByRole('button',{name:'Confirm'}));await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());expect(transport.invoke).toHaveBeenCalledWith('resolve_renderer_confirmation',{confirmationId:'saved-id',confirm:true});});
+it('loads pending confirmations even if the initial context update fails',async()=>{
+ const normal=transport.invoke.getMockImplementation()!;
+ let firstUpdate=true;
+ transport.invoke.mockImplementation(async(command:string,args?:Record<string,unknown>)=>{
+  if(command==='update_remote_renderer'&&firstUpdate){firstUpdate=false;throw new Error('Temporary publish failure');}
+  return normal(command,args);
+ });
+ previews=[preview];render(<Example/>);
+ expect(await screen.findByRole('dialog')).toBeVisible();
+ await waitFor(()=>expect(context?.modalId).toBe('saved-id'));
+});
+it('keeps the replacement renderer current after an older registration completes',async()=>{
+ const normal=transport.invoke.getMockImplementation()!;
+ let requests=0,generation='0',release!:()=>void;
+ const slowRegistration=new Promise<void>(resolve=>{release=resolve;});
+ transport.invoke.mockImplementation(async(command:string,args?:Record<string,unknown>)=>{
+  if(command==='register_remote_renderer'){
+   const id=String(++requests);
+   if(id==='1')await slowRegistration;
+   generation=id;
+   return id;
+  }
+  if(command==='update_remote_renderer'&&args?.generation!==generation)throw new Error('Stale renderer');
+  return normal(command,args);
+ });
+ const first=render(<Example/>);
+ await waitFor(()=>expect(requests).toBe(1));
+ first.unmount();
+ render(<Example/>);
+ await act(async()=>{});
+ await act(async()=>release());
+ await userEvent.click(screen.getByRole('button',{name:'Videos'}));
+ await waitFor(()=>expect(context?.route).toBe('videos'));
+});
 it('phone resolution removes the same desktop sheet',async()=>{previews=[preview];render(<Example/>);await screen.findByRole('dialog');previews=[];await act(async()=>transport.listeners.get('remote-ui-confirmation')?.({payload:{dispatchId:'presentation-id',requestId:'presentation-id',rendererGeneration:'7',presentationRevision:'1',expiresAtMs:Date.now()+4000,previews:[]}}));await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());});
 it('remote Back and Activate carry a typed confirmation ID without invoking local owner authority',async()=>{previews=[preview];render(<Example/>);await screen.findByRole('dialog');await waitFor(()=>expect(context?.modalId).toBeTruthy());const response=await send('ui.back');expect(response.action).toEqual({kind:'confirmation',confirmationId:'saved-id',confirm:false});expect(transport.invoke.mock.calls.some(([name])=>name==='resolve_renderer_confirmation')).toBe(false);expect(screen.getByRole('dialog')).toBeVisible();});
 it('remote confirmation activation never calls the local click handler',async()=>{previews=[preview];render(<Example/>);await screen.findByRole('dialog');act(()=>screen.getByRole('button',{name:'Confirm'}).focus());await waitFor(()=>expect(context?.focusId).toBe('confirm-saved-id'));const response=await send('ui.activate',{focusId:'confirm-saved-id'});expect(response.action).toEqual({kind:'confirmation',confirmationId:'saved-id',confirm:true});expect(transport.invoke.mock.calls.some(([name])=>name==='resolve_renderer_confirmation')).toBe(false);});

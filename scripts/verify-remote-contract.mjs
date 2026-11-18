@@ -16,16 +16,25 @@ export function canonical(value) {
 const hash = value => createHash('sha256').update(canonical(value)).digest('hex');
 const readJson = async path => JSON.parse(await readFile(path, 'utf8'));
 
-async function main() {
-  const args = process.argv.slice(2);
-  const schema = await readJson(resolve(protocol, 'schema.json'));
-  const fixtures = await readJson(resolve(protocol, 'fixtures.json'));
-  const manifest = {
+export function protocolManifest(schema, fixtures) {
+  return {
     protocolMajor: 1,
     schemaSha256: hash(schema),
     fixturesSha256: hash(fixtures),
     requestMethods: schema['x-methods'].length,
   };
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const bundleIndex = args.indexOf('--bundle');
+  const bundlePath = args[bundleIndex + 1];
+  if (bundleIndex >= 0 && (!bundlePath || bundlePath.startsWith('--'))) {
+    throw new Error('--bundle requires a path.');
+  }
+  const schema = await readJson(resolve(protocol, 'schema.json'));
+  const fixtures = await readJson(resolve(protocol, 'fixtures.json'));
+  const manifest = protocolManifest(schema, fixtures);
   const names = schema['x-methods'].map(method => method.name).sort();
   const fixtureNames = fixtures.requests.map(request => request.method).sort();
   if (new Set(names).size !== names.length || canonical(names) !== canonical(fixtureNames)) {
@@ -38,9 +47,8 @@ async function main() {
   if (args.includes('--update-manifest')) {
     await writeFile(resolve(protocol, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     // Staged for a separately authorized write to the Android repository.
-    const output = args.indexOf('--bundle');
-    if (output >= 0 && args[output + 1]) {
-      await writeFile(resolve(args[output + 1]), `${JSON.stringify({ manifest, schema, fixtures }, null, 2)}\n`);
+    if (bundleIndex >= 0) {
+      await writeFile(resolve(bundlePath), `${JSON.stringify({ manifest, schema, fixtures }, null, 2)}\n`);
     }
     console.log(`Updated v1 manifest: ${names.length} methods, ${manifest.schemaSha256}`);
     return;
@@ -54,6 +62,7 @@ async function main() {
   if (canonical(remote.manifest) !== canonical(manifest) || hash(remote.schema) !== manifest.schemaSha256 || hash(remote.fixtures) !== manifest.fixturesSha256) {
     throw new Error('Android and desktop remote contracts differ. Copy the reviewed bundle and rerun both parser suites.');
   }
+  execFileSync(process.execPath, [resolve(root, 'scripts/generate-remote-ui-types.mjs'), '--check'], { stdio: 'pipe' });
   execFileSync('python3', [resolve(root, 'scripts/generate-remote-contract.py'), '--check', '--kotlin-check', resolve(remoteRoot, 'app/src/main/java/com/emmah/colordock/remote/mediacenter/protocol')], { stdio: 'pipe' });
   console.log(`Remote v1 contracts agree: ${names.length} methods; schema ${manifest.schemaSha256}`);
 }

@@ -17,3 +17,14 @@ test('proof binds fixed input to the enrolled tab and stops on generation loss',
   assert.deepEqual(commands.map(([method]) => method), ['Page.getLayoutMetrics', 'Input.insertText', 'Input.dispatchKeyEvent']);
   assert.equal(commands[1][1].text, 'café 🦊');
 });
+
+test('proof rejects changed viewport metrics before sending any input', async () => {
+  const commands = [];
+  const debuggerApi = { async sendCommand(_, method) {
+    commands.push(method);
+    return { cssLayoutViewport: { clientWidth: 70, clientHeight: 450 } };
+  } };
+  const approved = { width: 800, height: 450, generation: 'measured' };
+  await assert.rejects(runInputProof(debuggerApi, 42, 'synthetic', { x: 80, y: 20 }, () => {}, approved), /stale_viewport/);
+  assert.deepEqual(commands, ['Page.getLayoutMetrics']);
+});

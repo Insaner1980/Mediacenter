@@ -1,5 +1,5 @@
 import { BrowserSession } from './browser-session.mjs';
-import { readViewport, requireSameViewport } from './input.mjs';
+import { readViewport } from './input.mjs';
 import { runInputProof } from './input-proof.mjs';
 import { ProfileBridge } from './profile-bridge.mjs';
 import { TargetRegistry } from './target-registry.mjs';
@@ -146,8 +146,7 @@ async function handle(message) {
       const grant = inputGrant;
       if (!grant) throw Error('grant_consumed');
       inputGrant = undefined;
-      if (grant.viewport) await requireSameViewport(chrome.debugger, tabId, grant.viewport, validate);
-      await runInputProof(chrome.debugger, tabId, grant.text, { x: 80, y: 58 }, validate);
+      await runInputProof(chrome.debugger, tabId, grant.text, { x: 80, y: 58 }, validate, grant.viewport);
       return { submitted: true };
     }
     default:
@@ -160,7 +159,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (!message || typeof message !== 'object') return false;
   if (message.type === 'remoteWake' && typeof message.nonce === 'string'
     && sender.url === `${chrome.runtime.getURL('launch.html')}#${message.nonce}`) {
-    profileBridge.wake(message.nonce, sender.tab?.id).then(() => reply({ sent: true }), () => reply({ sent: false }));
+    profileBridge.wake(message.nonce, sender.tab?.id).then(
+      () => reply({ sent: true }),
+      error => reply({ sent: false, error: error.message === 'not_enrolled' ? 'not_enrolled' : 'bridge_unavailable' }),
+    );
     return true;
   }
   if (sender.url !== chrome.runtime.getURL('enroll.html')) return false;

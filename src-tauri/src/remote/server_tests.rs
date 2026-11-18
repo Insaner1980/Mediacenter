@@ -84,6 +84,28 @@ impl Fixture {
     }
 }
 #[tokio::test]
+async fn failed_network_registration_releases_bound_sockets() {
+    let fixture = Fixture::new().await;
+    fixture.server.stop().await;
+    let network = fixture.runtime.dispatcher.services.network.clone();
+    let _ = std::thread::spawn(move || {
+        let _guard = network.lock().unwrap();
+        panic!("simulate a failed network state owner");
+    })
+    .join();
+    let error = fixture
+        .server
+        .start(
+            fixture.runtime.clone(),
+            BindAddresses(vec![fixture.address]),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::Unavailable);
+    assert!(fixture.server.addresses().await.is_empty());
+    assert!(TcpListener::bind(fixture.address).await.is_ok());
+}
+#[tokio::test]
 async fn unauthenticated_endpoints_never_disclose_metadata() {
     let fixture = Fixture::new().await;
     for path in ["/remote/v1/ws", "/remote/v1/thumbnails/opaque"] {

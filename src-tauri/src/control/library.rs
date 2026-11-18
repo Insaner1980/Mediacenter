@@ -75,7 +75,7 @@ pub fn roots(
     defaults: Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, AppError> {
     let db = state.db.lock().map_err(|_| state_error())?;
-    crate::library::source_service::remote_roots(&db, devices, defaults)
+    crate::library::source_service::remote_roots(state, &db, devices, defaults)
 }
 async fn inventory(_d: &Dispatcher) -> Result<crate::devices::udisks::Devices, RemoteError> {
     crate::devices::udisks::discover()
@@ -557,6 +557,7 @@ fn refresh_action(
         LibraryAction::Remove { source } | LibraryAction::Reattach { source, .. } => source,
         LibraryAction::Add { selection, .. } => {
             crate::library::source_service::authorize_remote_root(
+                state,
                 &*state.db.lock().map_err(|_| unavailable())?,
                 selection,
                 devices,

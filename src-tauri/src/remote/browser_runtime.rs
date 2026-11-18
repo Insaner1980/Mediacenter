@@ -77,6 +77,7 @@ struct Profile {
     kind: ProfileKind,
     service: Option<ServiceId>,
     commands: mpsc::Sender<Message>,
+    shutdown: CancellationToken,
 }
 
 #[derive(Clone)]
@@ -400,6 +401,7 @@ impl Runtime {
             kind,
             service,
             commands,
+            shutdown: CancellationToken::new(),
         };
         let mut inner = self
             .inner
@@ -421,7 +423,9 @@ impl Runtime {
                 .get(profile.as_str())
                 .is_some_and(|p| p.connection == connection)
             {
-                inner.profiles.remove(profile.as_str());
+                if let Some(profile) = inner.profiles.remove(profile.as_str()) {
+                    profile.shutdown.cancel();
+                }
             }
             if inner
                 .session
@@ -546,7 +550,12 @@ impl Runtime {
                 }
             }
         };
-        let result = tokio::select! { result = sending => result, result = reading => result };
+        let result = tokio::select! {
+            biased;
+            _ = profile.shutdown.cancelled() => Ok(()),
+            result = sending => result,
+            result = reading => result,
+        };
         self.disconnect(&profile.id, profile.connection);
         result
     }
@@ -701,6 +710,46 @@ mod tests {
         write_frame(stream, &serde_json::to_vec(&message).unwrap())
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn uncertain_launch_closes_the_native_port() {
+        let runtime = Runtime::default();
+        let (server, mut extension) = UnixStream::pair().unwrap();
+        let serving = tokio::spawn({
+            let runtime = runtime.clone();
+            async move { runtime.serve(server).await }
+        });
+        let profile = ReadyProfile {
+            id: uuid::Uuid::new_v4().to_string(),
+            nonce: uuid::Uuid::new_v4(),
+        };
+        emit(&mut extension, serde_json::json!({"type":"hello","profile":profile.id,"kind":"managed","service":"youtube"})).await;
+        assert_eq!(receive(&mut extension).await["type"], "welcome");
+        let cancel = CancellationToken::new();
+        let launching = runtime.launch(
+            checked("phone").unwrap(),
+            ServiceId::Youtube,
+            &profile,
+            &cancel,
+        );
+        let cancel_after_handoff = async {
+            let launch = receive(&mut extension).await;
+            assert_eq!(launch["command"]["type"], "launch");
+            cancel.cancel();
+        };
+        let (result, ()) = tokio::join!(launching, cancel_after_handoff);
+        assert!(matches!(result, Err(error) if error.code == ErrorCode::OutcomeUnknown));
+        assert!(!runtime.available());
+        let mut byte = [0u8; 1];
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), extension.read(&mut byte))
+                .await
+                .expect("retired native port closed")
+                .unwrap(),
+            0
+        );
+        serving.await.unwrap().unwrap();
     }
 
     #[tokio::test]

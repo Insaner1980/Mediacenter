@@ -204,7 +204,6 @@ impl RendererBridge {
         let guard = PendingGuard {
             bridge: self.clone(),
             id: dispatch_id.as_str().into(),
-            generation: generation.clone(),
         };
         Ok((
             RendererRequest {
@@ -231,24 +230,15 @@ impl RendererBridge {
         app.ok_or_else(unavailable)?
             .emit_to("main", "remote-ui-request", envelope)
             .map_err(|_| unavailable())?;
-        self.wait_for_ack(receiver, &guard.generation).await
+        Self::wait_for_ack(receiver, guard).await
     }
     async fn wait_for_ack(
-        &self,
         receiver: AckReceiver,
-        generation: &Decimal,
+        _guard: PendingGuard,
     ) -> Result<RendererResponse, RemoteError> {
         match tokio::time::timeout(Duration::from_secs(4), receiver).await {
             Ok(Ok(result)) => result,
-            _ => {
-                let mut inner = self.inner.lock().unwrap();
-                if inner.generation == generation.value() {
-                    inner.context = None;
-                    inner.seen = None;
-                    inner.pending.clear();
-                }
-                Err(unavailable())
-            }
+            _ => Err(unavailable()),
         }
     }
     async fn present(
@@ -280,7 +270,6 @@ impl RendererBridge {
             let guard = PendingGuard {
                 bridge: self.clone(),
                 id: id.as_str().into(),
-                generation: generation.clone(),
             };
             let envelope = ConfirmationPresentation {
                 dispatch_id: id.clone(),
@@ -294,7 +283,7 @@ impl RendererBridge {
         };
         app.emit_to("main", "remote-ui-confirmation", envelope)
             .map_err(|_| unavailable())?;
-        let response = self.wait_for_ack(receiver, &guard.generation).await?;
+        let response = Self::wait_for_ack(receiver, guard).await?;
         self.update(&generation, response.context)
     }
     fn acknowledge(&self, response: RendererResponse) -> Result<(), RemoteError> {
@@ -328,7 +317,6 @@ impl RendererBridge {
 struct PendingGuard {
     bridge: RendererBridge,
     id: String,
-    generation: Decimal,
 }
 impl Drop for PendingGuard {
     fn drop(&mut self) {
@@ -774,20 +762,50 @@ mod tests {
             .unwrap();
         let late = response(&envelope, &bridge);
         assert_eq!(
-            bridge
-                .wait_for_ack(receiver, &generation)
+            RendererBridge::wait_for_ack(receiver, guard)
                 .await
                 .err()
                 .unwrap()
                 .code,
             ErrorCode::RendererUnavailable
         );
-        assert!(!bridge.snapshot(0).available);
         assert_eq!(
             bridge.acknowledge(late).unwrap_err().code,
             ErrorCode::StaleState
         );
-        drop(guard);
+    }
+    #[tokio::test(start_paused = true)]
+    async fn ack_timeout_preserves_a_fresh_context_and_other_dispatches() {
+        let (bridge, generation) = ready();
+        let (_, receiver, guard) = bridge
+            .begin(
+                &owner("a"),
+                checked("first").unwrap(),
+                "connection-a",
+                input(&generation),
+            )
+            .unwrap();
+        let pre_timeout = async {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            bridge.update(&generation, bridge.snapshot(0)).unwrap();
+            bridge
+                .begin(
+                    &owner("b"),
+                    checked("second").unwrap(),
+                    "connection-b",
+                    input(&generation),
+                )
+                .unwrap()
+        };
+        let (timed_out, (second, receiver, _second_guard)) =
+            tokio::join!(RendererBridge::wait_for_ack(receiver, guard), pre_timeout);
+        assert_eq!(
+            timed_out.err().unwrap().code,
+            ErrorCode::RendererUnavailable
+        );
+        assert!(bridge.snapshot(0).available);
+        bridge.acknowledge(response(&second, &bridge)).unwrap();
+        assert!(receiver.await.unwrap().is_ok());
     }
     #[test]
     fn task11_bridge_registration_is_shared_across_control_services_and_main_only() {

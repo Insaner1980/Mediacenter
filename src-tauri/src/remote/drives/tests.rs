@@ -6,7 +6,10 @@ use crate::{
         store::{CredentialHash, RemoteStore},
     },
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 struct Fake {
@@ -16,6 +19,7 @@ struct Fake {
     entered: Arc<tokio::sync::Notify>,
     release: Arc<tokio::sync::Notify>,
     wait: bool,
+    wait_for_discover: Arc<AtomicUsize>,
 }
 impl Fake {
     fn new() -> Self {
@@ -56,11 +60,22 @@ impl Fake {
             entered: Default::default(),
             release: Default::default(),
             wait: false,
+            wait_for_discover: Default::default(),
         }
     }
 }
 impl DeviceBackend for Fake {
     async fn discover(&self) -> Result<Devices, AppError> {
+        if self
+            .wait_for_discover
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                remaining.checked_sub(1)
+            })
+            == Ok(1)
+        {
+            self.entered.notify_one();
+            self.release.notified().await;
+        }
         Ok(self.devices.lock().unwrap().clone())
     }
     async fn mount(&self, v: &Volume) -> Result<(), AppError> {
@@ -111,6 +126,44 @@ impl SourceLifecycle for Lifecycle {
         *self.0.lock().unwrap() = volumes.iter().map(|v| v.id.clone()).collect();
         Ok(())
     }
+}
+#[tokio::test]
+async fn cancellation_during_drive_discovery_blocks_removal() {
+    assert_discovery_cancellation(1).await;
+}
+
+#[tokio::test]
+async fn cancellation_during_final_drive_discovery_preserves_playback_and_mounts() {
+    assert_discovery_cancellation(2).await;
+}
+
+async fn assert_discovery_cancellation(discovery: usize) {
+    let (_dir, d, _) = fixture();
+    let backend = Fake::new();
+    let devices = backend.discover().await.unwrap();
+    let state = &d.services.state;
+    let action = capture(state, &devices, &devices.drives[0].id)
+        .await
+        .unwrap();
+    let lifecycle = Lifecycle::default();
+    let cancel = CancellationToken::new();
+    backend.wait_for_discover.store(discovery, Ordering::SeqCst);
+    let cancel_while_discovering = async {
+        backend.entered.notified().await;
+        cancel.cancel();
+        backend.release.notify_one();
+    };
+    let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+        tokio::join!(
+            eject(state, &backend, &lifecycle, &action, &cancel),
+            cancel_while_discovering
+        )
+    })
+    .await
+    .expect("drive removal did not stop after cancellation");
+    assert_eq!(result.unwrap_err().code, "cancelled");
+    assert!(lifecycle.0.lock().unwrap().is_empty());
+    assert!(backend.calls.lock().unwrap().is_empty());
 }
 fn fixture() -> (tempfile::TempDir, Dispatcher, RemotePrincipal) {
     let dir = tempfile::tempdir().unwrap();

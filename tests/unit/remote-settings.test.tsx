@@ -21,6 +21,35 @@ const listening:RemoteSettingsSnapshot={...initial,enabled:true,listening:true,i
 const display={attemptId:'attempt-old',qrRows:['111','101','111'],addresses:['192.168.1.4'],port:47832,manualCode:'ABCDEFGH2345',verificationWords:['able','about','absent','acid','across','act'],expiresInMs:120000};
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(done=>{resolve=done;});return {promise,resolve};}
 function fakeApi(){return {settings:vi.fn(async()=>listening),setEnabled:vi.fn(async()=>initial),devices:vi.fn(async()=>[]),beginPairing:vi.fn(async()=>display),cancelPairing:vi.fn(async()=>{}),revokeDevice:vi.fn(async()=>{})};}
+it('shows remote settings when the paired-phone list cannot be fetched',async()=>{
+ const api=fakeApi();api.devices.mockRejectedValueOnce(new Error('Paired phone list unavailable'));
+ render(<RemoteSettings api={api}/>);
+ expect(await screen.findByRole('alert')).toHaveTextContent('Paired phone list unavailable');
+ expect(screen.getByRole('button',{name:'Pair a phone'})).toBeEnabled();
+});
+it('continues refreshing settings while a paired-phone read is pending',async()=>{
+ vi.useFakeTimers();
+ try {
+  const api=fakeApi();
+  api.devices.mockImplementation(()=>new Promise(()=>{}));
+  api.settings.mockResolvedValueOnce(listening).mockResolvedValue({...listening,status:'Network settings refreshed'});
+  render(<RemoteSettings api={api}/>);
+  await act(async()=>{});
+  expect(screen.getByText('Listening')).toBeVisible();
+  await act(async()=>vi.advanceTimersByTimeAsync(2000));
+  expect(screen.getByText('Network settings refreshed')).toBeVisible();
+ } finally {vi.useRealTimers();}
+});
+it('keeps an active pairing available to cancel again after a failed cancellation',async()=>{
+ const api=fakeApi();api.cancelPairing.mockRejectedValueOnce(new Error('Could not cancel pairing'));
+ const user=userEvent.setup();render(<RemoteSettings api={api}/>);
+ await user.click(await screen.findByRole('button',{name:'Pair a phone'}));
+ await user.click(await screen.findByRole('button',{name:'Cancel pairing'}));
+ expect(await screen.findByRole('alert')).toHaveTextContent('Could not cancel pairing');
+ await user.click(screen.getByRole('button',{name:'Cancel pairing'}));
+ await waitFor(()=>expect(screen.queryByRole('img',{name:'Pairing QR code'})).not.toBeInTheDocument());
+ expect(api.cancelPairing).toHaveBeenNthCalledWith(2,display.attemptId);
+});
 it('cancels the exact pending attempt after the API owner changes without exposing its secrets',async()=>{
  const pending=deferred<typeof display>(),oldApi=fakeApi(),newApi=fakeApi();oldApi.beginPairing.mockImplementation(()=>pending.promise);
  const user=userEvent.setup();const view=render(<RemoteSettings api={oldApi}/>);await user.click(await screen.findByRole('button',{name:'Pair a phone'}));

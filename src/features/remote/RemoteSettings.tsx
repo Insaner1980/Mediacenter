@@ -8,10 +8,12 @@ export function RemoteSettings({api = remoteApi}: {api?: typeof remoteApi}) {
   const [settings, setSettings] = useState<RemoteSettingsSnapshot | null>(null);
   const [network, setNetwork] = useState('');
   const [port, setPort] = useState('');
-  const [devices, setDevices] = useState<RemoteDevice[]>([]);
+  const [devices, setDevices] = useState<RemoteDevice[] | null>(null);
   const [pairing, setPairing] = useState<{api: typeof remoteApi; display: RemotePairingDisplay; deadline: number} | null>(null);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+  const [devicesError, setDevicesError] = useState('');
   const [busy, setBusy] = useState(false);
   const [revoke, setRevoke] = useState<RemoteDevice | null>(null);
   const owner = useRef<symbol | null>(null);
@@ -38,26 +40,38 @@ export function RemoteSettings({api = remoteApi}: {api?: typeof remoteApi}) {
     const token = Symbol();
     owner.current = token;
     lock.current = null;
-    let refreshing = false;
-    const refresh = async () => {
-      if (refreshing) return;
-      refreshing = true;
-      const issuedEpoch = epoch.current;
-      try {
-        const [value, phones] = await Promise.all([api.settings(), api.devices()]);
-        if (owner.current === token && issuedEpoch === epoch.current) {
-          receive(value);
-          setDevices(phones);
-          if (lock.current !== token) setBusy(false);
+    dirty.current = false;
+    setSettings(null);
+    setDevices(null);
+    setPairing(null);
+    setExpired(false);
+    setRevoke(null);
+    setBusy(false);
+    setError('');
+    setSettingsError('');
+    setDevicesError('');
+    function poll<T>(read: () => Promise<T>, apply: (value: T) => void, report: (error: string) => void) {
+      let refreshing = false;
+      return async () => {
+        if (refreshing || lock.current === token) return;
+        refreshing = true;
+        const issuedEpoch = epoch.current;
+        const isCurrent = () => owner.current === token && issuedEpoch === epoch.current && lock.current !== token;
+        try {
+          const value = await read();
+          if (isCurrent()) { apply(value); report(''); }
+        } catch (e) {
+          if (isCurrent()) report(errorMessage(e));
+        } finally {
+          refreshing = false;
         }
-      } catch (e) {
-        if (owner.current === token && issuedEpoch === epoch.current) setError(errorMessage(e));
-      } finally {
-        refreshing = false;
-      }
-    };
-    void refresh();
-    const timer = setInterval(() => void refresh(), 2000);
+      };
+    }
+    const refreshSettings = poll(api.settings, receive, setSettingsError);
+    const refreshDevices = poll(api.devices, setDevices, setDevicesError);
+    function refresh() { void refreshSettings(); void refreshDevices(); }
+    refresh();
+    const timer = setInterval(refresh, 2000);
     return () => {
       owner.current = null;
       epoch.current++;
@@ -111,11 +125,19 @@ export function RemoteSettings({api = remoteApi}: {api?: typeof remoteApi}) {
     }
   }
 
+  async function cancelPairing(token: symbol) {
+    const id = activeAttempt.current;
+    if (!id) return;
+    await api.cancelPairing(id);
+    if (owner.current === token && activeAttempt.current === id) {
+      activeAttempt.current = null;
+      setPairing(null);
+    }
+  }
+
   async function beginPairing(token: symbol) {
-    const previous = activeAttempt.current;
-    activeAttempt.current = null;
-    setPairing(null);
-    if (previous) await api.cancelPairing(previous);
+    await cancelPairing(token);
+    if (owner.current !== token) return;
     const started = performance.now();
     const display = await api.beginPairing();
     if (owner.current !== token) {
@@ -129,6 +151,7 @@ export function RemoteSettings({api = remoteApi}: {api?: typeof remoteApi}) {
   }
 
   const validPort = /^\d+$/.test(port) && Number(port) > 0 && Number(port) <= 65535;
+  const message = error || settingsError || devicesError;
   return <section className="remote-settings" aria-label="Remote control">
     {settings ? <>
       <p role="status">{settings.status}</p>
@@ -143,28 +166,26 @@ export function RemoteSettings({api = remoteApi}: {api?: typeof remoteApi}) {
       {settings.listening && <button className="control" disabled={busy} onClick={() => void run(beginPairing)}>Pair a phone</button>}
       {pairing && pairing.api === api && <>
         <PairingView key={pairing.display.attemptId} pairing={pairing.display} deadline={pairing.deadline} onExpire={expire}/>
-        <button className="control" disabled={busy} onClick={() => void run(async () => {
-          const id = activeAttempt.current;
-          activeAttempt.current = null;
-          setPairing(null);
-          if (id) await api.cancelPairing(id);
-        })}>Cancel pairing</button>
+        <button className="control" disabled={busy} onClick={() => void run(cancelPairing)}>Cancel pairing</button>
       </>}
       {expired && <p role="status">Pairing code expired. Choose Pair a phone for a new code.</p>}
       <h3>Paired phones</h3>
-      {devices.length === 0 ? <p>No paired phones.</p> : devices.map(device => <div className="remote-device" key={device.deviceId}>
+      {devices?.length === 0 ? <p>No paired phones.</p> : devices?.map(device => <div className="remote-device" key={device.deviceId}>
         <span>{device.label}</span><button className="control" disabled={busy} onClick={() => setRevoke(device)}>Revoke {device.label}</button>
       </div>)}
       {revoke && <div role="group" aria-label="Confirm revocation">
         <p>Revoke {revoke.label}? This phone will disconnect and must pair again.</p>
         <button className="control" disabled={busy} onClick={() => void run(async token => {
           await api.revokeDevice(revoke.deviceId);
+          if (owner.current !== token) return;
+          setRevoke(null);
+          setDevices(phones => phones?.filter(phone => phone.deviceId !== revoke.deviceId) ?? null);
           const phones = await api.devices();
-          if (owner.current === token) {setDevices(phones); setRevoke(null);}
+          if (owner.current === token) {setDevices(phones); setDevicesError('');}
         })}>Confirm revocation</button>
         <button className="control" disabled={busy} onClick={() => setRevoke(null)}>Keep phone</button>
       </div>}
     </> : <p role="status">Checking remote control</p>}
-    {error && <p role="alert" className="message">{error}</p>}
+    {message && <p role="alert" className="message">{message}</p>}
   </section>;
 }

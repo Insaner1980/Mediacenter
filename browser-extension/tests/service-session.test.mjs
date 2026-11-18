@@ -16,6 +16,7 @@ async function fixture() {
   const { BrowserSession } = await import('../browser-session.mjs');
   const states = [];
   const input = [];
+  const overlays = [];
   const windows = [];
   const tabs = new Map();
   const removed = [];
@@ -26,6 +27,10 @@ async function fixture() {
   let activeTab = 10;
   let width = 100;
   let inputError = false;
+  let focused = true;
+  let overlayEnable;
+  let layoutFailures = 0;
+  let inputSent;
   function addTab(id, url, openerTabId) {
     tabs.set(id, { id, windowId: 7, url, status: 'complete', openerTabId, loader: 1 });
   }
@@ -34,7 +39,7 @@ async function fixture() {
     tabs: {
       onUpdated, onRemoved, onReplaced: event(), onActivated: event(),
       async query() { return [{ ...tabs.get(activeTab) }]; },
-      async get(id) { return { ...tabs.get(id) }; },
+      async get(id) { return { ...tabs.get(id), active: id === activeTab }; },
       async update(id, options) {
         if (options.url) {
           const tab = tabs.get(id);
@@ -47,6 +52,7 @@ async function fixture() {
     },
     windows: {
       onFocusChanged: event(), onBoundsChanged: event(),
+      async get(id) { return { id, focused }; },
       async create(options) {
         windows.push(options);
         addTab(10, options.url ?? 'about:blank');
@@ -63,9 +69,20 @@ async function fixture() {
         if (method === 'Page.getFrameTree') {
           return { frameTree: { frame: { id: 'root', loaderId: String(tab.loader), url: tab.url } } };
         }
-        if (method === 'Page.getLayoutMetrics') return { cssLayoutViewport: { clientWidth: width, clientHeight: 80 } };
+        if (method === 'Page.getLayoutMetrics') {
+          if (layoutFailures > 0) {
+            layoutFailures -= 1;
+            throw Error('Layout metrics temporarily unavailable');
+          }
+          return { cssLayoutViewport: { clientWidth: width, clientHeight: 80 } };
+        }
+        if (method.startsWith('Overlay.')) {
+          overlays.push(method);
+          if (method === 'Overlay.enable') await overlayEnable?.();
+        }
         if (method.startsWith('Input.')) {
           input.push([tabId, method, params]);
+          await inputSent?.(params);
           if (inputError) throw Error('private CDP error');
         }
       },
@@ -89,8 +106,12 @@ async function fixture() {
     await new Promise(resolve => setImmediate(resolve));
   }
   return {
-    addTab, launch, latest, navigate, command, send, input, removed, states, windows,
+    addTab, launch, latest, navigate, command, send, input, overlays, removed, states, windows,
     setActive(id) { activeTab = id; },
+    focusElsewhere() { focused = false; chrome.windows.onFocusChanged.emit(8); },
+    waitToEnableOverlay(callback) { overlayEnable = callback; },
+    failLayoutOnce() { layoutFailures += 1; },
+    onInputSent(callback) { inputSent = callback; },
     adopt() { return bridge.adoptActivePopup(); },
     async closeTab(id) {
       tabs.delete(id);
@@ -182,6 +203,105 @@ test('a failed text delivery is attempted once and arbitrary methods are rejecte
   await assert.rejects(f.send({ type: 'Runtime.evaluate', expression: 'alert(1)' }));
   assert.equal(f.input.length, 1);
   assert.ok(!JSON.stringify(f.states).includes('synthetic'));
+});
+
+test('losing browser focus during overlay setup cancels the marker', async () => {
+  const f = await fixture();
+  await f.launch();
+  await f.navigate(url);
+  const enabling = Promise.withResolvers();
+  const finishEnable = Promise.withResolvers();
+  f.waitToEnableOverlay(() => {
+    enabling.resolve();
+    return finishEnable.promise;
+  });
+  const pointer = f.send({ type: 'pointer', x: 0.5, y: 1, inputSequence: '1' });
+  await enabling.promise;
+  f.focusElsewhere();
+  finishEnable.resolve();
+  await pointer;
+  assert.equal(f.input.length, 1);
+  assert.ok(!f.overlays.includes('Overlay.highlightRect'));
+});
+
+test('discrete input rejected behind a pointer reports that it was never dispatched', async () => {
+  const f = await fixture();
+  await f.launch();
+  await f.navigate(url);
+  const moving = Promise.withResolvers();
+  const finishMove = Promise.withResolvers();
+  f.onInputSent(({ type }) => {
+    if (type === 'mouseMoved') {
+      moving.resolve();
+      return finishMove.promise;
+    }
+  });
+  const pointer = f.send({ type: 'pointer', x: 0.5, y: 1, inputSequence: '1' });
+  await moving.promise;
+  try {
+    await assert.rejects(f.send({ type: 'text', text: 'synthetic' }), /^Error: busy$/);
+    assert.deepEqual(f.input.map(([, method]) => method), ['Input.dispatchMouseEvent']);
+  } finally {
+    finishMove.resolve();
+    await pointer;
+  }
+});
+
+test('a transient layout error after page completion leaves input disabled until a fresh snapshot succeeds', async () => {
+  const f = await fixture();
+  await f.launch();
+  f.failLayoutOnce();
+  await f.navigate(url);
+  assert.equal(f.latest().ready, false);
+  await assert.rejects(f.send({ type: 'text', text: 'wait for snapshot' }), /stale_target/);
+  await new Promise(resolve => setTimeout(resolve, 150));
+  assert.equal(f.latest().ready, true);
+  await f.send({ type: 'text', text: 'snapshot available' });
+  assert.equal(f.input.length, 1);
+});
+
+test('a viewport resize lets an already sent mouse press finish in the same document', async () => {
+  const f = await fixture();
+  await f.launch();
+  await f.navigate(url);
+  const pressed = Promise.withResolvers();
+  const finishPress = Promise.withResolvers();
+  f.onInputSent(({ type }) => {
+    if (type === 'mousePressed') {
+      pressed.resolve();
+      return finishPress.promise;
+    }
+  });
+  const generation = f.latest().generation;
+  const click = f.send({ type: 'click', button: 'left', x: 0.5, y: 0.5 });
+  await pressed.promise;
+  f.resize(200);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.notEqual(f.latest().generation, generation);
+  finishPress.resolve();
+  await click;
+  assert.deepEqual(f.input.map(([, , params]) => params.type), ['mousePressed', 'mouseReleased']);
+});
+
+test('a navigation prevents mouse release in a replacement document', async () => {
+  const f = await fixture();
+  await f.launch();
+  await f.navigate(url);
+  const pressed = Promise.withResolvers();
+  const finishPress = Promise.withResolvers();
+  f.onInputSent(({ type }) => {
+    if (type === 'mousePressed') {
+      pressed.resolve();
+      return finishPress.promise;
+    }
+  });
+  const click = f.send({ type: 'click', button: 'left', x: 0.5, y: 0.5 });
+  const result = assert.rejects(click, /stale_target/);
+  await pressed.promise;
+  await f.navigate(url + 'watch');
+  finishPress.resolve();
+  await result;
+  assert.deepEqual(f.input.map(([, , params]) => params.type), ['mousePressed']);
 });
 
 test('only an explicit local action adopts a related popup, which requires fresh approval', async () => {

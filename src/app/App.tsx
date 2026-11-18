@@ -26,6 +26,10 @@ import {VideosScreen} from '../features/videos/VideosScreen';
 import {DrivesScreen} from '../features/drives/DrivesScreen';
 import {OutputSettings} from '../features/outputs/OutputSettings';
 const initial: HomeSnapshot = {revision:0,theme:document.documentElement.dataset.theme==='light'?'light':'dark',vpn:{revision:0,errorCode:null,state:'unknown',country:null,killSwitch:'unknown',observedAtMs:0},outputs:{revision:0,desired:{monitorId:null,audioSinkId:null},effective:{monitorId:null,audioSinkId:null},label:'Detecting outputs',state:'unavailable'},summaries:{video:'Add a video folder',audio:'Add a music folder',photo:'Add a photo folder',drives:'Checking drives',resumeProgress:null},services:[],sessions:[]};
+function applyTheme(value: Theme) {
+  document.documentElement.dataset.theme = value;
+  try { localStorage.setItem('mediacenter.theme', value); } catch { /* The cache only affects startup. */ }
+}
 function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationState>}={}) {
   const {backend,subscribeHome,canUseMedia}=useAppServices();
   const [snapshot,setSnapshot] = useState(initial);
@@ -43,7 +47,7 @@ function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationS
   useEffect(()=>{
     let live=true;let dispose:(()=>void)|undefined;
     if(canUseMedia) {
-      void subscribeHome(s=>{if(live){setSnapshot(s);document.documentElement.dataset.theme=s.theme;localStorage.setItem('mediacenter.theme',s.theme);}}).then(stop=>{if(live)dispose=stop;else stop();}).catch(()=>{if(live)setMessage('The media services are not available yet.');});
+      void subscribeHome(s=>{if(live){setSnapshot(s);applyTheme(s.theme);}}).then(stop=>{if(live)dispose=stop;else stop();}).catch(()=>{if(live)setMessage('The media services are not available yet.');});
     } else setMessage('Open the desktop application to use media services.');
     return ()=>{live=false;dispose?.();};
   },[subscribeHome,canUseMedia]);
@@ -60,8 +64,7 @@ function MainContent({initialNavigation}:{initialNavigation?:Partial<NavigationS
   async function play(item:MediaItem,resume:boolean){if(busy)return;setBusy(true);setMessage('Opening local media');try{await backend.playMedia(item.id,resume);setMessage('');}catch(reason){setMessage(errorMessage(reason));}finally{setBusy(false);}}
   async function theme(value: Theme) {
     if(canUseMedia) {try{await backend.setTheme(value);}catch{setMessage('The theme could not be saved.');return;}}
-    localStorage.setItem('mediacenter.theme',value);
-    document.documentElement.dataset.theme=value;
+    applyTheme(value);
     setSnapshot(s=>({...s,theme:value}));
   }
   return <RemoteNavigationOrigin.Provider value={remoteNavigation}><NavigationGuardProvider register={register}><RemoteNavigationBridge route={screen} navigate={route=>{if(route==='settings')setSettingsSection(null);navigate(route,true);}} back={remoteBack}/><AppShell snapshot={snapshot} route={screen} onNavigate={navigate} onOpenSettings={section=>{setSettingsSection(section??null);navigate('settings');}} player={<SlideshowStrip/>} >

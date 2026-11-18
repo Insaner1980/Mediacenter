@@ -20,5 +20,7 @@ test('keyboard_focus_does_not_change_grid_geometry',async({page})=>{
 });
 test('release_does_not_include_demo_data',async()=>{
   const {readdir}=await import('node:fs/promises');
-  for(const name of await readdir('dist/assets'))if(name.endsWith('.js'))expect(await readFile(`dist/assets/${name}`,'utf8')).not.toMatch(/Lapland Trip 2025|LG TV via HDMI|Evening playlist, 86 songs/);
+  const scripts=(await readdir('dist/assets')).filter(name=>name.endsWith('.js'));
+  expect(scripts.length).toBeGreaterThan(0);
+  for(const name of scripts)expect(await readFile(`dist/assets/${name}`,'utf8')).not.toMatch(/Lapland Trip 2025|LG TV via HDMI|Evening playlist, 86 songs/);
 });

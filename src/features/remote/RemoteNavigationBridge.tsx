@@ -9,6 +9,7 @@ import {createFocusRegistry,NavigationError} from './focusRegistry';
 import {createRemoteNavigation,type RendererRequest,type RendererResponse} from './remoteNavigation';
 import type {ConfirmationPreview,Route} from './protocol.generated';
 const appRoute:Record<Route,AppRoute>={home:'home',videos:'video',music:'audio',photos:'photo',settings:'settings',services:'streaming'};
+let registration:Promise<string|null>=Promise.resolve(null);
 export function RemoteNavigationBridge({route,navigate,back}:{route:AppRoute;navigate:(route:AppRoute)=>void;back?:()=>void}){
  const latest=useRef({route,navigate,back});latest.current={route,navigate,back};
  const [previews,setPreviews]=useState<ConfirmationPreview[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false);
@@ -16,7 +17,15 @@ export function RemoteNavigationBridge({route,navigate,back}:{route:AppRoute;nav
  useEffect(()=>{
   if(!isTauri())return;
   let live=true,generation='',chain=Promise.resolve(),lastContext='',confirmationRead=0,presentationRevision=0n;const registry=createFocusRegistry(),handle=createRemoteNavigation();const cleanups:(()=>void)[]=[];
-  async function publish(){if(!live||!generation)return;registry.configure(generation,wireRoute[latest.current.route]);const context=registry.sync(),serialized=JSON.stringify(context);if(serialized===lastContext)return;lastContext=serialized;await invoke('update_remote_renderer',{generation,context});}
+  async function publish(){
+   if(!live||!generation)return;
+   registry.configure(generation,wireRoute[latest.current.route]);
+   const context=registry.sync(),serialized=JSON.stringify(context);
+   if(serialized===lastContext)return;
+   lastContext=serialized;
+   try{await invoke('update_remote_renderer',{generation,context});}
+   catch(error){if(lastContext===serialized)lastContext='';throw error;}
+  }
   refresh.current=async()=>{const read=++confirmationRead;try{const value=await invoke<ConfirmationPreview[]>('get_renderer_confirmations');if(live&&read===confirmationRead)setPreviews(value);}catch{/* Remote setup can be disabled/unavailable while local media works. */}};
   async function start(){
    cleanups.push(await listen<RendererRequest>('remote-ui-request',event=>{
@@ -46,8 +55,11 @@ export function RemoteNavigationBridge({route,navigate,back}:{route:AppRoute;nav
     });
    }));
    if(!live)return;
-   generation=await invoke<string>('register_remote_renderer');if(!live||typeof generation!=='string')return;
-   await publish();await refresh.current();
+   const registering=registration.then(()=>live?invoke<string>('register_remote_renderer'):null);
+   registration=registering.catch(()=>null);
+   generation=(await registering)??'';
+   if(!live||!generation||typeof generation!=='string')return;
+   await publish().catch(()=>{});await refresh.current();
    const observer=new MutationObserver(()=>{void publish().catch(()=>{});});observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['disabled','open','inert','data-remote-id','aria-current']});cleanups.push(()=>observer.disconnect());
    const focused=()=>{void publish().catch(()=>{});};document.addEventListener('focusin',focused);cleanups.push(()=>document.removeEventListener('focusin',focused));
    const heartbeat=setInterval(()=>{if(live)void invoke('update_remote_renderer',{generation,context:registry.configure(generation,wireRoute[latest.current.route])}).catch(()=>{});},2000);cleanups.push(()=>clearInterval(heartbeat));

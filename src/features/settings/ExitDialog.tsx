@@ -6,7 +6,17 @@ import {errorMessage} from '../../app/backend';
 import {Dialog} from '../../ui/Dialog';
 export function ExitDialog(){
  const [status,setStatus]=useState<ExitStatus|null>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);
- useEffect(()=>{if(!isTauri())return;let live=true;const dispose:(()=>void)[]=[];void Promise.all([listen<ExitStatus>('exit_requested',({payload})=>{if(live){setStatus(payload);setError('');}}),listen<AppError>('exit_error',({payload})=>{if(live)setError(payload.message);})]).then(stops=>{if(live)dispose.push(...stops);else stops.forEach(stop=>stop());});return()=>{live=false;dispose.forEach(stop=>stop());};},[]);
+ useEffect(()=>{
+  if(!isTauri())return;
+  let live=true;
+  const dispose:(()=>void)[]=[];
+  function track(subscription:Promise<()=>void>){
+   void subscription.then(stop=>{if(live)dispose.push(stop);else stop();}).catch(()=>{});
+  }
+  track(listen<ExitStatus>('exit_requested',({payload})=>{if(live){setStatus(payload);setError('');}}));
+  track(listen<AppError>('exit_error',({payload})=>{if(live)setError(payload.message);}));
+  return()=>{live=false;dispose.forEach(stop=>stop());};
+ },[]);
  async function action(action:ExitAction){if(busy)return;setBusy(true);setError('');try{await invoke('request_exit',{action});if(action==='keep_open'||action==='keep_available')setStatus(null);}catch(reason){setError(errorMessage(reason));}finally{setBusy(false);}}
  if(!status)return error?<p role="alert" className="message">{error}</p>:null;
  const local=status.localActive||status.backgroundActive;

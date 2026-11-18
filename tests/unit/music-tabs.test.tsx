@@ -1,4 +1,4 @@
-import {render,screen,waitFor} from '@testing-library/react';
+import {act,render,screen,waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {expect,it,vi} from 'vitest';
 import {MusicScreen} from '../../src/features/music/MusicScreen';
@@ -16,6 +16,42 @@ it('shows an explicit save failure inside the open editor',async()=>{
 it('only offers folder opening in the Library tab where its feedback is visible',async()=>{
  const services={...productionServices,canUseMedia:true,backend:{...productionServices.backend,player:async()=>null,sources:async()=>[],queryMedia:async()=>({items:[],nextCursor:null})},player:{observe:async()=>()=>{}},music:{...productionServices.music,queue:async()=>queue,subscribe:async()=>()=>{},playlists:async()=>[]}};
  const user=userEvent.setup();render(<AppServicesProvider services={services}><MusicScreen/></AppServicesProvider>);expect(screen.getByRole('button',{name:'Open folder'})).toBeVisible();await user.click(screen.getByRole('tab',{name:'Queue'}));expect(screen.queryByRole('button',{name:'Open folder'})).not.toBeInTheDocument();await user.click(screen.getByRole('tab',{name:'Playlists'}));expect(screen.queryByRole('button',{name:'Open folder'})).not.toBeInTheDocument();
+});
+it('keeps a saved playlist when the earlier list request finishes last',async()=>{
+ let resolveInitial:(value:[])=>void=()=>{};
+ const playlists=vi.fn().mockImplementationOnce(()=>new Promise(resolve=>{resolveInitial=resolve;})).mockResolvedValue([{id:'new',name:'Road trip',itemCount:0}]);
+ const services={...productionServices,canUseMedia:true,backend:{...productionServices.backend,player:async()=>null,sources:async()=>[],queryMedia:async()=>({items:[],nextCursor:null})},player:{observe:async()=>()=>{}},music:{...productionServices.music,queue:async()=>queue,subscribe:async()=>()=>{},playlists,save:async()=> 'new'}};
+ const user=userEvent.setup();render(<AppServicesProvider services={services}><MusicScreen tab="playlists"/></AppServicesProvider>);
+ await user.click(screen.getByRole('button',{name:'New playlist'}));
+ await user.type(screen.getByLabelText('Playlist name'),'Road trip');
+ await user.click(screen.getByRole('button',{name:'Save playlist'}));
+ await user.click(screen.getByRole('button',{name:'Close'}));
+ expect(await screen.findByRole('button',{name:'Edit Road trip'})).toBeVisible();
+ await act(async()=>resolveInitial([]));
+ expect(screen.getByRole('button',{name:'Edit Road trip'})).toBeVisible();
+});
+it('finishes Save and closes the confirmation when the list cannot refresh',async()=>{
+ const playlists=vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(Error('Playlist list unavailable'));
+ const save=vi.fn(async()=> 'new');
+ const services={...productionServices,canUseMedia:true,backend:{...productionServices.backend,player:async()=>null,sources:async()=>[],queryMedia:async()=>({items:[],nextCursor:null})},player:{observe:async()=>()=>{}},music:{...productionServices.music,queue:async()=>queue,subscribe:async()=>()=>{},playlists,save}};
+ const user=userEvent.setup();render(<AppServicesProvider services={services}><MusicScreen tab="playlists"/></AppServicesProvider>);
+ await user.click(screen.getByRole('button',{name:'New playlist'}));
+ await user.type(screen.getByLabelText('Playlist name'),'Road trip');
+ await user.click(screen.getByRole('button',{name:'Close'}));
+ await user.click(screen.getByRole('button',{name:'Save'}));
+ expect(await screen.findByRole('alert')).toHaveTextContent('Playlist list unavailable');
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+ expect(screen.getByRole('status')).toHaveTextContent('Playlist saved');
+ expect(save).toHaveBeenCalledTimes(1);
+});
+it('recovers the queue through Refresh after the initial snapshot fails',async()=>{
+ const queueRequest=vi.fn().mockRejectedValueOnce(Error('Queue unavailable')).mockResolvedValue(queue);
+ const services={...productionServices,canUseMedia:true,backend:{...productionServices.backend,player:async()=>null,sources:async()=>[],queryMedia:async()=>({items:[],nextCursor:null})},player:{observe:async()=>()=>{}},music:{...productionServices.music,queue:queueRequest,subscribe:async()=>()=>{},playlists:async()=>[]}};
+ const user=userEvent.setup();render(<AppServicesProvider services={services}><MusicScreen tab="queue"/></AppServicesProvider>);
+ expect(await screen.findByRole('alert')).toHaveTextContent('Queue unavailable');
+ await user.click(screen.getByRole('button',{name:'Refresh queue'}));
+ expect(await screen.findByText('No queued tracks')).toBeVisible();
+ expect(screen.queryByText('Queue unavailable')).not.toBeInTheDocument();
 });
 
 it('plays from the track title and row cells, while enqueue only adds to the queue',async()=>{

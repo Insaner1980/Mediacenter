@@ -699,6 +699,14 @@ impl RemoteSetup {
                     "Remote preferences changed.",
                 ));
             }
+            if before.enabled
+                && inner
+                    .config
+                    .as_ref()
+                    .is_some_and(|config| config.revision != before.revision.value())
+            {
+                return Err(config_error());
+            }
             if keep_available == Some(true) && !before.enabled {
                 return Err(RemoteError::new(
                     ErrorCode::Unavailable,
@@ -939,6 +947,32 @@ mod tests {
             IdentityNamespace::Development,
         );
         (dir, setup)
+    }
+    #[tokio::test]
+    async fn keep_available_cannot_advance_a_stale_network_configuration() {
+        let (_dir, setup) = fixture();
+        let config = {
+            let mut inner = setup.inner.lock().await;
+            setup.save_enabled(&mut inner, true).unwrap();
+            let config = NetworkConfig {
+                version: 1,
+                revision: inner.revision - 1,
+                interface_name: "fixture-lan".into(),
+                port: 47832,
+            };
+            config.save(&setup.path).unwrap();
+            inner.config = Some(config.clone());
+            config
+        };
+        let before = setup.lifetime_preferences().await.unwrap();
+        assert!(setup
+            .set_lifetime_preference(None, Some(true), None, None)
+            .await
+            .is_err());
+        let after = setup.lifetime_preferences().await.unwrap();
+        assert_eq!(after.revision, before.revision);
+        assert_eq!(after.keep_available, before.keep_available);
+        assert!(NetworkConfig::read(&setup.path).unwrap() == Some(config));
     }
     #[tokio::test]
     async fn task20_lifetime_preferences_preserve_listener_and_rollback_exact_owned_files() {

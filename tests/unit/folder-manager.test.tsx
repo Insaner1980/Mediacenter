@@ -5,6 +5,7 @@ import {expect,it,vi} from 'vitest';
 import {AppServicesProvider,productionServices} from '../../src/app/AppServices';
 import {SourceManagerProvider} from '../../src/features/library/SourceManagerProvider';
 import {FolderManager} from '../../src/features/library/FolderManager';
+import type {MediaSource} from '../../src/app/contracts';
 it('keeps scan cancellation available after closing and reopening the sheet',async()=>{
  let done:()=>void=()=>{};const api={...productionServices.backend,sources:async()=>[{id:'source-a',label:'Music',displayPath:'/media/music',kinds:['audio' as const],availability:'available',removable:false}],scanSource:vi.fn(()=>new Promise<void>(r=>{done=r;})),cancelScan:vi.fn(async()=>{})};
  function View(){const [open,setOpen]=useState(true);return <><button onClick={()=>setOpen(true)}>Folders</button><FolderManager open={open} kind="audio" onRequestClose={()=>setOpen(false)}/></>;}
@@ -15,4 +16,83 @@ it('adds only the chosen kinds using the grant, not its display path',async()=>{
  const api={...productionServices.backend,sources:async()=>[],chooseSource:async()=>({grantId:'grant-123',displayPath:'/photos',expiresInSeconds:60}),addSource:vi.fn(async()=> 'source-a')};const user=userEvent.setup();
  render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
  await user.click(screen.getByRole('button',{name:'Add folder'}));await user.click(screen.getByRole('button',{name:'Add selected folder'}));expect(api.addSource).toHaveBeenCalledWith('grant-123',['photo']);
+});
+it('requires the current media type when adding a folder from a filtered picker',async()=>{
+ const addSource=vi.fn(async()=> 'source-a');
+ const api={...productionServices.backend,sources:async()=>[],chooseSource:async()=>({grantId:'grant-123',displayPath:'/photos',expiresInSeconds:60}),addSource};
+ const user=userEvent.setup();
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ await user.click(screen.getByRole('button',{name:'Add folder'}));
+ await user.click(screen.getByRole('checkbox',{name:'Photos'}));
+ await user.click(screen.getByRole('checkbox',{name:'Music'}));
+ expect(screen.getByRole('button',{name:'Add selected folder'})).toBeDisabled();
+ await user.click(screen.getByRole('checkbox',{name:'Photos'}));
+ await user.click(screen.getByRole('button',{name:'Add selected folder'}));
+ expect(addSource).toHaveBeenCalledWith('grant-123',['audio','photo']);
+});
+it('retries the folder list after a successful add without adding it again',async()=>{
+ const source={id:'source-a',label:'Pictures',displayPath:'/photos',kinds:['photo' as const],availability:'available',removable:false};
+ const sources=vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(Error('Source list unavailable')).mockResolvedValue([source]);
+ const addSource=vi.fn(async()=>source.id);
+ const api={...productionServices.backend,sources,chooseSource:async()=>({grantId:'grant-123',displayPath:'/photos',expiresInSeconds:60}),addSource};
+ const user=userEvent.setup();
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ await waitFor(()=>expect(sources).toHaveBeenCalledTimes(1));
+ await user.click(screen.getByRole('button',{name:'Add folder'}));
+ await user.click(screen.getByRole('button',{name:'Add selected folder'}));
+ expect(await screen.findByRole('status')).toHaveTextContent('Folder added');
+ expect(screen.queryByRole('button',{name:'Scan Pictures'})).not.toBeInTheDocument();
+ await user.click(screen.getByRole('button',{name:'Retry folder list'}));
+ expect(await screen.findByRole('button',{name:'Scan Pictures'})).toBeVisible();
+ expect(addSource).toHaveBeenCalledTimes(1);
+});
+it('closes removal confirmation when the source was removed but the list fails to refresh',async()=>{
+ const source={id:'source-a',label:'Pictures',displayPath:'/photos',kinds:['photo' as const],availability:'available',removable:false};
+ const sources=vi.fn().mockResolvedValueOnce([source]).mockRejectedValue(Error('Source list unavailable'));
+ const api={...productionServices.backend,sources,removeSource:vi.fn(async()=>{})};
+ const user=userEvent.setup();
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ await user.click(await screen.findByRole('button',{name:'Remove Pictures from library'}));
+ await user.click(screen.getByRole('button',{name:'Remove from library'}));
+ expect(await screen.findByRole('alert')).toHaveTextContent('Source list unavailable');
+ expect(screen.queryByRole('dialog',{name:'Remove from library?'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Remove Pictures from library'})).not.toBeInTheDocument();
+});
+it('offers a list retry when a failed scan refresh supersedes the add refresh',async()=>{
+ const existing:MediaSource={id:'existing',label:'Old pictures',displayPath:'/old',kinds:['photo'],availability:'available',removable:false};
+ const added:MediaSource={...existing,id:'added',label:'New pictures',displayPath:'/new'};
+ let finishScan:()=>void=()=>{},finishAddList:(value:MediaSource[])=>void=()=>{};
+ const sources=vi.fn()
+  .mockResolvedValueOnce([existing])
+  .mockImplementationOnce(()=>new Promise<MediaSource[]>(resolve=>{finishAddList=resolve;}))
+  .mockRejectedValueOnce(Error('Scan list unavailable'))
+  .mockResolvedValue([existing,added]);
+ const addSource=vi.fn(async()=>added.id);
+ const api={...productionServices.backend,sources,chooseSource:async()=>({grantId:'grant-123',displayPath:'/new',expiresInSeconds:60}),addSource,scanSource:()=>new Promise<void>(resolve=>{finishScan=resolve;})};
+ const user=userEvent.setup();
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ await user.click(await screen.findByRole('button',{name:'Scan Old pictures'}));
+ await user.click(screen.getByRole('button',{name:'Add folder'}));
+ await user.click(screen.getByRole('button',{name:'Add selected folder'}));
+ await waitFor(()=>expect(sources).toHaveBeenCalledTimes(2));
+ await act(async()=>finishScan());
+ expect(await screen.findByRole('alert')).toHaveTextContent('Scan list unavailable');
+ await act(async()=>finishAddList([existing,added]));
+ expect(screen.queryByRole('button',{name:'Scan New pictures'})).toBeNull();
+ await user.click(screen.getByRole('button',{name:'Retry folder list'}));
+ expect(await screen.findByRole('button',{name:'Scan New pictures'})).toBeVisible();
+ expect(screen.getByRole('alert')).toHaveTextContent('Scan list unavailable');
+ expect(addSource).toHaveBeenCalledTimes(1);
+});
+it('clears the startup list error once the folder list loads',async()=>{
+ const source:MediaSource={id:'source-a',label:'Pictures',displayPath:'/photos',kinds:['photo'],availability:'available',removable:false};
+ const sources=vi.fn().mockRejectedValueOnce(Error('Initial folder list unavailable')).mockResolvedValue([source]);
+ const api={...productionServices.backend,sources,chooseSource:async()=>({grantId:'grant-123',displayPath:'/photos',expiresInSeconds:60}),addSource:async()=>source.id};
+ const user=userEvent.setup();
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ expect(await screen.findByRole('alert')).toHaveTextContent('Initial folder list unavailable');
+ await user.click(screen.getByRole('button',{name:'Add folder'}));
+ await user.click(screen.getByRole('button',{name:'Add selected folder'}));
+ await screen.findByRole('button',{name:'Scan Pictures'});
+ expect(screen.queryByRole('alert')).toBeNull();
 });

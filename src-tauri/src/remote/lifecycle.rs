@@ -13,31 +13,23 @@ use crate::{
         ControlServices,
     },
 };
-use std::{collections::BTreeSet, future::Future, time::Duration};
+use std::{
+    collections::{BTreeSet, HashMap},
+    future::Future,
+    time::Duration,
+};
+use tokio_util::sync::CancellationToken;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EndSession {
     activity: activity::Identity,
     work: BTreeSet<String>,
-    scans: BTreeSet<String>,
     // Bind effects to the admitted scan tokens, never a later scan at the same source ID.
-    scan_tokens: Vec<tokio_util::sync::CancellationToken>,
+    scans: HashMap<String, CancellationToken>,
 }
-impl PartialEq for EndSession {
-    fn eq(&self, other: &Self) -> bool {
-        self.activity == other.activity && self.work == other.work && self.scans == other.scans
-    }
-}
-impl Eq for EndSession {}
 async fn capture(s: &ControlServices, excluded: &[String]) -> Result<EndSession, RemoteError> {
     let activity = activity::identity(&s.state).await;
-    let (scans, scan_tokens) = {
-        let registry = s.state.scans.lock().map_err(|_| unavailable())?;
-        (
-            registry.keys().cloned().collect(),
-            registry.values().cloned().collect(),
-        )
-    };
+    let scans = s.state.scans.lock().map_err(|_| unavailable())?.clone();
     Ok(EndSession {
         activity,
         work: s
@@ -50,7 +42,6 @@ async fn capture(s: &ControlServices, excluded: &[String]) -> Result<EndSession,
             .cloned()
             .collect(),
         scans,
-        scan_tokens,
     })
 }
 fn preview(d: &Dispatcher, owner: &RemotePrincipal) -> Result<ConfirmationPreview, RemoteError> {
@@ -71,7 +62,7 @@ fn cancel_captured_work(s: &ControlServices, saved: &EndSession) -> Result<(), A
             }
         }
     }
-    for token in &saved.scan_tokens {
+    for token in saved.scans.values() {
         token.cancel();
     }
     Ok(())
@@ -132,7 +123,10 @@ impl SessionBackend for Native {
                         .lock()
                         .is_ok_and(|ops| saved.work.iter().all(|id| !ops.contains_key(id)))
                         && s.state.scans.lock().is_ok_and(|scans| {
-                            saved.scans.iter().all(|id| !scans.contains_key(id))
+                            saved
+                                .scans
+                                .iter()
+                                .all(|(id, token)| scans.get(id) != Some(token))
                         });
                     if done {
                         return;
@@ -287,8 +281,34 @@ pub(crate) async fn dispatch_with<B: SessionBackend>(
                 move |cancel| async move {
                     let _music = _music;
                     let _session = _session;
-                    let idle = native.services.state.idle.clone();
-                    let result = async {
+                    if cancel.is_cancelled() {
+                        return Err(AppError::new("cancelled", "End session cancelled."));
+                    }
+                    crate::control::settings::authorize_active(&native, &actor)
+                        .map_err(|_| AppError::new("forbidden", "Phone authorization changed."))?;
+                    crate::control::settings::check_epoch(&native, &expected)
+                        .map_err(|_| AppError::new("stale_state", "Session changed."))?;
+                    if let Some(op) = native
+                        .services
+                        .operations()
+                        .lookup_request(&actor, &expected.id)?
+                    {
+                        excluded.push(op.operation_id.as_str().into());
+                    }
+                    if capture(&native.services, &excluded)
+                        .await
+                        .map_err(|_| AppError::new("unavailable", "Owned activity unavailable."))?
+                        != saved
+                    {
+                        return Err(AppError::new(
+                            "stale_state",
+                            "Owned playback or work changed.",
+                        ));
+                    }
+                    let services = native.services.clone();
+                    // Pending sheets authorize admission only. Accepted immutable work outlives
+                    // preview expiry/removal; cancellation, epoch and live phone authority do not.
+                    let authorize: EffectCheck = std::sync::Arc::new(move || {
                         if cancel.is_cancelled() {
                             return Err(AppError::new("cancelled", "End session cancelled."));
                         }
@@ -296,42 +316,17 @@ pub(crate) async fn dispatch_with<B: SessionBackend>(
                             |_| AppError::new("forbidden", "Phone authorization changed."),
                         )?;
                         crate::control::settings::check_epoch(&native, &expected)
-                            .map_err(|_| AppError::new("stale_state", "Session changed."))?;
-                        if let Some(op) = native
-                            .services
-                            .operations()
-                            .lookup_request(&actor, &expected.id)?
-                        {
-                            excluded.push(op.operation_id.as_str().into());
-                        }
-                        if capture(&native.services, &excluded).await.map_err(|_| {
-                            AppError::new("unavailable", "Owned activity unavailable.")
-                        })? != saved
-                        {
-                            return Err(AppError::new(
-                                "stale_state",
-                                "Owned playback or work changed.",
-                            ));
-                        }
-                        let services = native.services.clone();
-                        // Pending sheets authorize admission only. Accepted immutable work outlives
-                        // preview expiry/removal; cancellation, epoch and live phone authority do not.
-                        let authorize: EffectCheck = std::sync::Arc::new(move || {
-                            if cancel.is_cancelled() {
-                                return Err(AppError::new("cancelled", "End session cancelled."));
-                            }
-                            crate::control::settings::authorize_active(&native, &actor).map_err(
-                                |_| AppError::new("forbidden", "Phone authorization changed."),
-                            )?;
-                            crate::control::settings::check_epoch(&native, &expected)
-                                .map_err(|_| AppError::new("stale_state", "Session changed."))
-                        });
-                        authorize()?;
-                        backend.stop(&services, saved, authorize).await
+                            .map_err(|_| AppError::new("stale_state", "Session changed."))
+                    });
+                    authorize()?;
+                    let had_playback = !saved.activity.is_idle();
+                    let result = backend.stop(&services, saved, authorize).await;
+                    if result.is_ok()
+                        || (had_playback && activity::identity(&services.state).await.is_idle())
+                    {
+                        return result.and(services.state.idle.end().await);
                     }
-                    .await;
-                    let released = idle.end().await;
-                    result.and(released)
+                    result
                 },
             )
             .map_err(native_error)?;
@@ -582,7 +577,8 @@ mod tests {
     }
     #[tokio::test]
     async fn task20_revocation_during_native_wait_blocks_end_session_effect() {
-        let (_dir, d, owner) = fixture();
+        let (_dir, mut d, owner) = fixture();
+        d.services.state.idle = super::super::idle::lifetime_tests::active_session().await;
         let paused = Arc::new(PausedState::default());
         let fake = Paused(paused.clone());
         let p = dispatch_with(&d, &owner, request(&d, "prepare", None), fake.clone())
@@ -609,6 +605,7 @@ mod tests {
         assert_eq!(result.status, OperationStatus::Failed);
         assert_eq!(result.error_code, Some(ErrorCode::Forbidden));
         assert_eq!(paused.effects.load(Ordering::SeqCst), 0);
+        assert_eq!(d.services.state.idle.status(), IdleInhibition::Active);
     }
     #[tokio::test]
     async fn task20_accepted_end_session_outlives_expired_or_removed_preview_without_replay() {
@@ -711,6 +708,7 @@ mod tests {
             .lock()
             .unwrap()
             .insert("source".into(), replacement.clone());
+        assert_ne!(saved, capture(&d.services, &[]).await.unwrap());
         cancel_captured_work(&d.services, &saved).unwrap();
         assert!(original.is_cancelled());
         assert!(!replacement.is_cancelled());

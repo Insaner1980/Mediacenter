@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TargetRegistry } from '../target-registry.mjs';
-test('target generation prevents input after navigation, detach, replacement and restart', () => {
- for (const reason of ['navigation','detach','replacement','restart','unenroll']) {
- const r=new TargetRegistry(); r.enroll('p'); r.issue('p','n','http://127.0.0.1:41739',100);
- r.launch('p','n',1); const target=r.attach(9,'s','g');
- assert.equal(r.validate('s','g',9).tabId,9);
- assert.throws(()=>r.validate('s','g',10));
- r.invalidate(reason); assert.throws(()=>r.validate('s','g',9));
- assert.equal(target.tabId,9);
- }
+test('only the active generation can dispatch to the enrolled tab', () => {
+  const registry = new TargetRegistry();
+  registry.enroll('profile');
+  registry.issue('profile', 'nonce', 'http://127.0.0.1:41739', 100);
+  registry.launch('profile', 'nonce', 1);
+  registry.attach(9, 'session', 'generation-1');
+  registry.attach(9, 'session', 'generation-2');
+  assert.equal(registry.validate('session', 'generation-2', 9).tabId, 9);
+  assert.throws(() => registry.validate('session', 'generation-1', 9), /stale_target/);
+  assert.throws(() => registry.validate('session', 'generation-2', 10), /stale_target/);
+  registry.invalidate();
+  assert.throws(() => registry.validate('session', 'generation-2', 9), /stale_target/);
 });

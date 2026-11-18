@@ -1,11 +1,53 @@
 import { readdir, readFile } from 'node:fs/promises';
+
+function withoutCssComments(source) {
+  const parts = [];
+  let start = 0;
+  let quote = '';
+  let inUrl = false;
+  for (let position = 0; position < source.length; position++) {
+    const char = source[position];
+    if (char === '\\') { position++; continue; }
+    if (inUrl) {
+      if (char === ')') inUrl = false;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if ((char === 'u' || char === 'U') && source.slice(position, position + 4).toLowerCase() === 'url('
+        && !/[\w-]/.test(source[position - 1] ?? '')) {
+      let valueStart = position + 4;
+      while (/[ \t\r\n\f]/.test(source[valueStart] ?? '')) valueStart++;
+      if (source[valueStart] !== '"' && source[valueStart] !== "'") {
+        inUrl = true;
+        position = valueStart - 1;
+        continue;
+      }
+    }
+    if (!source.startsWith('/*', position)) continue;
+    parts.push(source.slice(start, position), ' ');
+    const end = source.indexOf('*/', position + 2);
+    if (end < 0) return parts.join('');
+    start = end + 2;
+    position = start - 1;
+  }
+  parts.push(source.slice(start));
+  return parts.join('');
+}
+
 async function check(directory) {
   for (const entry of await readdir(directory,{withFileTypes:true})) {
     const file = `${directory}/${entry.name}`;
     if (entry.isDirectory()) { if (entry.name !== 'testing') await check(file); continue; }
     if (!/\.(tsx?|css)$/.test(file)) continue;
     const source = await readFile(file,'utf8');
-    if (/[·•●⋯…]/u.test(source) || /border-radius\s*:\s*50%/.test(source)) throw new Error(`Added dot decoration in ${file}`);
+    const declarations = file.endsWith('.css') ? withoutCssComments(source) : source;
+    if (/[·•●⋯…]/u.test(source) || /border-radius\s*:\s*50%/.test(declarations)) {
+      throw new Error(`Added dot decoration in ${file}`);
+    }
   }
 }
 await check('src');
