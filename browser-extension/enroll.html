@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mediacenter Remote</title>
+  <link rel="stylesheet" href="enroll.css">
+  <script type="module" src="enroll.mjs"></script>
+</head>
+<body>
+  <h1>Mediacenter Remote</h1>
+  <form id="setup">
+    <label for="kind">Profile type</label>
+    <select id="kind">
+      <option value="ordinary">Ordinary Chrome</option>
+      <option value="managed">Mediacenter-managed Chrome</option>
+    </select>
+    <div id="service-choice" hidden>
+      <label for="service">Service</label>
+      <select id="service">
+        <option value="">Select a service</option>
+      </select>
+    </div>
+    <button id="enroll" type="submit">Enroll this profile</button>
+  </form>
+  <p id="status" role="status">Checking enrollment…</p>
+  <button id="adopt-popup" type="button" hidden>Control this sign-in tab</button>
+  <button id="unenroll" type="button" hidden>Remove enrollment</button>
+</body>
+</html>
