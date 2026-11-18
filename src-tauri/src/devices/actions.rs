@@ -8,6 +8,7 @@ use crate::{
 };
 use serde::Serialize;
 use std::future::Future;
+use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
 pub trait DeviceBackend: Sync {
@@ -152,7 +153,7 @@ pub async fn eject_drive<B: DeviceBackend, L: SourceLifecycle>(
     if confirmed != ids {
         return Err(changed());
     }
-    eject_group(backend, lifecycle, drive_id, &initial).await
+    eject_group(backend, lifecycle, drive_id, &initial, None).await
 }
 /// Execute only the exact physical identity retained by a remote preview.
 pub(crate) async fn eject_group<B: DeviceBackend, L: SourceLifecycle>(
@@ -160,12 +161,16 @@ pub(crate) async fn eject_group<B: DeviceBackend, L: SourceLifecycle>(
     lifecycle: &L,
     drive_id: &str,
     confirmed: &(Vec<Drive>, Vec<Volume>),
+    cancel: Option<&CancellationToken>,
 ) -> Result<EjectOutcome, AppError> {
     let initial = group(&backend.discover().await?, drive_id)?;
     if !same_group(confirmed, &initial) {
         return Err(changed());
     }
     let ids = initial.0.iter().map(|d| d.id.clone()).collect();
+    if cancel.is_some_and(CancellationToken::is_cancelled) {
+        return Err(AppError::new("cancelled", "Removal cancelled."));
+    }
     let _guard = lifecycle.quiesce(&initial.1).await?;
     let fresh = group(&backend.discover().await?, drive_id)?;
     if !same_group(&initial, &fresh) {

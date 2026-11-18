@@ -17,6 +17,10 @@ const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const inputs=[
  'scripts/task21-interop.mjs','scripts/task21-interop.test.mjs','protocol/remote/v1/schema.json','protocol/remote/v1/fixtures.json','protocol/remote/v1/manifest.json',
  'src-tauri/Cargo.toml','src-tauri/Cargo.lock','src-tauri/build.rs',
+ // dispatcher_trace opens the real application database and constructs native services.
+ 'src-tauri/src/app_state.rs', 'src-tauri/src/control/mod.rs', 'src-tauri/src/storage/database.rs',
+ 'src-tauri/src/music/queue.rs', 'src-tauri/src/player/mpv.rs', 'src-tauri/src/streaming/catalog.rs',
+ 'src-tauri/migrations/0001_initial.sql', 'src-tauri/migrations/0002_remote_control.sql',
  ...['interop_tests','mod','protocol','protocol_json','protocol_methods','adapters','dispatch','operations','store','server','state','event_hub'].map(name=>`src-tauri/src/remote/${name}.rs`),
 ];
 const remoteInputs=[`${kotlin}protocol/RemoteJson.kt`,`${kotlin}protocol/Messages.kt`,`${kotlin}protocol/StrictJson.kt`,`${kotlin}RemoteStateReducer.kt`];

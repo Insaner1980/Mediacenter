@@ -4,14 +4,29 @@ function withoutCssComments(source) {
   const parts = [];
   let start = 0;
   let quote = '';
+  let inUrl = false;
   for (let position = 0; position < source.length; position++) {
     const char = source[position];
     if (char === '\\') { position++; continue; }
+    if (inUrl) {
+      if (char === ')') inUrl = false;
+      continue;
+    }
     if (quote) {
       if (char === quote) quote = '';
       continue;
     }
     if (char === '"' || char === "'") { quote = char; continue; }
+    if ((char === 'u' || char === 'U') && source.slice(position, position + 4).toLowerCase() === 'url('
+        && !/[\w-]/.test(source[position - 1] ?? '')) {
+      let valueStart = position + 4;
+      while (/[ \t\r\n\f]/.test(source[valueStart] ?? '')) valueStart++;
+      if (source[valueStart] !== '"' && source[valueStart] !== "'") {
+        inUrl = true;
+        position = valueStart - 1;
+        continue;
+      }
+    }
     if (!source.startsWith('/*', position)) continue;
     parts.push(source.slice(start, position), ' ');
     const end = source.indexOf('*/', position + 2);

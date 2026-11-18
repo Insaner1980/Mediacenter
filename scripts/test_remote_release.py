@@ -242,6 +242,7 @@ class RemoteReleaseTest(unittest.TestCase):
 
         for name, values in (
             ("manifest", {**manifest, "protocolMajor": 2}),
+            ("manifest", {**manifest, "protocolMajor": True}),
             ("schema", {"x-methods": []}),
             ("fixtures", {"requests": []}),
         ):

@@ -50,27 +50,28 @@ export function RemoteSettings({api = remoteApi}: {api?: typeof remoteApi}) {
     setError('');
     setSettingsError('');
     setDevicesError('');
-    let refreshing = false;
-    const refresh = async () => {
-      if (refreshing) return;
-      refreshing = true;
-      const issuedEpoch = epoch.current;
-      const isCurrent = () => owner.current === token && issuedEpoch === epoch.current && lock.current !== token;
-      try {
-        await Promise.all([
-          api.settings().then(value => {
-            if (isCurrent()) { receive(value); setSettingsError(''); }
-          }, e => { if (isCurrent()) setSettingsError(errorMessage(e)); }),
-          api.devices().then(phones => {
-            if (isCurrent()) { setDevices(phones); setDevicesError(''); }
-          }, e => { if (isCurrent()) setDevicesError(errorMessage(e)); }),
-        ]);
-      } finally {
-        refreshing = false;
-      }
-    };
-    void refresh();
-    const timer = setInterval(() => void refresh(), 2000);
+    function poll<T>(read: () => Promise<T>, apply: (value: T) => void, report: (error: string) => void) {
+      let refreshing = false;
+      return async () => {
+        if (refreshing || lock.current === token) return;
+        refreshing = true;
+        const issuedEpoch = epoch.current;
+        const isCurrent = () => owner.current === token && issuedEpoch === epoch.current && lock.current !== token;
+        try {
+          const value = await read();
+          if (isCurrent()) { apply(value); report(''); }
+        } catch (e) {
+          if (isCurrent()) report(errorMessage(e));
+        } finally {
+          refreshing = false;
+        }
+      };
+    }
+    const refreshSettings = poll(api.settings, receive, setSettingsError);
+    const refreshDevices = poll(api.devices, setDevices, setDevicesError);
+    function refresh() { void refreshSettings(); void refreshDevices(); }
+    refresh();
+    const timer = setInterval(refresh, 2000);
     return () => {
       owner.current = null;
       epoch.current++;

@@ -96,12 +96,12 @@ test('the UI copy check finds 50% border radius with or without comments', t => 
   mkdirSync(resolve(checkout, 'src'));
   const path = resolve(checkout, 'src/shape.css');
   for (const value of ['50%', '/* round */ 50%', '/* first */ /* second */ 50%']) {
-    writeFileSync(path, `.shape { content: "/*"; border-radius: ${value}; }\n`);
+    writeFileSync(path, `.shape { content: "/*"; background: URL( /icons/*circle.svg); border-radius: ${value}; }\n`);
     const result = run(process.execPath, 'scripts/verify-ui-copy.mjs');
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /Added dot decoration/);
   }
-  writeFileSync(path, '/* Avoid border-radius: 50%. */\n.shape { border-radius: /* slight */ 5%; }\n');
+  writeFileSync(path, '/* Avoid border-radius: 50%. */\n.shape { border-radius: /* slight */ 5%; width: /* half */ 50%; }\n');
   const result = run(process.execPath, 'scripts/verify-ui-copy.mjs');
   assert.equal(result.status, 0, result.stderr);
 });

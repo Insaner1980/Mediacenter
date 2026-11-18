@@ -14,7 +14,7 @@ function SourceContent({kind,onChanged}:{kind?:MediaKind;onChanged?:()=>void}){
  async function run(work:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await work();}catch(e){setError(errorMessage(e));}finally{lock.current=false;setBusy(false);}}
  const canAdd=kind?kinds.includes(kind):kinds.length>0;
  async function refreshList(){
-  try{await state.refresh();setRetryList(false);}
+  try{const refreshed=await state.refresh();setRetryList(!refreshed);}
   catch(e){setRetryList(true);throw e;}
  }
  async function addFolder(){

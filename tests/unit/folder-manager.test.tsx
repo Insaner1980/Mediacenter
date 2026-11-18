@@ -5,6 +5,7 @@ import {expect,it,vi} from 'vitest';
 import {AppServicesProvider,productionServices} from '../../src/app/AppServices';
 import {SourceManagerProvider} from '../../src/features/library/SourceManagerProvider';
 import {FolderManager} from '../../src/features/library/FolderManager';
+import type {MediaSource} from '../../src/app/contracts';
 it('keeps scan cancellation available after closing and reopening the sheet',async()=>{
  let done:()=>void=()=>{};const api={...productionServices.backend,sources:async()=>[{id:'source-a',label:'Music',displayPath:'/media/music',kinds:['audio' as const],availability:'available',removable:false}],scanSource:vi.fn(()=>new Promise<void>(r=>{done=r;})),cancelScan:vi.fn(async()=>{})};
  function View(){const [open,setOpen]=useState(true);return <><button onClick={()=>setOpen(true)}>Folders</button><FolderManager open={open} kind="audio" onRequestClose={()=>setOpen(false)}/></>;}
@@ -56,4 +57,42 @@ it('closes removal confirmation when the source was removed but the list fails t
  expect(await screen.findByRole('alert')).toHaveTextContent('Source list unavailable');
  expect(screen.queryByRole('dialog',{name:'Remove from library?'})).not.toBeInTheDocument();
  expect(screen.queryByRole('button',{name:'Remove Pictures from library'})).not.toBeInTheDocument();
+});
+it('offers a list retry when a failed scan refresh supersedes the add refresh',async()=>{
+ const existing:MediaSource={id:'existing',label:'Old pictures',displayPath:'/old',kinds:['photo'],availability:'available',removable:false};
+ const added:MediaSource={...existing,id:'added',label:'New pictures',displayPath:'/new'};
+ let finishScan:()=>void=()=>{},finishAddList:(value:MediaSource[])=>void=()=>{};
+ const sources=vi.fn()
+  .mockResolvedValueOnce([existing])
+  .mockImplementationOnce(()=>new Promise<MediaSource[]>(resolve=>{finishAddList=resolve;}))
+  .mockRejectedValueOnce(Error('Scan list unavailable'))
+  .mockResolvedValue([existing,added]);
+ const addSource=vi.fn(async()=>added.id);
+ const api={...productionServices.backend,sources,chooseSource:async()=>({grantId:'grant-123',displayPath:'/new',expiresInSeconds:60}),addSource,scanSource:()=>new Promise<void>(resolve=>{finishScan=resolve;})};
+ const user=userEvent.setup();
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ await user.click(await screen.findByRole('button',{name:'Scan Old pictures'}));
+ await user.click(screen.getByRole('button',{name:'Add folder'}));
+ await user.click(screen.getByRole('button',{name:'Add selected folder'}));
+ await waitFor(()=>expect(sources).toHaveBeenCalledTimes(2));
+ await act(async()=>finishScan());
+ expect(await screen.findByRole('alert')).toHaveTextContent('Scan list unavailable');
+ await act(async()=>finishAddList([existing,added]));
+ expect(screen.queryByRole('button',{name:'Scan New pictures'})).toBeNull();
+ await user.click(screen.getByRole('button',{name:'Retry folder list'}));
+ expect(await screen.findByRole('button',{name:'Scan New pictures'})).toBeVisible();
+ expect(screen.getByRole('alert')).toHaveTextContent('Scan list unavailable');
+ expect(addSource).toHaveBeenCalledTimes(1);
+});
+it('clears the startup list error once the folder list loads',async()=>{
+ const source:MediaSource={id:'source-a',label:'Pictures',displayPath:'/photos',kinds:['photo'],availability:'available',removable:false};
+ const sources=vi.fn().mockRejectedValueOnce(Error('Initial folder list unavailable')).mockResolvedValue([source]);
+ const api={...productionServices.backend,sources,chooseSource:async()=>({grantId:'grant-123',displayPath:'/photos',expiresInSeconds:60}),addSource:async()=>source.id};
+ const user=userEvent.setup();
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api}}><SourceManagerProvider><FolderManager open kind="photo" onRequestClose={()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ expect(await screen.findByRole('alert')).toHaveTextContent('Initial folder list unavailable');
+ await user.click(screen.getByRole('button',{name:'Add folder'}));
+ await user.click(screen.getByRole('button',{name:'Add selected folder'}));
+ await screen.findByRole('button',{name:'Scan Pictures'});
+ expect(screen.queryByRole('alert')).toBeNull();
 });

@@ -3,6 +3,7 @@ use crate::{
     contracts::{AppError, ServiceDefinition, ServiceId, VpnSnapshot},
 };
 use std::future::Future;
+use tokio::sync::MutexGuard;
 use tokio_util::sync::CancellationToken;
 pub fn evaluate_launch(required: bool, vpn: &VpnSnapshot, now: u64) -> Result<(), AppError> {
     if !required {
@@ -41,27 +42,60 @@ pub(crate) async fn launch_after_preflight<T>(
     observe: impl Future<Output = Result<VpnSnapshot, AppError>>,
     launch: impl Future<Output = Result<T, AppError>>,
 ) -> Result<T, AppError> {
+    let _permit = admit_launch(state, service, cancel, observe).await?;
+    launch.await
+}
+
+pub(crate) struct LaunchPermit<'a> {
+    _requirement: MutexGuard<'a, ()>,
+    _provider: Option<MutexGuard<'a, ()>>,
+}
+
+pub(crate) async fn admit_launch<'a>(
+    state: &'a AppState,
+    service: ServiceId,
+    cancel: &CancellationToken,
+    observe: impl Future<Output = Result<VpnSnapshot, AppError>>,
+) -> Result<LaunchPermit<'a>, AppError> {
     let cancelled = || AppError::new("cancelled", "Service opening was cancelled.");
-    if cancel.is_cancelled() {
-        return Err(cancelled());
-    }
+    let requirement = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Err(cancelled()),
+        guard = state.vpn_requirement_gate.lock() => guard,
+    };
     if !requires_vpn(&state.snapshot()?.services, service) {
-        return launch.await;
+        return Ok(LaunchPermit {
+            _requirement: requirement,
+            _provider: None,
+        });
     }
-    // Keep app-driven provider changes out between the final observation and handoff.
-    let _gate = tokio::select! {
+    // Keep policy edits available while a provider operation is already in flight.
+    drop(requirement);
+    let provider = tokio::select! {
         biased;
         _ = cancel.cancelled() => return Err(cancelled()),
         gate = state.vpn_gate.lock() => gate,
     };
+    let requirement = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Err(cancelled()),
+        guard = state.vpn_requirement_gate.lock() => guard,
+    };
+    if !requires_vpn(&state.snapshot()?.services, service) {
+        return Ok(LaunchPermit {
+            _requirement: requirement,
+            _provider: None,
+        });
+    }
     let observation = observe.await;
     if cancel.is_cancelled() {
         return Err(cancelled());
     }
-    if requires_vpn(&state.snapshot()?.services, service) {
-        evaluate_launch(true, &observation?, now_ms())?;
-    }
-    launch.await
+    evaluate_launch(true, &observation?, now_ms())?;
+    Ok(LaunchPermit {
+        _requirement: requirement,
+        _provider: Some(provider),
+    })
 }
 
 #[cfg(test)]
@@ -182,6 +216,32 @@ mod tests {
         .unwrap()
         .unwrap();
         assert!(launched);
+    }
+    #[tokio::test]
+    async fn direct_handoff_keeps_the_current_service_requirement_until_it_finishes() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().into()).unwrap();
+        save_requirement(&state, ServiceId::Youtube, false).unwrap();
+        launch_after_preflight(
+            &state,
+            ServiceId::Youtube,
+            &CancellationToken::new(),
+            async {
+                panic!("direct launches should not observe the provider");
+            },
+            async {
+                let update = save_requirement(&state, ServiceId::Youtube, true);
+                assert!(matches!(update, Err(error) if error.code == "busy"));
+                assert!(!requires_vpn(
+                    &state.snapshot().unwrap().services,
+                    ServiceId::Youtube
+                ));
+                Ok(())
+            },
+        )
+        .await
+        .unwrap();
+        save_requirement(&state, ServiceId::Youtube, true).unwrap();
     }
     #[tokio::test]
     async fn cancellation_during_the_final_vpn_read_blocks_launch() {

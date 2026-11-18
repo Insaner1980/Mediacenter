@@ -41,3 +41,24 @@ it('returns to the previous results when the next page fails',async()=>{
  await user.click(screen.getByRole('button',{name:'Previous page'}));
  await waitFor(()=>expect(screen.getByRole('button',{name:'Play Film'})).toBeEnabled());
 });
+it('retries the same previous page if the first request fails',async()=>{
+ let failPrevious=false;
+ const queryMedia=vi.fn<typeof productionServices.backend.queryMedia>(async(_kind,_source,_query,cursor)=>{
+  if(cursor==='second'&&failPrevious){failPrevious=false;throw Error('Previous page unavailable');}
+  const displayName=cursor==='third'?'Third film':cursor==='second'?'Second film':'First film';
+  return {items:[{...item,displayName,resumePositionMs:null}],nextCursor:cursor==='third'?null:cursor==='second'?'third':'second'};
+ });
+ const api={...productionServices.backend,ensureDefaultSource:async()=>null,sources:async()=>[],queryMedia};
+ render(<AppServicesProvider services={{...productionServices,canUseMedia:true,backend:api,observeSources:async()=>()=>{}}}><SourceManagerProvider><VideosScreen onPlay={async()=>{}}/></SourceManagerProvider></AppServicesProvider>);
+ const user=userEvent.setup();
+ await user.click(await screen.findByRole('button',{name:'Next page'}));
+ await screen.findByRole('button',{name:'Play Second film'});
+ await user.click(screen.getByRole('button',{name:'Next page'}));
+ await screen.findByRole('button',{name:'Play Third film'});
+ failPrevious=true;
+ await user.click(screen.getByRole('button',{name:'Previous page'}));
+ expect(await screen.findByRole('alert')).toHaveTextContent('Previous page unavailable');
+ await user.click(screen.getByRole('button',{name:'Previous page'}));
+ expect(await screen.findByRole('button',{name:'Play Second film'})).toBeEnabled();
+ expect(queryMedia).toHaveBeenLastCalledWith('video',null,'','second');
+});

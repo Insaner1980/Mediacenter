@@ -4,6 +4,7 @@ import { services } from './service-catalog.mjs';
 const host = 'io.emma.mediacenter.browser';
 const enrollmentKey = 'remoteEnrollment';
 const alarmName = 'mediacenter-browser-reconnect';
+const wakeLifetimeMs = 20_000;
 const knownErrors = new Set(['stale_target', 'stale_viewport', 'origin_pending', 'bridge_unavailable', 'busy']);
 
 function validSelection(kind, service) {
@@ -17,9 +18,10 @@ export class ProfileBridge {
     this.session = session;
     this.actions = Promise.resolve();
     this.wakePages = new Map();
-    chrome.tabs.onRemoved.addListener(tabId => this.forgetWakeTab(tabId));
+    chrome.tabs.onRemoved.addListener(tabId => this.invalidateWakeTab(tabId));
+    chrome.tabs.onReplaced.addListener((_, tabId) => this.invalidateWakeTab(tabId));
     chrome.tabs.onUpdated.addListener((tabId, change) => {
-      if (change.url !== undefined) this.forgetWakeTab(tabId);
+      if (change.url !== undefined || change.status === 'loading') this.invalidateWakeTab(tabId);
     });
     chrome.runtime.onStartup.addListener(() => this.connect().catch(() => {}));
     chrome.runtime.onInstalled.addListener(() => this.connect().catch(() => {}));
@@ -107,25 +109,54 @@ export class ProfileBridge {
     }
   }
 
-  wake(nonce, tabId) {
-    return this.serialize(async () => {
-      const enrollment = await this.savedEnrollment();
-      if (!enrollment) throw Error('not_enrolled');
-      if (enrollment.kind !== 'managed' || !isUuid(nonce) || !Number.isInteger(tabId)) {
-        throw Error('invalid_profile');
-      }
-      await this.connectSaved();
-      if (!this.port || this.wakePages.has(nonce) || !this.post(this.port, { type: 'wake', nonce })) {
-        throw Error('bridge_unavailable');
-      }
-      this.wakePages.set(nonce, tabId);
-    });
+  async wake(nonce, tabId) {
+    if (!isUuid(nonce) || !Number.isInteger(tabId)) throw Error('invalid_profile');
+    if (this.wakePages.has(nonce)) throw Error('bridge_unavailable');
+    const page = { tabId, url: `${this.chrome.runtime.getURL('launch.html')}#${nonce}` };
+    this.wakePages.set(nonce, page);
+    try {
+      await this.serialize(async () => {
+        const enrollment = await this.savedEnrollment();
+        if (!enrollment) throw Error('not_enrolled');
+        if (enrollment.kind !== 'managed') throw Error('invalid_profile');
+        await this.connectSaved();
+        if (!await this.isWakePageCurrent(page) || page.tabId === undefined || !this.port) {
+          throw Error('bridge_unavailable');
+        }
+        page.port = this.port;
+        if (!this.post(page.port, { type: 'wake', nonce })) throw Error('bridge_unavailable');
+        page.timer = setTimeout(() => this.clearWake(nonce, page), wakeLifetimeMs);
+      });
+    } catch (error) {
+      this.clearWake(nonce, page);
+      throw error;
+    }
   }
 
-  forgetWakeTab(tabId) {
-    for (const [nonce, pendingTab] of this.wakePages) {
-      if (pendingTab === tabId) this.wakePages.delete(nonce);
+  invalidateWakeTab(tabId) {
+    for (const page of this.wakePages.values()) {
+      if (page.tabId === tabId) page.tabId = undefined;
     }
+  }
+
+  async isWakePageCurrent(page) {
+    if (page.tabId === undefined) return false;
+    const tab = await this.chrome.tabs.get(page.tabId).catch(() => null);
+    return tab?.id === page.tabId && tab?.url === page.url && !tab.pendingUrl;
+  }
+
+  clearWake(nonce, page) {
+    if (this.wakePages.get(nonce) !== page) return;
+    clearTimeout(page.timer);
+    this.wakePages.delete(nonce);
+  }
+
+  async closeWakePage(nonce, page, port) {
+    if (await this.isWakePageCurrent(page) && page.tabId !== undefined
+      && this.port === port && this.wakePages.get(nonce) === page) {
+      this.chrome.tabs.remove(page.tabId).catch(() => {});
+    }
+    this.clearWake(nonce, page);
   }
 
   receive(port, enrollment, message) {
@@ -136,16 +167,15 @@ export class ProfileBridge {
     }
     if (!this.connected || !isUuid(message?.id) || !message.command) return;
     const { id, command } = message;
+    const page = command.type === 'launch' ? this.wakePages.get(command.nonce) : undefined;
     this.session.command(command, enrollment).then(
       () => {
-        if (this.post(port, { type: 'reply', id, ok: true }) && command.type === 'launch') {
-          const tabId = this.wakePages.get(command.nonce);
-          this.wakePages.delete(command.nonce);
-          if (tabId !== undefined) this.chrome.tabs.remove(tabId).catch(() => {});
+        if (this.post(port, { type: 'reply', id, ok: true }) && page?.port === port) {
+          return this.closeWakePage(command.nonce, page, port);
         }
       },
       failure => {
-        if (this.port === port && command.type === 'launch') this.wakePages.delete(command.nonce);
+        if (page?.port === port) this.clearWake(command.nonce, page);
         this.post(port, {
           type: 'reply', id, ok: false,
           error: knownErrors.has(failure.message) ? failure.message : 'bridge_unavailable',
@@ -174,7 +204,9 @@ export class ProfileBridge {
     if (!port || this.port !== port) return;
     this.port = null;
     this.connected = false;
-    this.wakePages.clear();
+    for (const [nonce, page] of this.wakePages) {
+      if (page.port === port) this.clearWake(nonce, page);
+    }
     this.session.disconnect();
   }
 }

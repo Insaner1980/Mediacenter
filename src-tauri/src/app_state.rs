@@ -39,6 +39,7 @@ pub struct AppState {
     pub home: Arc<Mutex<HomeSnapshot>>,
     pub operations: Arc<Mutex<HashMap<String, CancellationToken>>>,
     pub vpn_gate: Arc<tokio::sync::Mutex<()>>,
+    pub(crate) vpn_requirement_gate: Arc<tokio::sync::Mutex<()>>,
 }
 pub fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -151,6 +152,7 @@ impl AppState {
             home: Arc::new(Mutex::new(snapshot)),
             operations: Arc::new(Mutex::new(HashMap::new())),
             vpn_gate: Arc::new(tokio::sync::Mutex::new(())),
+            vpn_requirement_gate: Default::default(),
         })
     }
     pub async fn browser_active(&self) -> bool {

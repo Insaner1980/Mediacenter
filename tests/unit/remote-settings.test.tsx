@@ -27,6 +27,19 @@ it('shows remote settings when the paired-phone list cannot be fetched',async()=
  expect(await screen.findByRole('alert')).toHaveTextContent('Paired phone list unavailable');
  expect(screen.getByRole('button',{name:'Pair a phone'})).toBeEnabled();
 });
+it('continues refreshing settings while a paired-phone read is pending',async()=>{
+ vi.useFakeTimers();
+ try {
+  const api=fakeApi();
+  api.devices.mockImplementation(()=>new Promise(()=>{}));
+  api.settings.mockResolvedValueOnce(listening).mockResolvedValue({...listening,status:'Network settings refreshed'});
+  render(<RemoteSettings api={api}/>);
+  await act(async()=>{});
+  expect(screen.getByText('Listening')).toBeVisible();
+  await act(async()=>vi.advanceTimersByTimeAsync(2000));
+  expect(screen.getByText('Network settings refreshed')).toBeVisible();
+ } finally {vi.useRealTimers();}
+});
 it('keeps an active pairing available to cancel again after a failed cancellation',async()=>{
  const api=fakeApi();api.cancelPairing.mockRejectedValueOnce(new Error('Could not cancel pairing'));
  const user=userEvent.setup();render(<RemoteSettings api={api}/>);

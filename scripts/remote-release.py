@@ -195,7 +195,7 @@ def verify_debian_package(path, version, extension):
 def verify_protocol(desktop_root, desktop_revision, android_bundle):
     directory = "protocol/remote/v1"
     manifest = json.loads(source_file(desktop_root, desktop_revision, f"{directory}/manifest.json"))
-    if manifest != android_bundle["manifest"]:
+    if json.dumps(manifest, sort_keys=True) != json.dumps(android_bundle["manifest"], sort_keys=True):
         raise ValueError("Desktop and Android protocol manifests must agree.")
 
     desktop_payload = {
@@ -213,7 +213,7 @@ def verify_protocol(desktop_root, desktop_revision, android_bundle):
         """, verifier],
         input=json.dumps([desktop_payload, android_bundle]), text=True,
     )
-    if json.loads(computed) != [manifest, manifest]:
+    if json.dumps(json.loads(computed), sort_keys=True) != json.dumps([manifest, manifest], sort_keys=True):
         raise ValueError("Desktop and Android protocol payloads must match the protocol manifest at both revisions.")
     return manifest
 

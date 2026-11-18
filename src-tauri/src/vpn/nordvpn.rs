@@ -23,8 +23,20 @@ async fn command(
     .await
 }
 pub(crate) async fn observe_locked(state: &AppState) -> Result<VpnSnapshot, AppError> {
-    let status = command(&["status"], 5, CancellationToken::new()).await;
-    let settings = command(&["settings"], 5, CancellationToken::new()).await;
+    observe_locked_cancellable(state, &CancellationToken::new()).await
+}
+async fn observe_locked_cancellable(
+    state: &AppState,
+    cancel: &CancellationToken,
+) -> Result<VpnSnapshot, AppError> {
+    let status = command(&["status"], 5, cancel.clone()).await;
+    if cancel.is_cancelled() {
+        return Err(observation_cancelled());
+    }
+    let settings = command(&["settings"], 5, cancel.clone()).await;
+    if cancel.is_cancelled() {
+        return Err(observation_cancelled());
+    }
     let now = now_ms();
     let mut snapshot = match (&status, &settings) {
         (Ok(status), Ok(settings)) if status.success && settings.success => super::parser::parse(
@@ -64,26 +76,42 @@ pub(crate) async fn observe_locked(state: &AppState) -> Result<VpnSnapshot, AppE
     snapshot.revision = state.snapshot()?.vpn.revision + 1;
     Ok(snapshot)
 }
+fn observation_cancelled() -> AppError {
+    AppError::new("cancelled", "VPN status check cancelled.")
+}
 pub async fn refresh_locked(
     app: &tauri::AppHandle,
     state: &AppState,
 ) -> Result<VpnSnapshot, AppError> {
-    let snapshot = observe_locked(state).await?;
+    refresh_locked_cancellable(app, state, &CancellationToken::new()).await
+}
+pub(crate) async fn refresh_locked_cancellable(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    cancel: &CancellationToken,
+) -> Result<VpnSnapshot, AppError> {
+    let snapshot = observe_locked_cancellable(state, cancel).await?;
     events::publish(app, state, |home| home.vpn = snapshot.clone())?;
     Ok(snapshot)
 }
 pub(crate) async fn refresh_deferred(
     state: &AppState,
     publications: &events::DeferredPublications<'_>,
+    cancel: &CancellationToken,
 ) -> Result<VpnSnapshot, AppError> {
-    let _guard = state.vpn_gate.lock().await;
-    refresh_deferred_locked(state, publications).await
+    let _guard = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Err(observation_cancelled()),
+        guard = state.vpn_gate.lock() => guard,
+    };
+    refresh_deferred_locked(state, publications, cancel).await
 }
 pub(crate) async fn refresh_deferred_locked(
     state: &AppState,
     publications: &events::DeferredPublications<'_>,
+    cancel: &CancellationToken,
 ) -> Result<VpnSnapshot, AppError> {
-    let snapshot = observe_locked(state).await?;
+    let snapshot = observe_locked_cancellable(state, cancel).await?;
     publications.publish(|home| home.vpn = snapshot.clone())?;
     Ok(snapshot)
 }

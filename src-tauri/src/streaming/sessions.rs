@@ -60,18 +60,29 @@ pub async fn open(
                 ));
             }
             if vpn::policy::requires_vpn(&home.services, service) {
-                let observation = vpn::nordvpn::refresh_deferred(&state, &publications).await?;
+                let observation =
+                    vpn::nordvpn::refresh_deferred(&state, &publications, &cancel).await?;
                 vpn::policy::evaluate_launch(true, &observation, now_ms())?;
             }
-            if service == ServiceId::HboMax {
+            let destination = if service == ServiceId::HboMax {
                 super::browser::check_chrome_available()?;
-                return Ok(Destination::OrdinaryChrome);
-            }
-            let (monitors, computer) = crate::outputs::monitors::discover(&app)?;
-            let monitor =
-                crate::outputs::monitors::resolve(&monitors, None, computer.as_deref())?.clone();
-            super::browser::prepare_launch(&state.data_dir, service)?;
-            Ok(Destination::Managed(monitor))
+                Destination::OrdinaryChrome
+            } else {
+                let (monitors, computer) = crate::outputs::monitors::discover(&app)?;
+                let monitor =
+                    crate::outputs::monitors::resolve(&monitors, None, computer.as_deref())?
+                        .clone();
+                super::browser::prepare_launch(&state.data_dir, service)?;
+                Destination::Managed(monitor)
+            };
+            let permit = vpn::policy::admit_launch(
+                &state,
+                service,
+                &cancel,
+                vpn::nordvpn::refresh_deferred_locked(&state, &publications, &cancel),
+            )
+            .await?;
+            Ok((destination, permit))
         },
         |ended| {
             publications.publish(|home| {
@@ -84,32 +95,15 @@ pub async fn open(
         },
     )
     .await?;
-    let Some(destination) = prepared else {
+    let Some((destination, permit)) = prepared else {
         return Ok(());
     };
-    let started = vpn::policy::launch_after_preflight(
-        &state,
-        service,
-        &cancel,
-        vpn::nordvpn::refresh_deferred_locked(&state, &publications),
-        async {
-            match destination {
-                Destination::OrdinaryChrome => {
-                    super::external::open_hbo(cancel.clone()).await?;
-                    Ok(None)
-                }
-                Destination::Managed(monitor) => {
-                    let browser =
-                        super::browser::launch(&state.data_dir, service, cancel.clone()).await?;
-                    Ok(Some((browser, monitor)))
-                }
-            }
-        },
-    )
-    .await?;
-    let Some((mut started, monitor)) = started else {
-        return Ok(());
+    let monitor = match destination {
+        Destination::OrdinaryChrome => return super::external::open_hbo(cancel.clone()).await,
+        Destination::Managed(monitor) => monitor,
     };
+    let mut started = super::browser::launch(&state.data_dir, service, cancel.clone()).await?;
+    drop(permit);
     if cancel.is_cancelled() {
         let _ = started.close().await;
         return Err(AppError::new("cancelled", "Service opening was cancelled."));

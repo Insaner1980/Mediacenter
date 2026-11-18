@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
 };
 use tokio_util::sync::CancellationToken;
@@ -19,7 +19,7 @@ struct Fake {
     entered: Arc<tokio::sync::Notify>,
     release: Arc<tokio::sync::Notify>,
     wait: bool,
-    wait_for_discover: Arc<AtomicBool>,
+    wait_for_discover: Arc<AtomicUsize>,
 }
 impl Fake {
     fn new() -> Self {
@@ -66,7 +66,13 @@ impl Fake {
 }
 impl DeviceBackend for Fake {
     async fn discover(&self) -> Result<Devices, AppError> {
-        if self.wait_for_discover.swap(false, Ordering::SeqCst) {
+        if self
+            .wait_for_discover
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                remaining.checked_sub(1)
+            })
+            == Ok(1)
+        {
             self.entered.notify_one();
             self.release.notified().await;
         }
@@ -123,6 +129,15 @@ impl SourceLifecycle for Lifecycle {
 }
 #[tokio::test]
 async fn cancellation_during_drive_discovery_blocks_removal() {
+    assert_discovery_cancellation(1).await;
+}
+
+#[tokio::test]
+async fn cancellation_during_final_drive_discovery_preserves_playback_and_mounts() {
+    assert_discovery_cancellation(2).await;
+}
+
+async fn assert_discovery_cancellation(discovery: usize) {
     let (_dir, d, _) = fixture();
     let backend = Fake::new();
     let devices = backend.discover().await.unwrap();
@@ -132,7 +147,7 @@ async fn cancellation_during_drive_discovery_blocks_removal() {
         .unwrap();
     let lifecycle = Lifecycle::default();
     let cancel = CancellationToken::new();
-    backend.wait_for_discover.store(true, Ordering::SeqCst);
+    backend.wait_for_discover.store(discovery, Ordering::SeqCst);
     let cancel_while_discovering = async {
         backend.entered.notified().await;
         cancel.cancel();

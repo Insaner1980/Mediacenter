@@ -26,6 +26,9 @@ function isolated(t) {
   for (const path of [
     'scripts/task21-interop.mjs', 'scripts/task21-interop.test.mjs', 'protocol/remote/v1',
     'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'src-tauri/build.rs', 'src-tauri/src/remote',
+    'src-tauri/src/app_state.rs', 'src-tauri/src/control/mod.rs', 'src-tauri/src/storage/database.rs',
+    'src-tauri/src/music/queue.rs', 'src-tauri/src/player/mpv.rs', 'src-tauri/src/streaming/catalog.rs',
+    'src-tauri/migrations',
   ]) {
     mkdirSync(dirname(resolve(mc, path)), { recursive: true });
     cpSync(resolve(root, path), resolve(mc, path), { recursive: true });
@@ -50,7 +53,7 @@ function isolated(t) {
   write(resolve(bin, 'cargo'), [
     '#!/bin/sh',
     'cp test-corpus.json "$MEDIACENTER_TASK21_CORPUS_OUT" || exit 1',
-    'if [ -n "$TASK21_CHANGE_SOURCE" ]; then printf "\\n// changed during export\\n" >> "$TASK21_CHANGE_SOURCE"; fi',
+    'if [ "$TASK21_CHANGE_SOURCE" = 1 ]; then printf "\\n// changed during export\\n" >> src-tauri/src/remote/protocol.rs; fi',
     '',
   ].join('\n'), { mode: 0o700 });
 
@@ -59,7 +62,7 @@ function isolated(t) {
   const run = (action, env = {}) => spawnSync(process.execPath, [resolve(mc, 'scripts/task21-interop.mjs'), action], {
     cwd: mc,
     encoding: 'utf8',
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, ...env },
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, TASK21_CHANGE_SOURCE: '', ...env },
   });
   const prepareAndInstall = () => {
     const prepared = run('prepare');
@@ -86,13 +89,16 @@ test('prepared bytes verify and installed tampering fails with no protected-tree
 
 test('prepare does not publish a corpus or stage files if a source changes during export', t => {
   const fixture = isolated(t);
-  const changed = fixture.run('prepare', { TASK21_CHANGE_SOURCE: 'src-tauri/src/remote/protocol.rs' });
+  const changed = fixture.run('prepare', { TASK21_CHANGE_SOURCE: '1' });
   assert.notEqual(changed.status, 0);
   assert.match(changed.stderr, /source hashes changed during export/);
   assert.equal(existsSync(fixture.targetPlan), false);
 });
 
-for (const input of ['src-tauri/src/remote/protocol.rs', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'src-tauri/build.rs']) {
+for (const input of [
+  'src-tauri/src/remote/protocol.rs', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'src-tauri/build.rs',
+  'src-tauri/src/app_state.rs', 'src-tauri/src/control/mod.rs', 'src-tauri/migrations/0002_remote_control.sql',
+]) {
   test(`verify rejects a corpus after ${input} changes`, t => {
     const fixture = isolated(t);
     fixture.prepareAndInstall();
